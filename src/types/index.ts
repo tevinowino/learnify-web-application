@@ -1,11 +1,16 @@
+
 import type { User as FirebaseUser } from 'firebase/auth';
 import type { Timestamp } from 'firebase/firestore';
 
 export type UserRole = 'admin' | 'teacher' | 'student' | null;
 
+export type UserStatus = 'pending_verification' | 'active' | 'rejected' | 'disabled';
+
 export interface UserProfile extends FirebaseUser {
   role: UserRole;
   schoolId?: string;
+  schoolName?: string; // Used to display school name while pending verification
+  status?: UserStatus; // User's status in the system/school
   classIds?: string[]; // For students, classes they are enrolled in
   studentAssignments?: Record<string, { status: 'submitted' | 'graded' | 'missing'; grade?: string | number }>; // student specific assignment status: assignmentId -> { status, grade }
 }
@@ -112,3 +117,4 @@ export interface ClassStudentProgress { // Basic structure for progress tracking
   completedAssignments: number;
   overallGrade?: string; // Or more detailed metrics
 }
+
