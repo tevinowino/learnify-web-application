@@ -41,7 +41,7 @@ const addUserSchema = z.object({
   email: z.string().email({ message: "Invalid email address." }),
   password: z.string().min(6, { message: "Password must be at least 6 characters." }),
   displayName: z.string().min(2, { message: "Display name must be at least 2 characters." }),
-  role: z.enum(["teacher", "student"], { // Admins can only create teachers or students here
+  role: z.enum(["teacher", "student"], { 
     required_error: "Please select a role for the new user.",
   }),
 });
@@ -74,27 +74,24 @@ export default function AddUserPage() {
     setIsSubmitting(true);
 
     try {
-      // Note: adminCreateUserInSchool is simplified and might not create Firebase Auth user directly on client
-      // It's designed to set up a profile document. User might need to complete signup or admin shares temp credentials.
-      // This is a known simplification due to client-side limitations with Firebase Auth management.
       const newUserProfile = await adminCreateUserInSchool(
         values.email,
-        values.password, // In a real scenario, you might auto-generate or not set this.
+        values.password, 
         values.displayName,
-        values.role as UserRole, // Ensure role is correctly typed
+        values.role as UserRole, 
         currentUser.schoolId
       );
 
       if (newUserProfile) {
         toast({
-          title: "User Account Prepared",
-          description: `${values.displayName} can now sign up or log in with the provided credentials.`,
+          title: "User Account Created",
+          description: `${values.displayName}'s account has been successfully created. They can now log in.`,
         });
-        router.push("/admin/users"); // Redirect to user list
+        router.push("/admin/users"); 
       } else {
         toast({
           title: "Failed to Add User",
-          description: "Could not prepare the user account. The email might already be in use or an error occurred.",
+          description: "Could not create the user account. The email might already be in use or an error occurred.",
           variant: "destructive",
         });
       }
@@ -111,7 +108,6 @@ export default function AddUserPage() {
   }
   
   if (!currentUser || currentUser.role !== 'admin' || !currentUser.schoolId) {
-    // Could show a message or redirect if admin is not properly set up
     return <div className="p-4">You must be an admin of a school to add users.</div>;
   }
 
@@ -162,7 +158,7 @@ export default function AddUserPage() {
                 name="password"
                 render={({ field }) => (
                     <FormItem>
-                    <FormLabel htmlFor="password">Temporary Password</FormLabel>
+                    <FormLabel htmlFor="password">Initial Password</FormLabel>
                     <FormControl>
                         <Input id="password" type="password" placeholder="••••••••" {...field} />
                     </FormControl>
@@ -209,3 +205,4 @@ export default function AddUserPage() {
     </div>
   );
 }
+
