@@ -7,6 +7,7 @@ export interface UserProfile extends FirebaseUser {
   role: UserRole;
   schoolId?: string;
   classIds?: string[]; // For students, classes they are enrolled in
+  studentAssignments?: Record<string, { status: 'submitted' | 'graded' | 'missing'; grade?: string | number }>; // student specific assignment status: assignmentId -> { status, grade }
 }
 
 // Useful for when fetching users from collection and needing their Firestore document ID
@@ -49,12 +50,15 @@ export interface Class {
   schoolId: string;
   teacherId?: string; // UID of the assigned teacher
   studentIds?: string[]; // Array of student UIDs enrolled in the class
+  classInviteCode?: string; // Unique code for students to join this specific class
   createdAt: Timestamp;
   updatedAt?: Timestamp;
 }
 
 export interface ClassWithTeacherInfo extends Class {
   teacherDisplayName?: string;
+  submittedAssignmentsCount?: number; // For student dashboard: count of assignments they've submitted for this class
+  totalAssignmentsCount?: number;     // For student dashboard: total assignments in this class
 }
 
 export type SubmissionFormat = 'text_entry' | 'file_link';
@@ -63,17 +67,24 @@ export interface Assignment {
   id: string;
   classId: string;
   teacherId: string;
+  schoolId: string; // Added schoolId
   title: string;
   description: string;
   deadline: Timestamp;
   allowedSubmissionFormats: SubmissionFormat[];
   createdAt: Timestamp;
   updatedAt?: Timestamp;
-  totalSubmissions?: number; // Denormalized count
+  totalSubmissions?: number; // Denormalized count of actual submissions received
+  status?: 'submitted' | 'graded' | 'missing' | 'late'; // Student-specific status
 }
 
 export interface AssignmentWithClassInfo extends Assignment {
   className?: string;
+}
+
+export interface AssignmentWithClassAndSubmissionInfo extends AssignmentWithClassInfo {
+  submissionStatus?: 'submitted' | 'graded' | 'missing' | 'late';
+  submissionGrade?: string | number;
 }
 
 
@@ -87,7 +98,7 @@ export interface Submission {
   submissionType: SubmissionFormat;
   grade?: string | number;
   feedback?: string;
-  status: 'submitted' | 'graded' | 'late'; // 'late' could be determined at view time
+  status: 'submitted' | 'graded' | 'late'; // 'late' is determined at submission time vs deadline.
 }
 
 export interface SubmissionWithStudentName extends Submission {

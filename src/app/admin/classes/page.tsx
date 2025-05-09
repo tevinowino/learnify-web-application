@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useEffect, useState, useCallback } from 'react';
@@ -6,7 +5,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { Loader2, PlusCircle, BookCopy, Trash2, Edit, UserPlus, UserMinus, Users, ShieldCheck, Briefcase } from 'lucide-react';
+import { Loader2, PlusCircle, BookCopy, Trash2, Edit, UserPlus, UserMinus, Users, ShieldCheck, Briefcase, KeyRound, RefreshCw, Copy } from 'lucide-react';
 import type { ClassWithTeacherInfo, UserProfileWithId } from '@/types';
 import { useToast } from '@/hooks/use-toast';
 import {
@@ -42,6 +41,7 @@ export default function ManageClassesPage() {
     removeStudentFromClass,
     getStudentsInClass,
     getStudentsNotInClass,
+    regenerateClassInviteCode,
     loading: authLoading 
   } = useAuth();
   const { toast } = useToast();
@@ -51,6 +51,9 @@ export default function ManageClassesPage() {
   
   const [isLoadingPage, setIsLoadingPage] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isRegeneratingCode, setIsRegeneratingCode] = useState<string | null>(null);
+  const [copiedCode, setCopiedCode] = useState<string | null>(null);
+
 
   // State for "Create Class" Dialog
   const [newClassName, setNewClassName] = useState('');
@@ -61,6 +64,8 @@ export default function ManageClassesPage() {
   const [editingClass, setEditingClass] = useState<ClassWithTeacherInfo | null>(null);
   const [editedClassName, setEditedClassName] = useState('');
   const [selectedTeacherForEditClass, setSelectedTeacherForEditClass] = useState<string | undefined>(undefined);
+  const [currentClassInviteCode, setCurrentClassInviteCode] = useState<string | undefined>(undefined);
+
 
   // State for "Manage Students" Dialog
   const [managingStudentsClass, setManagingStudentsClass] = useState<ClassWithTeacherInfo | null>(null);
@@ -101,7 +106,7 @@ export default function ManageClassesPage() {
       setNewClassName('');
       setSelectedTeacherForNewClass(undefined);
       setIsCreateClassDialogOpen(false);
-      fetchClassesAndTeachers(); // Refresh list
+      fetchClassesAndTeachers(); 
     } else {
       toast({ title: "Error", description: "Failed to create class. Please try again.", variant: "destructive" });
     }
@@ -111,6 +116,7 @@ export default function ManageClassesPage() {
     setEditingClass(classItem);
     setEditedClassName(classItem.name);
     setSelectedTeacherForEditClass(classItem.teacherId || undefined);
+    setCurrentClassInviteCode(classItem.classInviteCode || 'N/A');
   };
 
   const handleUpdateClass = async () => {
@@ -124,23 +130,44 @@ export default function ManageClassesPage() {
     if (success) {
       toast({ title: "Class Updated!", description: `"${editedClassName}" has been successfully updated.` });
       setEditingClass(null);
-      fetchClassesAndTeachers(); // Refresh
+      fetchClassesAndTeachers(); 
     } else {
       toast({ title: "Error", description: "Failed to update class.", variant: "destructive" });
     }
   };
 
   const handleDeleteClass = async (classId: string, className: string) => {
-    if (!confirm(`Are you sure you want to delete the class "${className}"? This action cannot be undone.`)) return;
+    if (!confirm(`Are you sure you want to delete the class "${className}"? This action CANNOT be undone and will remove all associated assignments and student enrollments.`)) return;
     setIsSubmitting(true);
     const success = await deleteClass(classId);
     setIsSubmitting(false);
     if (success) {
       toast({ title: "Class Deleted!", description: `"${className}" has been successfully deleted.` });
-      fetchClassesAndTeachers(); // Refresh
+      fetchClassesAndTeachers(); 
     } else {
       toast({ title: "Error", description: "Failed to delete class.", variant: "destructive" });
     }
+  };
+  
+  const handleRegenerateClassCode = async (classId: string) => {
+    setIsRegeneratingCode(classId);
+    const newCode = await regenerateClassInviteCode(classId);
+    if (newCode) {
+      setCurrentClassInviteCode(newCode);
+      // Update the class in the local state for immediate UI update in the main list if needed
+      setClasses(prevClasses => prevClasses.map(c => c.id === classId ? {...c, classInviteCode: newCode} : c));
+      toast({ title: "Invite Code Regenerated!" });
+    } else {
+      toast({ title: "Error Regenerating Code", variant: "destructive" });
+    }
+    setIsRegeneratingCode(null);
+  };
+
+  const handleCopyCode = (code: string) => {
+    navigator.clipboard.writeText(code);
+    setCopiedCode(code);
+    toast({ title: "Copied to clipboard!" });
+    setTimeout(() => setCopiedCode(null), 2000);
   };
 
   const openManageStudentsDialog = async (classItem: ClassWithTeacherInfo) => {
@@ -159,11 +186,10 @@ export default function ManageClassesPage() {
 
   const handleEnrollStudent = async (studentId: string) => {
     if (!managingStudentsClass) return;
-    setIsSubmitting(true); // Consider a specific loader for this action
+    setIsSubmitting(true); 
     const success = await enrollStudentInClass(managingStudentsClass.id, studentId);
     if (success) {
       toast({ title: "Student Enrolled", description: "Student added to class."});
-      // Refresh student lists for the dialog
       if (currentUser?.schoolId && managingStudentsClass) {
         const [enrolled, available] = await Promise.all([
           getStudentsInClass(managingStudentsClass.id),
@@ -171,7 +197,7 @@ export default function ManageClassesPage() {
         ]);
         setStudentsInCurrentClass(enrolled);
         setStudentsAvailableForClass(available);
-        fetchClassesAndTeachers(); // Refresh class list to update student count
+        fetchClassesAndTeachers(); 
       }
     } else {
       toast({ title: "Enrollment Failed", variant: "destructive"});
@@ -238,7 +264,7 @@ export default function ManageClassesPage() {
             <DialogHeader>
               <DialogTitle>Create New Class</DialogTitle>
               <DialogDescription>
-                Enter the details for the new class.
+                Enter the details for the new class. An invite code will be generated automatically.
               </DialogDescription>
             </DialogHeader>
             <div className="grid gap-4 py-4">
@@ -298,7 +324,8 @@ export default function ManageClassesPage() {
                       <CardTitle>{classItem.name}</CardTitle>
                       <CardDescription>
                         Teacher: {classItem.teacherDisplayName || 'Not Assigned'} <br />
-                        Students: {classItem.studentIds?.length || 0}
+                        Students: {classItem.studentIds?.length || 0} <br />
+                        Invite Code: {classItem.classInviteCode || 'N/A'}
                       </CardDescription>
                     </div>
                      <div className="flex gap-2">
@@ -329,7 +356,7 @@ export default function ManageClassesPage() {
       {/* Edit Class Dialog */}
       {editingClass && (
         <Dialog open={!!editingClass} onOpenChange={(isOpen) => !isOpen && setEditingClass(null)}>
-          <DialogContent className="sm:max-w-[425px]">
+          <DialogContent className="sm:max-w-md">
             <DialogHeader>
               <DialogTitle>Edit Class: {editingClass.name}</DialogTitle>
               <DialogDescription>Modify the class details below.</DialogDescription>
@@ -357,6 +384,18 @@ export default function ManageClassesPage() {
                     ))}
                   </SelectContent>
                 </Select>
+              </div>
+               <div className="grid grid-cols-4 items-center gap-4">
+                <label htmlFor="class-invite-code" className="text-right col-span-1">Invite Code</label>
+                <div className="col-span-3 flex items-center gap-2">
+                    <Input id="class-invite-code" value={currentClassInviteCode} readOnly className="bg-muted/50 flex-grow"/>
+                    <Button variant="outline" size="icon" onClick={() => currentClassInviteCode && handleCopyCode(currentClassInviteCode)} disabled={!currentClassInviteCode || copiedCode === currentClassInviteCode}>
+                        {copiedCode === currentClassInviteCode ? <ShieldCheck className="h-4 w-4 text-green-500"/> : <Copy className="h-4 w-4"/>}
+                    </Button>
+                    <Button variant="outline" size="icon" onClick={() => handleRegenerateClassCode(editingClass.id)} disabled={isRegeneratingCode === editingClass.id}>
+                        {isRegeneratingCode === editingClass.id ? <Loader2 className="h-4 w-4 animate-spin"/> : <RefreshCw className="h-4 w-4"/>}
+                    </Button>
+                </div>
               </div>
             </div>
             <DialogFooter>

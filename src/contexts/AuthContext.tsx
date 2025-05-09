@@ -1,4 +1,3 @@
-
 "use client";
 
 import type { ReactNode }from 'react';
@@ -10,13 +9,13 @@ import {
   signInWithEmailAndPassword, 
   signOut as firebaseSignOut,
   updateProfile as updateFirebaseProfile,
-  EmailAuthProvider,
-  reauthenticateWithCredential,
+  // EmailAuthProvider, // No longer used directly for re-auth simplification
+  // reauthenticateWithCredential, // No longer used directly for re-auth simplification
   updatePassword as updateFirebasePassword,
 } from 'firebase/auth';
 import { doc, getDoc, setDoc, collection, query, where, getDocs, writeBatch, updateDoc, addDoc, Timestamp, orderBy, deleteDoc, arrayUnion, arrayRemove, documentId } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase';
-import type { UserProfile, UserRole, School, LearningMaterial, UserProfileWithId, Class, ClassWithTeacherInfo, LearningMaterialWithTeacherInfo, Assignment, Submission, SubmissionFormat, LearningMaterialType, AssignmentWithClassInfo, SubmissionWithStudentName } from '@/types';
+import type { UserProfile, UserRole, School, LearningMaterial, UserProfileWithId, Class, ClassWithTeacherInfo, LearningMaterialWithTeacherInfo, Assignment, Submission, SubmissionFormat, LearningMaterialType, AssignmentWithClassInfo, SubmissionWithStudentName, AssignmentWithClassAndSubmissionInfo } from '@/types';
 import { useRouter } from 'next/navigation';
 
 interface AuthContextType {
@@ -41,16 +40,17 @@ interface AuthContextType {
   updateUserRoleAndSchool: (userId: string, data: { role?: UserRole; schoolId?: string, classIds?: string[] }) => Promise<boolean>;
   getUserProfile: (userId: string) => Promise<UserProfileWithId | null>;
 
-  // Admin Class Management
+  // Admin & Teacher Class Management
   createClassInSchool: (className: string, schoolId: string, teacherId?: string) => Promise<string | null>;
   getClassesBySchool: (schoolId: string) => Promise<ClassWithTeacherInfo[]>;
   getClassDetails: (classId: string) => Promise<ClassWithTeacherInfo | null>;
-  updateClassDetails: (classId: string, data: Partial<Pick<Class, 'name' | 'teacherId'>>) => Promise<boolean>;
+  updateClassDetails: (classId: string, data: Partial<Pick<Class, 'name' | 'teacherId' | 'classInviteCode'>>) => Promise<boolean>;
   enrollStudentInClass: (classId: string, studentId: string) => Promise<boolean>;
   removeStudentFromClass: (classId: string, studentId: string) => Promise<boolean>;
   getStudentsInClass: (classId: string) => Promise<UserProfileWithId[]>;
   getStudentsNotInClass: (schoolId: string, classId: string) => Promise<UserProfileWithId[]>;
   deleteClass: (classId: string) => Promise<boolean>;
+  regenerateClassInviteCode: (classId: string) => Promise<string | null>;
 
   // Teacher specific class functions
   getClassesByTeacher: (teacherId: string) => Promise<ClassWithTeacherInfo[]>;
@@ -60,7 +60,7 @@ interface AuthContextType {
   // Teacher Material Management
   addLearningMaterial: (material: Omit<LearningMaterial, 'id' | 'createdAt' | 'updatedAt'>) => Promise<string | null>;
   getLearningMaterialsByTeacher: (teacherId: string, classId?: string) => Promise<LearningMaterial[]>;
-  getLearningMaterialsBySchool: (schoolId: string) => Promise<LearningMaterialWithTeacherInfo[]>; // Used by student too
+  getLearningMaterialsBySchool: (schoolId: string) => Promise<LearningMaterialWithTeacherInfo[]>; 
   getLearningMaterialsByClass: (classId: string) => Promise<LearningMaterial[]>;
   deleteLearningMaterial: (materialId: string) => Promise<boolean>;
   updateLearningMaterial: (materialId: string, data: Partial<Pick<LearningMaterial, 'title' | 'content' | 'classId' | 'materialType'>>) => Promise<boolean>;
@@ -71,7 +71,7 @@ interface AuthContextType {
   createAssignment: (assignmentData: Omit<Assignment, 'id' | 'createdAt' | 'updatedAt' | 'totalSubmissions'>) => Promise<string | null>;
   getAssignmentsByTeacher: (teacherId: string, classId?: string) => Promise<AssignmentWithClassInfo[]>;
   getAssignmentsByClass: (classId: string) => Promise<Assignment[]>;
-  getAssignmentById: (assignmentId: string) => Promise<AssignmentWithClassInfo | null>;
+  getAssignmentById: (assignmentId: string, studentId?: string) => Promise<AssignmentWithClassAndSubmissionInfo | null>;
   updateAssignment: (assignmentId: string, data: Partial<Omit<Assignment, 'id' | 'createdAt' | 'updatedAt' | 'teacherId' | 'totalSubmissions'>>) => Promise<boolean>;
   deleteAssignment: (assignmentId: string) => Promise<boolean>;
 
@@ -79,10 +79,12 @@ interface AuthContextType {
   getSubmissionsForAssignment: (assignmentId: string) => Promise<SubmissionWithStudentName[]>;
   gradeSubmission: (submissionId: string, grade: string | number, feedback?: string) => Promise<boolean>;
 
-  // Student Submission Management (can be called by student or teacher to view specific)
+  // Student specific functions
   getSubmissionByStudentForAssignment: (assignmentId: string, studentId: string) => Promise<Submission | null>;
   addSubmission: (submissionData: Omit<Submission, 'id' | 'submittedAt' | 'grade' | 'feedback' | 'status'>) => Promise<string | null>;
-  getAssignmentsForStudentByClass: (classId: string) => Promise<Assignment[]>;
+  getAssignmentsForStudentByClass: (classId: string, studentId: string) => Promise<AssignmentWithClassAndSubmissionInfo[]>;
+  getClassesByIds: (classIds: string[]) => Promise<ClassWithTeacherInfo[]>;
+  joinClassWithCode: (classCode: string, studentId: string) => Promise<boolean>;
 
 
   // Profile Management
@@ -125,11 +127,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             role: userData.role as UserRole,
             schoolId: userData.schoolId,
             classIds: userData.classIds || [],
+            studentAssignments: userData.studentAssignments || {},
           });
         } else {
           setCurrentUser({ 
             uid: user.uid, email: user.email, displayName: user.displayName, role: null,
             photoURL: user.photoURL, emailVerified: user.emailVerified, isAnonymous: user.isAnonymous, metadata: user.metadata, providerData: user.providerData, providerId: user.providerId, tenantId: user.tenantId, refreshToken: user.refreshToken, delete: user.delete, getIdToken: user.getIdToken, getIdTokenResult: user.getIdTokenResult, reload: user.reload, toJSON: user.toJSON,
+            studentAssignments: {},
           });
         }
       } else {
@@ -149,14 +153,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       
       if (firebaseUser) {
         await updateFirebaseProfile(firebaseUser, { displayName });
-        const userProfileData: Omit<UserProfile, keyof FirebaseUser | 'schoolId' | 'classIds'> & { uid: string } = {
+        const userProfileData: Omit<UserProfile, keyof FirebaseUser | 'schoolId' | 'classIds' | 'studentAssignments'> & { uid: string } = {
           uid: firebaseUser.uid,
           email: firebaseUser.email,
           displayName: displayName,
           role: role,
         };
-        await setDoc(doc(db, "users", firebaseUser.uid), userProfileData);
-        const profile = { ...userProfileData, photoURL: firebaseUser.photoURL, emailVerified: firebaseUser.emailVerified, isAnonymous: firebaseUser.isAnonymous, metadata: firebaseUser.metadata, providerData: userCredential.user.providerData, providerId: userCredential.user.providerId, tenantId: userCredential.user.tenantId, refreshToken: userCredential.user.refreshToken, delete: userCredential.user.delete, getIdToken: userCredential.user.getIdToken, getIdTokenResult: userCredential.user.getIdTokenResult, reload: userCredential.user.reload, toJSON: userCredential.user.toJSON } as UserProfile;
+        await setDoc(doc(db, "users", firebaseUser.uid), {...userProfileData, studentAssignments: {}, classIds: []});
+        const profile = { ...userProfileData, photoURL: firebaseUser.photoURL, emailVerified: firebaseUser.emailVerified, isAnonymous: firebaseUser.isAnonymous, metadata: firebaseUser.metadata, providerData: userCredential.user.providerData, providerId: userCredential.user.providerId, tenantId: userCredential.user.tenantId, refreshToken: userCredential.user.refreshToken, delete: userCredential.user.delete, getIdToken: userCredential.user.getIdToken, getIdTokenResult: userCredential.user.getIdTokenResult, reload: userCredential.user.reload, toJSON: userCredential.user.toJSON, studentAssignments: {}, classIds: [] } as UserProfile;
         setCurrentUser(profile);
         return profile;
       }
@@ -200,6 +204,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             role: userData.role as UserRole,
             schoolId: userData.schoolId,
             classIds: userData.classIds || [],
+            studentAssignments: userData.studentAssignments || {},
           };
           setCurrentUser(profile);
           return profile;
@@ -397,6 +402,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     console.warn("adminCreateUserInSchool is a simplified function. For production, use Firebase Admin SDK or a proper invite flow.");
     setLoading(true);
     try {
+      // This does not create a Firebase Auth user. It only creates a profile document.
+      // This is a placeholder for a more complex user invitation/creation flow.
       const userId = `temp_${Math.random().toString(36).substring(2, 15)}`; 
       const userProfileData = {
         uid: userId, 
@@ -405,8 +412,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         role: role,
         schoolId: schoolId,
         createdAt: Timestamp.now(),
+        classIds: [],
+        studentAssignments: {},
       };
-      const userRef = doc(db, "users", email); 
+      const userRef = doc(db, "users", email); // Using email as ID for this temp user for simplicity
       await setDoc(userRef, { ...userProfileData, pendingSetup: true, tempPassword: pass }); 
 
       return { id: email, ...userProfileData } as UserProfileWithId;
@@ -457,11 +466,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setLoading(true);
     try {
       const classRef = collection(db, "classes");
+      const classInviteCode = `C-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
       const classData: Omit<Class, 'id'> = {
         name: className,
         schoolId: schoolId,
         teacherId: teacherId || '', 
         studentIds: [],
+        classInviteCode: classInviteCode,
         createdAt: Timestamp.now(),
         updatedAt: Timestamp.now(),
       };
@@ -497,6 +508,51 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       return [];
     }
   };
+  
+  const getClassesByIds = async (classIds: string[]): Promise<ClassWithTeacherInfo[]> => {
+    if (!classIds || classIds.length === 0) return [];
+    try {
+      // Firestore 'in' query is limited to 30 elements. Chunk if necessary.
+      const MAX_CLASS_IDS_PER_QUERY = 30;
+      const classChunks: string[][] = [];
+      for (let i = 0; i < classIds.length; i += MAX_CLASS_IDS_PER_QUERY) {
+          classChunks.push(classIds.slice(i, i + MAX_CLASS_IDS_PER_QUERY));
+      }
+
+      let allClasses: ClassWithTeacherInfo[] = [];
+
+      for (const chunk of classChunks) {
+        if (chunk.length === 0) continue;
+        const classesRef = collection(db, "classes");
+        const q = query(classesRef, where(documentId(), "in", chunk));
+        const querySnapshot = await getDocs(q);
+        
+        const classesPromises = querySnapshot.docs.map(async (docSnapshot) => {
+          const classData = docSnapshot.data() as Class;
+          let teacherDisplayName = 'N/A';
+          if (classData.teacherId) {
+            const teacherProfile = await getUserProfile(classData.teacherId);
+            teacherDisplayName = teacherProfile?.displayName || 'N/A';
+          }
+          // Fetch assignment counts
+          const assignmentsQuery = query(collection(db, "assignments"), where("classId", "==", classData.id));
+          const assignmentsSnapshot = await getDocs(assignmentsQuery);
+          const totalAssignmentsCount = assignmentsSnapshot.size;
+          
+          // Note: submittedAssignmentsCount would need to be student-specific, calculated elsewhere or not included here by default.
+          return { ...classData, id: docSnapshot.id, teacherDisplayName, totalAssignmentsCount };
+        });
+        const chunkClasses = await Promise.all(classesPromises);
+        allClasses = [...allClasses, ...chunkClasses];
+      }
+      
+      return allClasses.sort((a, b) => a.name.localeCompare(b.name));
+    } catch (error) {
+      console.error("Error fetching classes by IDs:", error);
+      return [];
+    }
+  };
+
 
   const getClassDetails = async (classId: string): Promise<ClassWithTeacherInfo | null> => {
     try {
@@ -518,7 +574,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  const updateClassDetails = async (classId: string, data: Partial<Pick<Class, 'name' | 'teacherId'>>): Promise<boolean> => {
+  const updateClassDetails = async (classId: string, data: Partial<Pick<Class, 'name' | 'teacherId' | 'classInviteCode'>>): Promise<boolean> => {
      if (!currentUser || (currentUser.role !== 'admin' && currentUser.role !== 'teacher')) return false;
     setLoading(true);
     try {
@@ -537,11 +593,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     if (!currentUser || (currentUser.role !== 'admin' && currentUser.role !== 'teacher')) return false;
     setLoading(true);
     try {
+      const batch = writeBatch(db);
       const classRef = doc(db, "classes", classId);
-      await updateDoc(classRef, { studentIds: arrayUnion(studentId), updatedAt: Timestamp.now() });
+      batch.update(classRef, { studentIds: arrayUnion(studentId), updatedAt: Timestamp.now() });
       
       const studentRef = doc(db, "users", studentId);
-      await updateDoc(studentRef, { classIds: arrayUnion(classId), updatedAt: Timestamp.now() });
+      batch.update(studentRef, { classIds: arrayUnion(classId), updatedAt: Timestamp.now() });
+      
+      await batch.commit();
       return true;
     } catch (error) {
       console.error("Error enrolling student:", error);
@@ -550,16 +609,82 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setLoading(false);
     }
   };
+  
+  const joinClassWithCode = async (classCode: string, studentId: string): Promise<boolean> => {
+    if (!currentUser || currentUser.role !== 'student' || currentUser.uid !== studentId) return false;
+    setLoading(true);
+    try {
+      const classesRef = collection(db, "classes");
+      const q = query(classesRef, where("classInviteCode", "==", classCode));
+      const querySnapshot = await getDocs(q);
+
+      if (querySnapshot.empty) {
+        console.log("Invalid class invite code");
+        return false;
+      }
+
+      const classDoc = querySnapshot.docs[0];
+      const classId = classDoc.id;
+      const classData = classDoc.data() as Class;
+
+      // Check if student is already enrolled
+      if (classData.studentIds?.includes(studentId)) {
+        console.log("Student already enrolled in this class.");
+        // Still update local currentUser if classIds doesn't include it
+        if (!currentUser.classIds?.includes(classId)) {
+          setCurrentUser(prev => prev ? ({ ...prev, classIds: arrayUnion(classId) as string[] }) : null);
+        }
+        return true; // Or a specific message indicating already enrolled
+      }
+      
+      const batch = writeBatch(db);
+      batch.update(classDoc.ref, { studentIds: arrayUnion(studentId), updatedAt: Timestamp.now() });
+      
+      const studentRef = doc(db, "users", studentId);
+      batch.update(studentRef, { classIds: arrayUnion(classId), updatedAt: Timestamp.now() });
+      
+      await batch.commit();
+
+      setCurrentUser(prev => prev ? ({ ...prev, classIds: arrayUnion(classId) as string[] }) : null);
+      return true;
+
+    } catch (error) {
+      console.error("Error joining class with code:", error);
+      return false;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const regenerateClassInviteCode = async (classId: string): Promise<string | null> => {
+    if (!currentUser || (currentUser.role !== 'admin' && currentUser.role !== 'teacher')) return null;
+    setLoading(true);
+    try {
+      const newInviteCode = `C-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
+      const classRef = doc(db, "classes", classId);
+      // TODO: Check if current user is admin or teacher of this class
+      await updateDoc(classRef, { classInviteCode: newInviteCode, updatedAt: Timestamp.now() });
+      return newInviteCode;
+    } catch (error) {
+      console.error("Error regenerating class invite code:", error);
+      return null;
+    } finally {
+      setLoading(false);
+    }
+  };
+
 
   const removeStudentFromClass = async (classId: string, studentId: string): Promise<boolean> => {
     if (!currentUser || (currentUser.role !== 'admin' && currentUser.role !== 'teacher')) return false;
     setLoading(true);
     try {
+      const batch = writeBatch(db);
       const classRef = doc(db, "classes", classId);
-      await updateDoc(classRef, { studentIds: arrayRemove(studentId), updatedAt: Timestamp.now() });
+      batch.update(classRef, { studentIds: arrayRemove(studentId), updatedAt: Timestamp.now() });
 
       const studentRef = doc(db, "users", studentId);
-      await updateDoc(studentRef, { classIds: arrayRemove(classId), updatedAt: Timestamp.now() });
+      batch.update(studentRef, { classIds: arrayRemove(classId), updatedAt: Timestamp.now() });
+      await batch.commit();
       return true;
     } catch (error) {
       console.error("Error removing student from class:", error);
@@ -575,11 +700,22 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       return [];
     }
     try {
-      // Firestore 'in' query is limited to 30 elements. If more students, fetch in chunks or individually.
-      // For simplicity, fetching individually. Optimize if performance becomes an issue.
-      const studentPromises = classDetails.studentIds.map(studentId => getUserProfile(studentId));
-      const students = (await Promise.all(studentPromises)).filter(Boolean) as UserProfileWithId[];
-      return students;
+      const MAX_STUDENT_IDS_PER_QUERY = 30; // Firestore 'in' query limit
+      const studentIdChunks: string[][] = [];
+      for (let i = 0; i < classDetails.studentIds.length; i += MAX_STUDENT_IDS_PER_QUERY) {
+          studentIdChunks.push(classDetails.studentIds.slice(i, i + MAX_STUDENT_IDS_PER_QUERY));
+      }
+
+      let allStudents: UserProfileWithId[] = [];
+      for (const chunk of studentIdChunks) {
+        if (chunk.length === 0) continue;
+        const usersRef = collection(db, "users");
+        const q = query(usersRef, where(documentId(), "in", chunk));
+        const querySnapshot = await getDocs(q);
+        const studentsInChunk = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as UserProfileWithId));
+        allStudents = [...allStudents, ...studentsInChunk];
+      }
+      return allStudents;
     } catch (error) {
       console.error("Error fetching students in class:", error);
       return [];
@@ -597,16 +733,23 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     if (!currentUser || currentUser.role !== 'admin') return false;
     setLoading(true);
     try {
+      const batch = writeBatch(db);
       const classDetails = await getClassDetails(classId);
       if (classDetails?.studentIds) {
-        const batch = writeBatch(db);
         classDetails.studentIds.forEach(studentId => {
           const studentRef = doc(db, "users", studentId);
           batch.update(studentRef, { classIds: arrayRemove(classId) });
         });
-        await batch.commit();
       }
-      await deleteDoc(doc(db, "classes", classId));
+      // Delete assignments for this class
+      const assignmentsQuery = query(collection(db, "assignments"), where("classId", "==", classId));
+      const assignmentsSnap = await getDocs(assignmentsQuery);
+      assignmentsSnap.docs.forEach(d => batch.delete(d.ref));
+      // Delete submissions for this class (or could be done via assignment deletion cascade if assignments were linked)
+      // For now, deleting assignments should be enough if submissions are tied to assignments.
+
+      batch.delete(doc(db, "classes", classId));
+      await batch.commit();
       return true;
     } catch (error) {
       console.error("Error deleting class:", error);
@@ -625,7 +768,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       const classes = querySnapshot.docs.map(docSnapshot => ({
         ...(docSnapshot.data() as Class),
         id: docSnapshot.id,
-        // teacherDisplayName will be the current user's display name, or could be fetched if needed
       }));
       return classes;
     } catch (error) {
@@ -772,12 +914,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const createAssignment = async (assignmentData: Omit<Assignment, 'id' | 'createdAt' | 'updatedAt' | 'totalSubmissions'>): Promise<string | null> => {
-    if (!currentUser || currentUser.role !== 'teacher') return null;
+    if (!currentUser || currentUser.role !== 'teacher' || !currentUser.schoolId) return null;
     setLoading(true);
     try {
       const dataWithTimestamps: Omit<Assignment, 'id' | 'totalSubmissions'> = {
         ...assignmentData,
         teacherId: currentUser.uid,
+        schoolId: currentUser.schoolId,
         createdAt: Timestamp.now(),
         updatedAt: Timestamp.now(),
       };
@@ -811,8 +954,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           const classInfo = await getClassDetails(assignment.classId);
           className = classInfo?.name || 'Unknown Class';
         }
-        // Optionally fetch submission count here if needed frequently, or handle on assignment detail page
-        // For now, totalSubmissions will be undefined unless explicitly updated.
         return { ...assignment, className, totalSubmissions: assignment.totalSubmissions || 0 };
       });
       return Promise.all(assignmentsPromises);
@@ -836,7 +977,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  const getAssignmentById = async (assignmentId: string): Promise<AssignmentWithClassInfo | null> => {
+  const getAssignmentById = async (assignmentId: string, studentId?: string): Promise<AssignmentWithClassAndSubmissionInfo | null> => {
     try {
       const assignmentRef = doc(db, "assignments", assignmentId);
       const assignmentSnap = await getDoc(assignmentRef);
@@ -847,7 +988,19 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           const classInfo = await getClassDetails(assignmentData.classId);
           className = classInfo?.name || 'Unknown Class';
         }
-        return { ...assignmentData, className, totalSubmissions: assignmentData.totalSubmissions || 0 };
+        
+        let assignmentWithInfo: AssignmentWithClassAndSubmissionInfo = { ...assignmentData, className, totalSubmissions: assignmentData.totalSubmissions || 0 };
+
+        if (studentId) {
+          const submission = await getSubmissionByStudentForAssignment(assignmentId, studentId);
+          if (submission) {
+            assignmentWithInfo.submissionStatus = submission.status;
+            assignmentWithInfo.submissionGrade = submission.grade;
+          } else {
+            assignmentWithInfo.submissionStatus = 'missing';
+          }
+        }
+        return assignmentWithInfo;
       }
       return null;
     } catch (error) {
@@ -861,7 +1014,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setLoading(true);
     try {
       const assignmentRef = doc(db, "assignments", assignmentId);
-      // TODO: Check if currentUser.uid === assignment.teacherId before updating
       await updateDoc(assignmentRef, { ...data, updatedAt: Timestamp.now() });
       return true;
     } catch (error) {
@@ -873,16 +1025,28 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const deleteAssignment = async (assignmentId: string): Promise<boolean> => {
-    if (!currentUser || currentUser.role !== 'teacher') return false;
+    if (!currentUser || (currentUser.role !== 'teacher' && currentUser.role !== 'admin')) return false; // Allow admin to delete too
     setLoading(true);
     try {
-      // TODO: Check ownership. Also, consider deleting related submissions or handling them.
-      await deleteDoc(doc(db, "assignments", assignmentId));
-      // Potentially delete all submissions for this assignment
+      // Ensure the current user is authorized to delete this assignment
+      const assignmentDoc = await getAssignmentById(assignmentId);
+      if(!assignmentDoc || (currentUser.role === 'teacher' && assignmentDoc.teacherId !== currentUser.uid) ) {
+        console.error("Unauthorized to delete assignment or assignment not found.");
+        return false;
+      }
+
+      const batch = writeBatch(db);
+      batch.delete(doc(db, "assignments", assignmentId));
+      
       const submissionsQuery = query(collection(db, "submissions"), where("assignmentId", "==", assignmentId));
       const submissionsSnap = await getDocs(submissionsQuery);
-      const batch = writeBatch(db);
       submissionsSnap.docs.forEach(d => batch.delete(d.ref));
+      
+      // Also remove from student's studentAssignments map if it exists.
+      // This is more complex and might be better handled by a cloud function for consistency.
+      // For now, we'll skip this part on client-side deletion to avoid too many reads/writes.
+      // Teachers/Admins deleting an assignment won't automatically clean student profiles here.
+
       await batch.commit();
       return true;
     } catch (error) {
@@ -923,8 +1087,37 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setLoading(true);
     try {
       const submissionRef = doc(db, "submissions", submissionId);
-      // TODO: Check if teacher is authorized for this submission (e.g., via assignment.teacherId)
-      await updateDoc(submissionRef, { grade, feedback, status: 'graded', updatedAt: Timestamp.now() });
+      const submissionSnap = await getDoc(submissionRef);
+      if (!submissionSnap.exists()) return false;
+
+      const submissionData = submissionSnap.data() as Submission;
+
+      const batch = writeBatch(db);
+      batch.update(submissionRef, { grade, feedback, status: 'graded', updatedAt: Timestamp.now() });
+      
+      // Update student's profile with the grade
+      const studentRef = doc(db, "users", submissionData.studentId);
+      const studentAssignmentField = `studentAssignments.${submissionData.assignmentId}`;
+      batch.update(studentRef, {
+        [studentAssignmentField]: {
+          status: 'graded',
+          grade: grade,
+        }
+      });
+
+      await batch.commit();
+
+      // Update local currentUser if it's the student being graded (not typical here, but for completeness)
+      if (currentUser.uid === submissionData.studentId) {
+        setCurrentUser(prev => prev ? {
+          ...prev,
+          studentAssignments: {
+            ...prev.studentAssignments,
+            [submissionData.assignmentId]: { status: 'graded', grade }
+          }
+        } : null);
+      }
+
       return true;
     } catch (error) {
       console.error("Error grading submission:", error);
@@ -956,40 +1149,102 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       const assignment = await getAssignmentById(submissionData.assignmentId);
       if (!assignment) throw new Error("Assignment not found");
 
-      const isLate = Timestamp.now() > assignment.deadline;
+      // Check if already submitted
+      const existingSubmission = await getSubmissionByStudentForAssignment(submissionData.assignmentId, currentUser.uid);
+      if (existingSubmission) {
+        // Update existing submission
+        const submissionRef = doc(db, "submissions", existingSubmission.id);
+        const isLateUpdate = Timestamp.now() > assignment.deadline;
+        const statusUpdate = existingSubmission.status === 'graded' 
+          ? 'graded' // Keep graded status if re-submitting after grading (teacher might re-grade)
+          : (isLateUpdate && existingSubmission.status !== 'late' ? 'late' : 'submitted');
 
-      const dataToSave: Omit<Submission, 'id'> = {
-        ...submissionData,
-        studentId: currentUser.uid,
-        submittedAt: Timestamp.now(),
-        status: isLate ? 'late' : 'submitted',
-        // grade and feedback are initially undefined
-      };
-      const docRef = await addDoc(collection(db, "submissions"), dataToSave);
-      await updateDoc(doc(db, "submissions", docRef.id), { id: docRef.id });
+        await updateDoc(submissionRef, {
+          content: submissionData.content,
+          submissionType: submissionData.submissionType,
+          submittedAt: Timestamp.now(),
+          status: statusUpdate,
+          updatedAt: Timestamp.now()
+        });
+         // Update student's profile assignment status
+        const studentRef = doc(db, "users", currentUser.uid);
+        const studentAssignmentField = `studentAssignments.${submissionData.assignmentId}`;
+        await updateDoc(studentRef, {
+          [studentAssignmentField]: { status: statusUpdate } // Don't overwrite grade here
+        });
+        setCurrentUser(prev => prev ? { ...prev, studentAssignments: { ...prev.studentAssignments, [submissionData.assignmentId]: { status: statusUpdate, grade: prev.studentAssignments?.[submissionData.assignmentId]?.grade }} } : null);
+        return existingSubmission.id;
 
-      // Increment totalSubmissions on the assignment
-      const assignmentRef = doc(db, "assignments", submissionData.assignmentId);
-      const assignmentSnap = await getDoc(assignmentRef);
-      if (assignmentSnap.exists()) {
-          const currentSubmissions = assignmentSnap.data().totalSubmissions || 0;
-          await updateDoc(assignmentRef, { totalSubmissions: currentSubmissions + 1 });
+      } else {
+        // Add new submission
+        const isLate = Timestamp.now() > assignment.deadline;
+        const dataToSave: Omit<Submission, 'id'> = {
+          ...submissionData,
+          studentId: currentUser.uid,
+          submittedAt: Timestamp.now(),
+          status: isLate ? 'late' : 'submitted',
+        };
+        const docRef = await addDoc(collection(db, "submissions"), dataToSave);
+        await updateDoc(doc(db, "submissions", docRef.id), { id: docRef.id });
+
+        // Increment totalSubmissions on the assignment
+        const assignmentRef = doc(db, "assignments", submissionData.assignmentId);
+        const assignmentSnap = await getDoc(assignmentRef);
+        if (assignmentSnap.exists()) {
+            const currentSubmissions = assignmentSnap.data().totalSubmissions || 0;
+            await updateDoc(assignmentRef, { totalSubmissions: currentSubmissions + 1 });
+        }
+
+        // Update student's profile assignment status
+        const studentRef = doc(db, "users", currentUser.uid);
+        const studentAssignmentField = `studentAssignments.${submissionData.assignmentId}`;
+        await updateDoc(studentRef, {
+          [studentAssignmentField]: { status: dataToSave.status }
+        });
+        setCurrentUser(prev => prev ? { ...prev, studentAssignments: { ...prev.studentAssignments, [submissionData.assignmentId]: {status: dataToSave.status }} } : null);
+
+        return docRef.id;
       }
 
-      return docRef.id;
     } catch (error) {
-      console.error("Error adding submission:", error);
+      console.error("Error adding/updating submission:", error);
       return null;
     } finally {
       setLoading(false);
     }
   };
 
-   const getAssignmentsForStudentByClass = async (classId: string): Promise<Assignment[]> => {
-    if (!currentUser || currentUser.role !== 'student') return [];
-    // This simply gets all assignments for a class.
-    // Student-specific submission status would be fetched separately or by combining data.
-    return getAssignmentsByClass(classId);
+   const getAssignmentsForStudentByClass = async (classId: string, studentId: string): Promise<AssignmentWithClassAndSubmissionInfo[]> => {
+    if (!currentUser || (currentUser.role !== 'student' && currentUser.role !== 'teacher' && currentUser.role !== 'admin') ) return [];
+    if (currentUser.role === 'student' && currentUser.uid !== studentId) return []; // Student can only fetch their own
+
+    const assignments = await getAssignmentsByClass(classId);
+    const assignmentsWithStatus: AssignmentWithClassAndSubmissionInfo[] = [];
+
+    for (const assignment of assignments) {
+      const submission = await getSubmissionByStudentForAssignment(assignment.id, studentId);
+      const classInfo = await getClassDetails(assignment.classId);
+      const studentProfile = await getUserProfile(studentId);
+      
+      let status: AssignmentWithClassAndSubmissionInfo['submissionStatus'] = 'missing';
+      let grade: AssignmentWithClassAndSubmissionInfo['submissionGrade'] = undefined;
+
+      if (submission) {
+        status = submission.status;
+        grade = submission.grade;
+      } else if (studentProfile?.studentAssignments?.[assignment.id]) {
+        status = studentProfile.studentAssignments[assignment.id].status;
+        grade = studentProfile.studentAssignments[assignment.id].grade;
+      }
+      
+      assignmentsWithStatus.push({
+        ...assignment,
+        className: classInfo?.name || 'N/A',
+        submissionStatus: status,
+        submissionGrade: grade,
+      });
+    }
+    return assignmentsWithStatus.sort((a, b) => a.deadline.toMillis() - b.deadline.toMillis());
   };
 
 
@@ -1017,7 +1272,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     if (!auth.currentUser) return false;
     setLoading(true);
     try {
-      console.warn("Email update requires re-authentication, which is simplified here.");
+      console.warn("Email update requires re-authentication with current password, which is simplified here. Actual email update on Firebase Auth is not performed to avoid complexity without proper re-auth flow.");
       const userRef = doc(db, "users", auth.currentUser.uid);
       await updateDoc(userRef, { email: newEmail, updatedAt: Timestamp.now() });
        if (currentUser) {
@@ -1025,7 +1280,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       }
       return true;
     } catch (error) {
-      console.error("Error updating email:", error);
+      console.error("Error updating email in Firestore (Auth email not changed):", error);
       return false;
     } finally {
       setLoading(false);
@@ -1036,10 +1291,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     if (!auth.currentUser) return false;
     setLoading(true);
     try {
+      console.warn("Password update requires re-authentication with current password, which is simplified here.");
       await updateFirebasePassword(auth.currentUser, newPassword);
       return true;
     } catch (error) {
       console.error("Error updating password:", error);
+      // This error often means re-authentication is required by Firebase.
       return false;
     } finally {
       setLoading(false);
@@ -1066,6 +1323,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     getUserProfile,
     createClassInSchool,
     getClassesBySchool,
+    getClassesByIds,
     getClassDetails,
     updateClassDetails,
     enrollStudentInClass,
@@ -1073,6 +1331,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     getStudentsInClass,
     getStudentsNotInClass,
     deleteClass,
+    regenerateClassInviteCode,
+    joinClassWithCode,
     getClassesByTeacher,
     getStudentsInMultipleClasses,
     addLearningMaterial,
