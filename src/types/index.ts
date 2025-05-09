@@ -6,7 +6,7 @@ export type UserRole = 'admin' | 'teacher' | 'student' | null;
 export interface UserProfile extends FirebaseUser {
   role: UserRole;
   schoolId?: string;
-  // Add other profile fields as needed
+  classIds?: string[]; // For students, classes they are enrolled in
 }
 
 // Useful for when fetching users from collection and needing their Firestore document ID
@@ -17,8 +17,10 @@ export interface UserProfileWithId extends UserProfile {
 export interface School {
   id:string;
   name: string;
-  adminId: string;
+  adminId: string; // UID of the admin who created the school
   inviteCode: string;
+  createdAt?: Timestamp;
+  updatedAt?: Timestamp;
 }
 
 export interface LearningMaterial {
@@ -27,8 +29,26 @@ export interface LearningMaterial {
   content: string; // Could be text, markdown, or a URL to a resource
   schoolId: string;
   teacherId: string; // UID of the teacher who uploaded it
+  classId?: string; // Optional: if material is specific to a class
   createdAt: Timestamp;
   updatedAt?: Timestamp;
-  // contentType: 'text' | 'url' | 'file_ref'; // Optional: to specify content type
-  // subject?: string; // Optional: for categorization
+}
+
+export interface LearningMaterialWithTeacherInfo extends LearningMaterial {
+  teacherDisplayName?: string;
+}
+
+
+export interface Class {
+  id: string;
+  name: string;
+  schoolId: string;
+  teacherId?: string; // UID of the assigned teacher
+  studentIds?: string[]; // Array of student UIDs enrolled in the class
+  createdAt: Timestamp;
+  updatedAt?: Timestamp;
+}
+
+export interface ClassWithTeacherInfo extends Class {
+  teacherDisplayName?: string;
 }

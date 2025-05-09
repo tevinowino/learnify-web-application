@@ -6,17 +6,22 @@ import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { Loader2, SchoolIcon, Copy, Check, RefreshCw } from 'lucide-react';
+import { Loader2, SchoolIcon, Copy, Check, RefreshCw, Save } from 'lucide-react';
 import type { School } from '@/types';
 import { useToast } from '@/hooks/use-toast';
+import { format } from 'date-fns';
 
 export default function SchoolSettingsPage() {
-  const { currentUser, getSchoolDetails, regenerateInviteCode, loading: authLoading } = useAuth();
+  const { currentUser, getSchoolDetails, regenerateInviteCode, updateSchoolDetails, loading: authLoading } = useAuth();
   const { toast } = useToast();
   const [school, setSchool] = useState<School | null>(null);
+  const [editableSchoolName, setEditableSchoolName] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [isRegenerating, setIsRegenerating] = useState(false);
+  const [isSavingName, setIsSavingName] = useState(false);
   const [copied, setCopied] = useState(false);
+
+  const isSchoolCreator = currentUser?.uid === school?.adminId;
 
   useEffect(() => {
     const fetchSchool = async () => {
@@ -24,6 +29,9 @@ export default function SchoolSettingsPage() {
         setIsLoading(true);
         const schoolDetails = await getSchoolDetails(currentUser.schoolId);
         setSchool(schoolDetails);
+        if (schoolDetails) {
+          setEditableSchoolName(schoolDetails.name);
+        }
         setIsLoading(false);
       } else if (!authLoading) {
         setIsLoading(false);
@@ -57,6 +65,21 @@ export default function SchoolSettingsPage() {
     }
   };
 
+  const handleSaveSchoolName = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!school?.id || !editableSchoolName.trim() || !isSchoolCreator) return;
+    setIsSavingName(true);
+    const success = await updateSchoolDetails(school.id, { name: editableSchoolName.trim() });
+    if (success) {
+      setSchool(prev => prev ? { ...prev, name: editableSchoolName.trim() } : null);
+      toast({ title: "School Name Updated!", description: "The school name has been successfully changed."});
+    } else {
+      toast({ title: "Error", description: "Failed to update school name.", variant: "destructive" });
+    }
+    setIsSavingName(false);
+  };
+
+
   if (authLoading || isLoading) {
     return (
       <div className="flex h-full items-center justify-center">
@@ -87,14 +110,37 @@ export default function SchoolSettingsPage() {
           <CardTitle className="flex items-center"><SchoolIcon className="mr-2 h-5 w-5 text-primary" /> School Information</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
+          <form onSubmit={handleSaveSchoolName} className="space-y-4">
+            <div>
+              <label htmlFor="schoolName" className="block text-sm font-medium text-foreground mb-1">School Name</label>
+              <div className="flex items-center gap-2">
+                <Input 
+                  id="schoolName" 
+                  value={editableSchoolName} 
+                  onChange={(e) => setEditableSchoolName(e.target.value)}
+                  readOnly={!isSchoolCreator || isSavingName} 
+                  className={!isSchoolCreator ? "bg-muted/50" : ""}
+                />
+                {isSchoolCreator && (
+                  <Button type="submit" size="icon" disabled={isSavingName || editableSchoolName === school.name} className="button-shadow">
+                    {isSavingName ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                    <span className="sr-only">Save School Name</span>
+                  </Button>
+                )}
+              </div>
+               {!isSchoolCreator && <p className="text-xs text-muted-foreground mt-1">Only the school creator can edit the school name.</p>}
+            </div>
+          </form>
           <div>
-            <label htmlFor="schoolName" className="block text-sm font-medium text-foreground mb-1">School Name</label>
-            <Input id="schoolName" value={school.name} readOnly className="bg-muted/50" />
-          </div>
-          <div>
-            <label htmlFor="adminId" className="block text-sm font-medium text-foreground mb-1">Admin ID</label>
+            <label htmlFor="adminId" className="block text-sm font-medium text-foreground mb-1">Admin ID (Creator)</label>
             <Input id="adminId" value={school.adminId} readOnly className="bg-muted/50" />
           </div>
+          {school.createdAt && (
+            <div>
+              <label htmlFor="createdAt" className="block text-sm font-medium text-foreground mb-1">School Created On</label>
+              <Input id="createdAt" value={format(school.createdAt.toDate(), 'PPP')} readOnly className="bg-muted/50" />
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -111,16 +157,20 @@ export default function SchoolSettingsPage() {
               <span className="sr-only">{copied ? 'Copied' : 'Copy code'}</span>
             </Button>
           </div>
-          <Button onClick={handleRegenerateCode} disabled={isRegenerating} className="w-full md:w-auto bg-accent hover:bg-accent/90 text-accent-foreground button-shadow">
-            {isRegenerating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            <RefreshCw className="mr-2 h-4 w-4" /> Regenerate Invite Code
-          </Button>
+          {isSchoolCreator && (
+            <Button onClick={handleRegenerateCode} disabled={isRegenerating} className="w-full md:w-auto bg-accent hover:bg-accent/90 text-accent-foreground button-shadow">
+              {isRegenerating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              <RefreshCw className="mr-2 h-4 w-4" /> Regenerate Invite Code
+            </Button>
+          )}
         </CardContent>
-        <CardFooter>
-          <p className="text-xs text-muted-foreground">
-            Regenerating the code will invalidate the old one.
-          </p>
-        </CardFooter>
+        {isSchoolCreator && (
+          <CardFooter>
+            <p className="text-xs text-muted-foreground">
+              Regenerating the code will invalidate the old one.
+            </p>
+          </CardFooter>
+        )}
       </Card>
     </div>
   );
