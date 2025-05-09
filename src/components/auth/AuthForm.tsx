@@ -1,3 +1,4 @@
+
 "use client";
 
 import React from "react";
@@ -36,7 +37,7 @@ import {
 
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
-import type { UserRole } from "@/types";
+import type { UserRole, UserStatus } from "@/types";
 
 const baseSchema = z.object({
   email: z.string().email({ message: "Invalid email address." }),
@@ -48,6 +49,15 @@ const signupSchema = baseSchema.extend({
   role: z.enum(["admin", "teacher", "student"], {
     required_error: "Please select a role.",
   }),
+  schoolIdToJoin: z.string().optional(),
+}).superRefine((data, ctx) => {
+  if ((data.role === 'teacher' || data.role === 'student') && !data.schoolIdToJoin?.trim()) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "School ID is required for teachers and students.",
+      path: ["schoolIdToJoin"],
+    });
+  }
 });
 
 type LoginFormValues = z.infer<typeof baseSchema>;
@@ -61,7 +71,7 @@ type AuthFormProps = {
 export default function AuthForm({ mode }: AuthFormProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { signUp, logIn, loading: authLoading } = useAuth();
+  const { signUp, logIn, loading: authLoading, getSchoolDetails } = useAuth();
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = React.useState(false);
 
@@ -72,13 +82,16 @@ export default function AuthForm({ mode }: AuthFormProps) {
     defaultValues: {
       email: "",
       password: "",
-      ...(mode === "signup" && { displayName: "", role: undefined }),
+      ...(mode === "signup" && { displayName: "", role: undefined, schoolIdToJoin: "" }),
     },
   });
 
   const isLoading = authLoading || isSubmitting;
 
-  function redirectToDashboard(role: UserRole, schoolId?: string) {
+  function getRedirectPath(role: UserRole, schoolId?: string, status?: UserStatus) {
+    if (status === 'pending_verification') {
+      return '/auth/pending-verification';
+    }
     if (role === "admin" && !schoolId) return "/admin/onboarding";
     if (role === "admin") return "/admin/dashboard";
     if (role === "teacher") return "/teacher/dashboard";
@@ -93,8 +106,23 @@ export default function AuthForm({ mode }: AuthFormProps) {
       let userProfile;
 
       if (mode === "signup") {
-        const { email, password, displayName, role } = values as SignupFormValues;
-        userProfile = await signUp(email, password, role, displayName);
+        const { email, password, displayName, role, schoolIdToJoin } = values as SignupFormValues;
+        let schoolName: string | undefined;
+        if (role === 'teacher' || role === 'student') {
+          if (!schoolIdToJoin) { // Should be caught by schema but as a safeguard
+            toast({ title: "School ID Missing", description: "School ID is required for teachers and students.", variant: "destructive" });
+            setIsSubmitting(false);
+            return;
+          }
+          const school = await getSchoolDetails(schoolIdToJoin);
+          if (!school) {
+            toast({ title: "Invalid School ID", description: "The provided School ID does not exist. Please check and try again.", variant: "destructive" });
+            setIsSubmitting(false);
+            return;
+          }
+          schoolName = school.name;
+        }
+        userProfile = await signUp(email, password, role, displayName, schoolIdToJoin, schoolName);
       } else {
         const { email, password } = values as LoginFormValues;
         userProfile = await logIn(email, password);
@@ -103,10 +131,10 @@ export default function AuthForm({ mode }: AuthFormProps) {
       if (userProfile) {
         toast({
           title: mode === "signup" ? "Signup Successful!" : "Login Successful!",
-          description: "Redirecting...",
+          description: userProfile.status === 'pending_verification' ? "Your account is pending admin approval." : "Redirecting...",
         });
-
-        const redirectTo = searchParams.get("redirectTo") || redirectToDashboard(userProfile.role, userProfile.schoolId);
+        
+        const redirectTo = searchParams.get("redirectTo") || getRedirectPath(userProfile.role, userProfile.schoolId, userProfile.status);
         router.push(redirectTo);
       } else {
         toast({
@@ -126,6 +154,8 @@ export default function AuthForm({ mode }: AuthFormProps) {
       setIsSubmitting(false);
     }
   }
+  
+  const selectedRole = form.watch("role" as keyof FormValues) as UserRole | undefined;
 
   return (
     <Card className="w-full max-w-md shadow-xl">
@@ -185,28 +215,46 @@ export default function AuthForm({ mode }: AuthFormProps) {
             />
 
             {mode === "signup" && (
-              <FormField
-                control={form.control}
-                name="role"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel htmlFor="role">I am a...</FormLabel>
-                    <Select onValueChange={field.onChange} defaultValue={field.value as string | undefined}>
-                      <FormControl>
-                        <SelectTrigger id="role">
-                          <SelectValue placeholder="Select your role" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        <SelectItem value="student">Student</SelectItem>
-                        <SelectItem value="teacher">Teacher</SelectItem>
-                        <SelectItem value="admin">Admin</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
+              <>
+                <FormField
+                  control={form.control}
+                  name="role"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel htmlFor="role">I am a...</FormLabel>
+                      <Select onValueChange={field.onChange} defaultValue={field.value as string | undefined}>
+                        <FormControl>
+                          <SelectTrigger id="role">
+                            <SelectValue placeholder="Select your role" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="student">Student</SelectItem>
+                          <SelectItem value="teacher">Teacher</SelectItem>
+                          <SelectItem value="admin">Admin</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                {(selectedRole === 'teacher' || selectedRole === 'student') && (
+                   <FormField
+                    control={form.control}
+                    name="schoolIdToJoin"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel htmlFor="schoolIdToJoin">School ID</FormLabel>
+                        <FormControl>
+                          <Input id="schoolIdToJoin" placeholder="Enter your School's ID" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                        <p className="text-xs text-muted-foreground">Ask your school administrator for this ID.</p>
+                      </FormItem>
+                    )}
+                  />
                 )}
-              />
+              </>
             )}
 
             <Button
@@ -233,3 +281,4 @@ export default function AuthForm({ mode }: AuthFormProps) {
     </Card>
   );
 }
+

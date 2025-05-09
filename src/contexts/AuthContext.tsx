@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import type { ReactNode }from 'react';
@@ -15,13 +16,13 @@ import {
 } from 'firebase/auth';
 import { doc, getDoc, setDoc, collection, query, where, getDocs, writeBatch, updateDoc, addDoc, Timestamp, orderBy, deleteDoc, arrayUnion, arrayRemove, documentId } from 'firebase/firestore';
 import { auth, db, app as firebaseApp } from '@/lib/firebase'; // Import app for creating temporary auth instance if needed
-import type { UserProfile, UserRole, School, LearningMaterial, UserProfileWithId, Class, ClassWithTeacherInfo, LearningMaterialWithTeacherInfo, Assignment, Submission, SubmissionFormat, LearningMaterialType, AssignmentWithClassInfo, SubmissionWithStudentName, AssignmentWithClassAndSubmissionInfo } from '@/types';
+import type { UserProfile, UserRole, School, LearningMaterial, UserProfileWithId, Class, ClassWithTeacherInfo, LearningMaterialWithTeacherInfo, Assignment, Submission, SubmissionFormat, LearningMaterialType, AssignmentWithClassInfo, SubmissionWithStudentName, AssignmentWithClassAndSubmissionInfo, UserStatus } from '@/types';
 import { useRouter } from 'next/navigation';
 
 interface AuthContextType {
   currentUser: UserProfile | null;
   loading: boolean;
-  signUp: (email: string, pass: string, role: UserRole, displayName: string) => Promise<UserProfile | null>;
+  signUp: (email: string, pass: string, role: UserRole, displayName: string, schoolIdToJoin?: string, schoolName?: string) => Promise<UserProfile | null>;
   logIn: (email: string, pass: string) => Promise<UserProfile | null>;
   logOut: () => Promise<void>;
   
@@ -39,6 +40,7 @@ interface AuthContextType {
   adminCreateUserInSchool: (email: string, pass: string, displayName: string, role: UserRole, schoolId: string) => Promise<UserProfileWithId | null>;
   updateUserRoleAndSchool: (userId: string, data: { role?: UserRole; schoolId?: string, classIds?: string[] }) => Promise<boolean>;
   getUserProfile: (userId: string) => Promise<UserProfileWithId | null>;
+  approveUserForSchool: (userId: string, schoolId: string) => Promise<boolean>; // New for admin verification
 
   // Admin & Teacher Class Management
   createClassInSchool: (className: string, schoolId: string, teacherId?: string) => Promise<string | null>;
@@ -126,20 +128,18 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             toJSON: user.toJSON,
             role: userData.role as UserRole,
             schoolId: userData.schoolId,
+            schoolName: userData.schoolName, // For pending verification display
+            status: userData.status as UserStatus || 'active', // Default to active if status not set
             classIds: userData.classIds || [],
             studentAssignments: userData.studentAssignments || {},
           });
         } else {
-          // This case might happen if a user exists in Auth but not Firestore (e.g., during signup race condition or manual deletion)
-           // For a newly signed up user via the app's signUp function, the Firestore doc is created there.
-           // If an admin is creating a user, that function should handle Firestore doc creation too.
           console.warn(`User ${user.uid} exists in Firebase Auth but not in Firestore. This might be an incomplete signup or an admin-created user pending Firestore record.`);
-          // We'll set a minimal currentUser and let other parts of the app (like onboarding) handle it.
           setCurrentUser({ 
-            uid: user.uid, email: user.email, displayName: user.displayName, role: null, // Role might be unknown here
+            uid: user.uid, email: user.email, displayName: user.displayName, role: null, status: 'pending_verification',
             photoURL: user.photoURL, emailVerified: user.emailVerified, isAnonymous: user.isAnonymous, metadata: user.metadata, providerData: user.providerData, providerId: user.providerId, tenantId: user.tenantId, refreshToken: user.refreshToken, delete: user.delete, getIdToken: user.getIdToken, getIdTokenResult: user.getIdTokenResult, reload: user.reload, toJSON: user.toJSON,
             studentAssignments: {},
-            classIds: [], // Default empty array
+            classIds: [],
           });
         }
       } else {
@@ -151,7 +151,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     return () => unsubscribe();
   }, []);
 
-  const signUp = async (email: string, pass: string, role: UserRole, displayName: string): Promise<UserProfile | null> => {
+  const signUp = async (email: string, pass: string, role: UserRole, displayName: string, schoolIdToJoin?: string, schoolName?: string): Promise<UserProfile | null> => {
     setLoading(true);
     try {
       const userCredential = await createUserWithEmailAndPassword(auth, email, pass);
@@ -159,8 +159,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       
       if (firebaseUser) {
         await updateFirebaseProfile(firebaseUser, { displayName });
-        // Create the user profile document in Firestore
-        const userProfileData: Omit<UserProfile, keyof FirebaseUser | 'schoolId' | 'classIds' | 'studentAssignments'> & { uid: string, createdAt: Timestamp, classIds: string[], studentAssignments: {} } = {
+        
+        const userProfileData: Omit<UserProfile, keyof FirebaseUser | 'classIds' | 'studentAssignments'> & { uid: string, createdAt: Timestamp, classIds: string[], studentAssignments: {}, status: UserStatus, schoolId?: string, schoolName?: string } = {
           uid: firebaseUser.uid,
           email: firebaseUser.email,
           displayName: displayName,
@@ -168,12 +168,27 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           createdAt: Timestamp.now(),
           classIds: [],
           studentAssignments: {},
+          status: 'active', // Default to active
         };
+
+        if (role === 'teacher' || role === 'student') {
+          if (schoolIdToJoin) {
+            userProfileData.schoolId = schoolIdToJoin;
+            userProfileData.schoolName = schoolName; // Store school name for pending display
+            userProfileData.status = 'pending_verification';
+          } else {
+            // This case should ideally be prevented by form validation ensuring schoolIdToJoin is provided
+            // If not, they are active but unattached, which is not the target flow for this change.
+            // Consider how to handle this if form doesn't enforce schoolIdToJoin.
+            // For now, assuming form makes it mandatory.
+          }
+        }
+        // For admin, schoolId is set during onboarding. Status remains 'active'.
+
         await setDoc(doc(db, "users", firebaseUser.uid), userProfileData);
         
-        // Construct the full UserProfile to return and set in state
         const profile: UserProfile = {
-          ...userProfileData, // Contains uid, email, displayName, role, createdAt
+          ...userProfileData,
           photoURL: firebaseUser.photoURL,
           emailVerified: firebaseUser.emailVerified,
           isAnonymous: firebaseUser.isAnonymous,
@@ -187,12 +202,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           getIdTokenResult: firebaseUser.getIdTokenResult,
           reload: firebaseUser.reload,
           toJSON: firebaseUser.toJSON,
-          // schoolId will be undefined until admin onboarding or joining a school
-          // classIds is already initialized
-          // studentAssignments is already initialized
         };
-        setCurrentUser(profile);
-        return profile;
+        // setCurrentUser(profile); // Let onAuthStateChanged handle setting currentUser for consistency
+        return profile; // Return profile so AuthForm can redirect based on status
       }
       return null;
     } catch (error) {
@@ -233,10 +245,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             toJSON: userCredential.user.toJSON,
             role: userData.role as UserRole,
             schoolId: userData.schoolId,
+            schoolName: userData.schoolName,
+            status: userData.status as UserStatus || 'active',
             classIds: userData.classIds || [],
             studentAssignments: userData.studentAssignments || {},
           };
-          setCurrentUser(profile);
+          // setCurrentUser(profile); // Let onAuthStateChanged handle this
           return profile;
         }
       }
@@ -248,6 +262,26 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setLoading(false);
     }
   };
+
+  const approveUserForSchool = async (userId: string, schoolId: string): Promise<boolean> => {
+    if (!currentUser || currentUser.role !== 'admin' || currentUser.schoolId !== schoolId) {
+        console.error("Unauthorized or school mismatch for approving user.");
+        return false;
+    }
+    setLoading(true);
+    try {
+        const userRef = doc(db, "users", userId);
+        await updateDoc(userRef, { status: 'active', updatedAt: Timestamp.now() });
+        // Optionally, if schoolName was stored for pending users, you might clear it or ensure schoolId is correct.
+        return true;
+    } catch (error) {
+        console.error("Error approving user for school:", error);
+        return false;
+    } finally {
+        setLoading(false);
+    }
+};
+
 
   const logOut = async () => {
     setLoading(true);
@@ -279,12 +313,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       batch.set(schoolRef, schoolData);
       
       const userRef = doc(db, "users", adminId);
-      batch.update(userRef, { schoolId: schoolRef.id });
+      batch.update(userRef, { schoolId: schoolRef.id, schoolName: schoolName, status: 'active' }); // Admin is active in their new school
       
       await batch.commit();
 
       if (currentUser && currentUser.uid === adminId) {
-        setCurrentUser(prev => prev ? ({ ...prev, schoolId: schoolRef.id }) : null);
+        setCurrentUser(prev => prev ? ({ ...prev, schoolId: schoolRef.id, schoolName: schoolName, status: 'active' }) : null);
       }
       
       return schoolRef.id;
@@ -310,12 +344,16 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
       const schoolDoc = querySnapshot.docs[0];
       const schoolId = schoolDoc.id;
+      const schoolData = schoolDoc.data() as School;
 
       const userRef = doc(db, "users", userId);
-      await updateDoc(userRef, { schoolId: schoolId });
+      // Admin joining another school is typically 'active'.
+      // This function is generally for admins during onboarding.
+      // If a teacher/student used this, their status might need separate handling, but they use schoolIdToJoin.
+      await updateDoc(userRef, { schoolId: schoolId, schoolName: schoolData.name, status: 'active' });
       
       if (currentUser && currentUser.uid === userId) {
-        setCurrentUser(prev => prev ? ({ ...prev, schoolId: schoolId }) : null);
+        setCurrentUser(prev => prev ? ({ ...prev, schoolId: schoolId, schoolName: schoolData.name, status: 'active' }) : null);
       }
 
       return true;
@@ -331,14 +369,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     if (!currentUser || currentUser.role !== 'admin') {
       return { isOnboarded: false };
     }
-    const userDocRef = doc(db, "users", currentUser.uid);
-    const userDocSnap = await getDoc(userDocRef);
-    if (userDocSnap.exists() && userDocSnap.data().schoolId) {
-      const schoolId = userDocSnap.data().schoolId;
-      if (currentUser.schoolId !== schoolId) {
-        setCurrentUser(prev => prev ? { ...prev, schoolId } : null);
-      }
-      return { isOnboarded: true, schoolId: schoolId };
+    // User's schoolId is already on currentUser from onAuthStateChanged
+    if (currentUser.schoolId) {
+      return { isOnboarded: true, schoolId: currentUser.schoolId };
     }
     return { isOnboarded: false };
   };
@@ -402,7 +435,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       const querySnapshot = await getDocs(q);
       const users: UserProfileWithId[] = [];
       querySnapshot.forEach((doc) => {
-        users.push({ id: doc.id, ...doc.data() } as UserProfileWithId);
+        users.push({ id: doc.id, ...doc.data(), status: doc.data().status || 'active' } as UserProfileWithId);
       });
       return users;
     } catch (error) {
@@ -419,7 +452,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       const querySnapshot = await getDocs(q);
       const users: UserProfileWithId[] = [];
       querySnapshot.forEach((doc) => {
-        users.push({ id: doc.id, ...doc.data() } as UserProfileWithId);
+        users.push({ id: doc.id, ...doc.data(), status: doc.data().status || 'active' } as UserProfileWithId);
       });
       return users;
     } catch (error) {
@@ -431,34 +464,31 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const adminCreateUserInSchool = async (email: string, pass: string, displayName: string, role: UserRole, schoolId: string): Promise<UserProfileWithId | null> => {
     setLoading(true);
     try {
-      // Create the user in Firebase Authentication.
-      // Note: This uses the main `auth` instance. Firebase client SDK handles this without
-      // signing out the current admin or auto-signing in the new user.
       const userCredential = await createUserWithEmailAndPassword(auth, email, pass);
       const firebaseUser = userCredential.user;
 
       if (firebaseUser) {
-        // Update Firebase Auth profile for the new user
         await updateFirebaseProfile(firebaseUser, { displayName });
 
-        // Create Firestore document for the new user
+        const schoolDetails = await getSchoolDetails(schoolId); // To get schoolName
+
         const userProfileData = {
           uid: firebaseUser.uid, 
           email: firebaseUser.email,
           displayName: displayName,
           role: role,
           schoolId: schoolId,
+          schoolName: schoolDetails?.name || 'Unknown School', // Store school name
           createdAt: Timestamp.now(),
-          classIds: [], // Initialize with empty classIds
-          studentAssignments: {}, // Initialize with empty studentAssignments
+          classIds: [],
+          studentAssignments: {},
+          status: 'active' as UserStatus, // Admin-created users are active
         };
         await setDoc(doc(db, "users", firebaseUser.uid), userProfileData); 
 
-        // Construct the UserProfileWithId to return
         const newUserProfile: UserProfileWithId = {
-          id: firebaseUser.uid, // Firestore doc ID is same as uid
-          ...userProfileData, // This already includes uid, email, displayName, role, schoolId, createdAt, classIds, studentAssignments
-          // Fill in the FirebaseUser specific fields (many will be default/null initially)
+          id: firebaseUser.uid, 
+          ...userProfileData,
           photoURL: firebaseUser.photoURL,
           emailVerified: firebaseUser.emailVerified,
           isAnonymous: firebaseUser.isAnonymous,
@@ -478,15 +508,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       return null;
     } catch (error: any) {
       console.error("Error creating user by admin:", error);
-      // Specific error handling can be done here or in the calling component
-      // For example, if error.code === 'auth/email-already-in-use'
       return null;
     } finally {
       setLoading(false);
     }
   };
 
-  const updateUserRoleAndSchool = async (userId: string, data: { role?: UserRole; schoolId?: string, classIds?: string[] }): Promise<boolean> => {
+  const updateUserRoleAndSchool = async (userId: string, data: { role?: UserRole; schoolId?: string, classIds?: string[], status?: UserStatus }): Promise<boolean> => {
     if (!currentUser || currentUser.role !== 'admin') return false;
     setLoading(true);
     try {
@@ -495,11 +523,16 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       if (data.classIds === null) { 
         updateData.classIds = [];
       }
+      // If role is changed, ensure status is appropriate (e.g. 'active') unless explicitly set
+      if (data.role && !data.status) {
+        updateData.status = 'active';
+      }
+
 
       await updateDoc(userRef, updateData);
       return true;
     } catch (error) {
-      console.error("Error updating user role/school:", error);
+      console.error("Error updating user role/school/status:", error);
       return false;
     } finally {
       setLoading(false);
@@ -511,7 +544,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       const userDocRef = doc(db, "users", userId);
       const userDocSnap = await getDoc(userDocRef);
       if (userDocSnap.exists()) {
-        return { id: userDocSnap.id, ...userDocSnap.data() } as UserProfileWithId;
+        const data = userDocSnap.data();
+        return { id: userDocSnap.id, ...data, status: data.status || 'active' } as UserProfileWithId;
       }
       return null;
     } catch (error) {
@@ -685,8 +719,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
       if (classData.studentIds?.includes(studentId)) {
         console.log("Student already enrolled in this class.");
-        if (!currentUser.classIds?.includes(classId)) {
-          setCurrentUser(prev => prev ? ({ ...prev, classIds: arrayUnion(classId) as string[] }) : null);
+        // Ensure local state for currentUser is also up-to-date if somehow it's not
+        if (currentUser && !currentUser.classIds?.includes(classId)) {
+          setCurrentUser(prev => prev ? ({ ...prev, classIds: Array.from(new Set([...(prev.classIds || []), classId])) }) : null);
         }
         return true; 
       }
@@ -699,7 +734,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       
       await batch.commit();
 
-      setCurrentUser(prev => prev ? ({ ...prev, classIds: arrayUnion(classId) as string[] }) : null);
+      // Update local state
+      setCurrentUser(prev => prev ? ({ ...prev, classIds: Array.from(new Set([...(prev.classIds || []), classId])) }) : null);
       return true;
 
     } catch (error) {
@@ -765,7 +801,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         const usersRef = collection(db, "users");
         const q = query(usersRef, where(documentId(), "in", chunk));
         const querySnapshot = await getDocs(q);
-        const studentsInChunk = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as UserProfileWithId));
+        const studentsInChunk = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data(), status: doc.data().status || 'active' } as UserProfileWithId));
         allStudents = [...allStudents, ...studentsInChunk];
       }
       return allStudents;
@@ -779,7 +815,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     const allSchoolStudents = await getUsersBySchoolAndRole(schoolId, 'student');
     const studentsInClass = await getStudentsInClass(classId);
     const studentIdsInClass = new Set(studentsInClass.map(s => s.id));
-    return allSchoolStudents.filter(student => !studentIdsInClass.has(student.id));
+    return allSchoolStudents.filter(student => !studentIdsInClass.has(student.id) && student.status === 'active');
   };
 
   const deleteClass = async (classId: string): Promise<boolean> => {
@@ -831,7 +867,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     try {
       const q = query(collection(db, "users"), where("role", "==", "student"), where("classIds", "array-contains-any", classIds));
       const querySnapshot = await getDocs(q);
-      return querySnapshot.docs.map(d => ({ id: d.id, ...d.data() } as UserProfileWithId));
+      return querySnapshot.docs.map(d => ({ id: d.id, ...d.data(), status: d.data().status || 'active' } as UserProfileWithId));
     } catch (error) {
       console.error("Error fetching students in multiple classes:", error);
       return [];
@@ -1046,7 +1082,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           if (submission) {
             assignmentWithInfo.submissionStatus = submission.status;
             assignmentWithInfo.submissionGrade = submission.grade;
-          } else if (currentUser?.studentAssignments?.[assignmentId]) { // Check local currentUser as fallback
+          } else if (currentUser?.studentAssignments?.[assignmentId]) { 
             assignmentWithInfo.submissionStatus = currentUser.studentAssignments[assignmentId].status;
             assignmentWithInfo.submissionGrade = currentUser.studentAssignments[assignmentId].grade;
           }
@@ -1216,7 +1252,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           updatedAt: Timestamp.now()
         });
         await updateDoc(studentRef, {
-          [studentAssignmentField]: { status: statusUpdate, grade: existingSubmission.grade } // Preserve existing grade if any
+          [studentAssignmentField]: { status: statusUpdate, grade: existingSubmission.grade } 
         });
         setCurrentUser(prev => prev ? { ...prev, studentAssignments: { ...prev.studentAssignments, [submissionData.assignmentId]: { status: statusUpdate, grade: existingSubmission.grade }} } : null);
         return existingSubmission.id;
@@ -1260,7 +1296,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
     const assignments = await getAssignmentsByClass(classId);
     const assignmentsWithStatus: AssignmentWithClassAndSubmissionInfo[] = [];
-    const studentProfile = await getUserProfile(studentId); // Fetch student profile once
+    const studentProfile = await getUserProfile(studentId); 
 
     for (const assignment of assignments) {
       const submission = await getSubmissionByStudentForAssignment(assignment.id, studentId);
@@ -1272,7 +1308,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       if (submission) {
         status = submission.status;
         grade = submission.grade;
-      } else if (studentProfile?.studentAssignments?.[assignment.id]) { // Use fetched profile data
+      } else if (studentProfile?.studentAssignments?.[assignment.id]) { 
         status = studentProfile.studentAssignments[assignment.id].status;
         grade = studentProfile.studentAssignments[assignment.id].grade;
       }
@@ -1312,9 +1348,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     if (!auth.currentUser) return false;
     setLoading(true);
     try {
-      // IMPORTANT: For actual email update in Firebase Auth, re-authentication is required.
-      // This simplified version only updates the email in Firestore.
-      // await updateEmail(auth.currentUser, newEmail); // This would require re-auth
       console.warn("Email update is simplified and only updates Firestore. For Firebase Auth email change, re-authentication is needed.");
       const userRef = doc(db, "users", auth.currentUser.uid);
       await updateDoc(userRef, { email: newEmail, updatedAt: Timestamp.now() });
@@ -1334,8 +1367,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     if (!auth.currentUser) return false;
     setLoading(true);
     try {
-      // IMPORTANT: For actual password update in Firebase Auth, re-authentication may be required by Firebase.
-      // This simplified version attempts direct update.
       console.warn("Password update is simplified. Firebase may require re-authentication for this action to succeed.");
       await updateFirebasePassword(auth.currentUser, newPassword);
       return true;
@@ -1365,6 +1396,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     adminCreateUserInSchool,
     updateUserRoleAndSchool,
     getUserProfile,
+    approveUserForSchool,
     createClassInSchool,
     getClassesBySchool,
     getClassesByIds,
