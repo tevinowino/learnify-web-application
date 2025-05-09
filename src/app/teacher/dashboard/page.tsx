@@ -1,19 +1,41 @@
+
 "use client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { BookOpen, UploadCloud, BarChart2, Sparkles, Loader2 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { summarizeLearningMaterial, SummarizeLearningMaterialInput } from '@/ai/flows/summarize-learning-material';
 import { useAuth } from "@/hooks/useAuth";
+import Link from "next/link";
+import type { LearningMaterial } from "@/types";
 
 export default function TeacherDashboardPage() {
-  const { currentUser } = useAuth();
+  const { currentUser, getLearningMaterialsBySchool, loading: authLoading } = useAuth();
   const [materialToSummarize, setMaterialToSummarize] = useState("");
   const [summary, setSummary] = useState("");
   const [isSummarizing, setIsSummarizing] = useState(false);
   const { toast } = useToast();
+  const [materialCount, setMaterialCount] = useState(0);
+  const [isLoadingStats, setIsLoadingStats] = useState(true);
+
+  useEffect(() => {
+    const fetchStats = async () => {
+      if (currentUser?.schoolId) {
+        setIsLoadingStats(true);
+        const materials = await getLearningMaterialsBySchool(currentUser.schoolId);
+        setMaterialCount(materials.length);
+        setIsLoadingStats(false);
+      } else if(!authLoading) {
+        setIsLoadingStats(false);
+      }
+    };
+    if(currentUser){
+        fetchStats();
+    }
+  }, [currentUser, getLearningMaterialsBySchool, authLoading]);
+
 
   const handleSummarize = async () => {
     if (!materialToSummarize.trim()) {
@@ -35,6 +57,8 @@ export default function TeacherDashboardPage() {
     }
   };
 
+  const isLoading = authLoading || isLoadingStats;
+
   return (
     <div className="space-y-6">
        <div className="flex justify-between items-center">
@@ -42,20 +66,25 @@ export default function TeacherDashboardPage() {
           <h1 className="text-3xl font-bold">Teacher Dashboard</h1>
           <p className="text-muted-foreground">Welcome, {currentUser?.displayName || "Teacher"}! Manage your classes and materials.</p>
         </div>
-        <Button className="bg-primary hover:bg-primary/90 button-shadow">
+        <Button asChild className="bg-primary hover:bg-primary/90 button-shadow">
+          <Link href="/teacher/materials">
            <UploadCloud className="mr-2 h-4 w-4"/> Upload New Material
+          </Link>
         </Button>
       </div>
 
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
         <Card className="card-shadow hover:border-primary transition-colors">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">My Classes</CardTitle>
+            <CardTitle className="text-sm font-medium">Uploaded Materials</CardTitle>
             <BookOpen className="h-5 w-5 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">5</div> {/* Placeholder */}
-            <p className="text-xs text-muted-foreground">Active classes this semester</p>
+            {isLoading ? <Loader2 className="h-6 w-6 animate-spin"/> : <div className="text-2xl font-bold">{materialCount}</div>}
+            <p className="text-xs text-muted-foreground">Total materials available</p>
+            <Button variant="link" asChild className="px-0 pt-2">
+              <Link href="/teacher/materials">Manage Materials</Link>
+            </Button>
           </CardContent>
         </Card>
          <Card className="card-shadow hover:border-primary transition-colors">
@@ -64,8 +93,11 @@ export default function TeacherDashboardPage() {
             <BarChart2 className="h-5 w-5 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">75%</div> {/* Placeholder */}
+            <div className="text-2xl font-bold">N/A</div> {/* Placeholder */}
             <p className="text-xs text-muted-foreground">Average class completion</p>
+            <Button variant="link" asChild className="px-0 pt-2">
+              <Link href="/teacher/progress">View Progress</Link>
+            </Button>
           </CardContent>
         </Card>
       </div>

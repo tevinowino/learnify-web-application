@@ -1,3 +1,4 @@
+
 "use client";
 
 import React from 'react';
@@ -5,7 +6,7 @@ import type { UserRole } from '@/types';
 import { useAuth } from '@/hooks/useAuth';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
-import { Home, Users, BookOpen, BarChart2, Settings, LogOut as LogOutIcon, ChevronLeft } from 'lucide-react';
+import { Home, Users, BookOpen, BarChart2, Settings, LogOut as LogOutIcon, Library, FileText, UserPlus } from 'lucide-react'; // Added Library, FileText, UserPlus
 import Logo from '@/components/shared/Logo';
 
 
@@ -18,22 +19,23 @@ const navItems = {
   admin: [
     { href: '/admin/dashboard', label: 'Overview', icon: <Home className="h-5 w-5" /> },
     { href: '/admin/users', label: 'Manage Users', icon: <Users className="h-5 w-5" /> },
+    // { href: '/admin/users/new', label: 'Add New User', icon: <UserPlus className="h-5 w-5" /> }, // Can be added if direct link preferred
     { href: '/admin/settings', label: 'School Settings', icon: <Settings className="h-5 w-5" /> },
   ],
   teacher: [
-    { href: '/teacher/dashboard', label: 'My Classes', icon: <Home className="h-5 w-5" /> },
-    { href: '/teacher/materials', label: 'Upload Materials', icon: <BookOpen className="h-5 w-5" /> },
+    { href: '/teacher/dashboard', label: 'Dashboard', icon: <Home className="h-5 w-5" /> },
+    { href: '/teacher/materials', label: 'Manage Materials', icon: <Library className="h-5 w-5" /> }, // Changed icon and label
     { href: '/teacher/progress', label: 'Student Progress', icon: <BarChart2 className="h-5 w-5" /> },
   ],
   student: [
-    { href: '/student/dashboard', label: 'My Learning Path', icon: <Home className="h-5 w-5" /> },
+    { href: '/student/dashboard', label: 'My Dashboard', icon: <Home className="h-5 w-5" /> }, // Changed label
     { href: '/student/progress', label: 'My Progress', icon: <BarChart2 className="h-5 w-5" /> },
-    { href: '/student/resources', label: 'Resources', icon: <BookOpen className="h-5 w-5" /> },
+    { href: '/student/resources', label: 'Learning Resources', icon: <FileText className="h-5 w-5" /> }, // Changed icon and label
   ],
 };
 
 export default function DashboardLayout({ children, userRole }: DashboardLayoutProps) {
-  const { currentUser, logOut } = useAuth();
+  const { logOut } = useAuth(); // Removed currentUser as it's not directly used here
   const currentNavItems = userRole ? navItems[userRole] || [] : [];
 
   return (
@@ -61,7 +63,7 @@ export default function DashboardLayout({ children, userRole }: DashboardLayoutP
       </aside>
 
       {/* Main Content */}
-      <main className="flex-1 p-6 md:p-8">
+      <main className="flex-1 p-6 md:p-8 overflow-y-auto"> {/* Added overflow-y-auto */}
         <div className="max-w-7xl mx-auto">
           {children}
         </div>
