@@ -6,7 +6,7 @@ import type { UserRole } from '@/types';
 import { useAuth } from '@/hooks/useAuth';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
-import { Home, Users, BookOpen, BarChart2, Settings, LogOut as LogOutIcon, Library, FileText, UserCircle2, BookCopy, UserCog } from 'lucide-react'; 
+import { Home, Users, BookOpen, BarChart2, Settings, LogOut as LogOutIcon, Library, FileText, UserCircle2, BookCopy, UserCog, Edit3 } from 'lucide-react'; 
 import Logo from '@/components/shared/Logo';
 
 
@@ -25,15 +25,15 @@ const navItems = {
   ],
   teacher: [
     { href: '/teacher/dashboard', label: 'Dashboard', icon: <Home className="h-5 w-5" /> },
+    { href: '/teacher/classes', label: 'My Classes', icon: <BookCopy className="h-5 w-5" /> },
     { href: '/teacher/materials', label: 'Manage Materials', icon: <Library className="h-5 w-5" /> },
+    { href: '/teacher/assignments', label: 'Manage Assignments', icon: <Edit3 className="h-5 w-5" /> }, // Using Edit3 for assignments
     { href: '/teacher/progress', label: 'Student Progress', icon: <BarChart2 className="h-5 w-5" /> },
-    // Add Teacher Profile link if needed: { href: '/teacher/profile', label: 'My Profile', icon: <UserCircle2 className="h-5 w-5" /> },
   ],
   student: [
     { href: '/student/dashboard', label: 'My Dashboard', icon: <Home className="h-5 w-5" /> }, 
     { href: '/student/progress', label: 'My Progress', icon: <BarChart2 className="h-5 w-5" /> },
     { href: '/student/resources', label: 'Learning Resources', icon: <FileText className="h-5 w-5" /> },
-     // Add Student Profile link if needed: { href: '/student/profile', label: 'My Profile', icon: <UserCircle2 className="h-5 w-5" /> },
   ],
 };
 

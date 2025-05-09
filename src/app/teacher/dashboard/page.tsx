@@ -3,38 +3,71 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { BookOpen, UploadCloud, BarChart2, Sparkles, Loader2 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { BookOpen, UploadCloud, BarChart2, Sparkles, Loader2, Edit3, BookCopy } from "lucide-react";
+import { useEffect, useState, useCallback } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { summarizeLearningMaterial, SummarizeLearningMaterialInput } from '@/ai/flows/summarize-learning-material';
 import { useAuth } from "@/hooks/useAuth";
 import Link from "next/link";
-import type { LearningMaterial } from "@/types";
+import type { LearningMaterial, AssignmentWithClassInfo, ClassWithTeacherInfo } from "@/types";
+import { format } from "date-fns";
 
 export default function TeacherDashboardPage() {
-  const { currentUser, getLearningMaterialsBySchool, loading: authLoading } = useAuth();
+  const { 
+    currentUser, 
+    getLearningMaterialsByTeacher, 
+    getAssignmentsByTeacher,
+    getClassesByTeacher,
+    loading: authLoading 
+  } = useAuth();
+
   const [materialToSummarize, setMaterialToSummarize] = useState("");
   const [summary, setSummary] = useState("");
   const [isSummarizing, setIsSummarizing] = useState(false);
   const { toast } = useToast();
+  
   const [materialCount, setMaterialCount] = useState(0);
+  const [assignmentCount, setAssignmentCount] = useState(0);
+  const [upcomingAssignments, setUpcomingAssignments] = useState<AssignmentWithClassInfo[]>([]);
+  const [classCount, setClassCount] = useState(0);
   const [isLoadingStats, setIsLoadingStats] = useState(true);
 
-  useEffect(() => {
-    const fetchStats = async () => {
-      if (currentUser?.schoolId) {
-        setIsLoadingStats(true);
-        const materials = await getLearningMaterialsBySchool(currentUser.schoolId);
+  const fetchDashboardData = useCallback(async () => {
+    if (currentUser?.uid && currentUser.schoolId) {
+      setIsLoadingStats(true);
+      try {
+        const [materials, assignments, classes] = await Promise.all([
+          getLearningMaterialsByTeacher(currentUser.uid),
+          getAssignmentsByTeacher(currentUser.uid),
+          getClassesByTeacher(currentUser.uid)
+        ]);
         setMaterialCount(materials.length);
-        setIsLoadingStats(false);
-      } else if(!authLoading) {
+        setAssignmentCount(assignments.length);
+        setClassCount(classes.length);
+
+        const now = new Date();
+        const upcoming = assignments
+          .filter(a => a.deadline.toDate() >= now)
+          .sort((a, b) => a.deadline.toDate().getTime() - b.deadline.toDate().getTime())
+          .slice(0, 3); // Show top 3 upcoming
+        setUpcomingAssignments(upcoming);
+
+      } catch (error) {
+        console.error("Error fetching dashboard data:", error);
+        toast({ title: "Error", description: "Could not load dashboard data.", variant: "destructive" });
+      } finally {
         setIsLoadingStats(false);
       }
-    };
-    if(currentUser){
-        fetchStats();
+    } else if(!authLoading) {
+      setIsLoadingStats(false);
     }
-  }, [currentUser, getLearningMaterialsBySchool, authLoading]);
+  }, [currentUser, getLearningMaterialsByTeacher, getAssignmentsByTeacher, getClassesByTeacher, authLoading, toast]);
+
+  useEffect(() => {
+    if(currentUser){
+        fetchDashboardData();
+    }
+  }, [currentUser, fetchDashboardData]);
 
 
   const handleSummarize = async () => {
@@ -61,19 +94,32 @@ export default function TeacherDashboardPage() {
 
   return (
     <div className="space-y-6">
-       <div className="flex justify-between items-center">
+       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h1 className="text-3xl font-bold">Teacher Dashboard</h1>
           <p className="text-muted-foreground">Welcome, {currentUser?.displayName || "Teacher"}! Manage your classes and materials.</p>
         </div>
-        <Button asChild className="bg-primary hover:bg-primary/90 button-shadow">
-          <Link href="/teacher/materials">
-           <UploadCloud className="mr-2 h-4 w-4"/> Upload New Material
+        <Button asChild className="bg-primary hover:bg-primary/90 button-shadow w-full sm:w-auto">
+          <Link href="/teacher/assignments/create">
+           <UploadCloud className="mr-2 h-4 w-4"/> Create Assignment
           </Link>
         </Button>
       </div>
 
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+         <Card className="card-shadow hover:border-primary transition-colors">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">My Classes</CardTitle>
+            <BookCopy className="h-5 w-5 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            {isLoading ? <Loader2 className="h-6 w-6 animate-spin"/> : <div className="text-2xl font-bold">{classCount}</div>}
+            <p className="text-xs text-muted-foreground">Total classes assigned</p>
+            <Button variant="link" asChild className="px-0 pt-2">
+              <Link href="/teacher/classes">View My Classes</Link>
+            </Button>
+          </CardContent>
+        </Card>
         <Card className="card-shadow hover:border-primary transition-colors">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Uploaded Materials</CardTitle>
@@ -89,46 +135,83 @@ export default function TeacherDashboardPage() {
         </Card>
          <Card className="card-shadow hover:border-primary transition-colors">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Student Progress</CardTitle>
-            <BarChart2 className="h-5 w-5 text-muted-foreground" />
+            <CardTitle className="text-sm font-medium">Total Assignments</CardTitle>
+            <Edit3 className="h-5 w-5 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">N/A</div> {/* Placeholder */}
-            <p className="text-xs text-muted-foreground">Average class completion</p>
+            {isLoading ? <Loader2 className="h-6 w-6 animate-spin"/> : <div className="text-2xl font-bold">{assignmentCount}</div>}
+            <p className="text-xs text-muted-foreground">Total assignments created</p>
             <Button variant="link" asChild className="px-0 pt-2">
-              <Link href="/teacher/progress">View Progress</Link>
+              <Link href="/teacher/assignments">Manage Assignments</Link>
             </Button>
           </CardContent>
         </Card>
       </div>
       
-      <Card className="card-shadow">
-        <CardHeader>
-          <CardTitle className="flex items-center"><Sparkles className="mr-2 h-5 w-5 text-primary"/>AI: Summarize Learning Material</CardTitle>
-          <CardDescription>
-            Paste learning material below to get an AI-generated summary.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Textarea
-            placeholder="Paste your learning material here..."
-            value={materialToSummarize}
-            onChange={(e) => setMaterialToSummarize(e.target.value)}
-            rows={8}
-            className="mb-4"
-          />
-          <Button onClick={handleSummarize} disabled={isSummarizing || !materialToSummarize.trim()} className="bg-accent hover:bg-accent/90 text-accent-foreground button-shadow">
-            {isSummarizing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            Summarize Material
-          </Button>
-          {summary && (
-            <div className="mt-4 p-4 border rounded-md bg-muted/50">
-              <h3 className="font-semibold mb-2">Summary:</h3>
-              <p className="text-sm whitespace-pre-wrap">{summary}</p>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+      <div className="grid gap-6 md:grid-cols-2">
+        <Card className="card-shadow">
+          <CardHeader>
+            <CardTitle className="flex items-center"><Sparkles className="mr-2 h-5 w-5 text-primary"/>AI: Summarize Learning Material</CardTitle>
+            <CardDescription>
+              Paste learning material below to get an AI-generated summary.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Textarea
+              placeholder="Paste your learning material here..."
+              value={materialToSummarize}
+              onChange={(e) => setMaterialToSummarize(e.target.value)}
+              rows={8}
+              className="mb-4"
+            />
+            <Button onClick={handleSummarize} disabled={isSummarizing || !materialToSummarize.trim()} className="bg-accent hover:bg-accent/90 text-accent-foreground button-shadow">
+              {isSummarizing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Summarize Material
+            </Button>
+            {summary && (
+              <div className="mt-4 p-4 border rounded-md bg-muted/50">
+                <h3 className="font-semibold mb-2">Summary:</h3>
+                <p className="text-sm whitespace-pre-wrap">{summary}</p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card className="card-shadow">
+          <CardHeader>
+            <CardTitle className="flex items-center"><BarChart2 className="mr-2 h-5 w-5 text-primary"/>Upcoming Deadlines</CardTitle>
+             <CardDescription>
+              Assignments due soon.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {isLoading ? <Loader2 className="mx-auto h-8 w-8 animate-spin text-primary"/> : 
+              upcomingAssignments.length > 0 ? (
+              <ul className="space-y-3">
+                {upcomingAssignments.map(assignment => (
+                  <li key={assignment.id} className="p-3 border rounded-md hover:bg-muted/50">
+                    <Link href={`/teacher/assignments/${assignment.id}`} className="hover:underline">
+                      <h4 className="font-semibold">{assignment.title}</h4>
+                    </Link>
+                    <p className="text-xs text-muted-foreground">
+                      For: {assignment.className || 'N/A'}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      Due: {format(assignment.deadline.toDate(), 'PPp')}
+                    </p>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-muted-foreground">No upcoming deadlines in the near future.</p>
+            )}
+            <Button variant="link" asChild className="px-0 pt-3">
+              <Link href="/teacher/assignments">View All Assignments</Link>
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+
     </div>
   );
 }
