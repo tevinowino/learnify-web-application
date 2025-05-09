@@ -1,17 +1,38 @@
+
 "use client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Home, BarChart2, BookOpen, Sparkles, Loader2 } from "lucide-react";
-import { useState } from "react";
+import { BarChart2, BookOpen, Sparkles, Loader2 } from "lucide-react";
+import { useEffect, useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { generateLearningPath, GenerateLearningPathInput } from '@/ai/flows/generate-learning-path';
 import { useAuth } from "@/hooks/useAuth";
+import Link from "next/link";
 
 export default function StudentDashboardPage() {
-  const { currentUser } = useAuth();
+  const { currentUser, getLearningMaterialsBySchool, loading: authLoading } = useAuth();
   const [learningPath, setLearningPath] = useState("");
   const [isGeneratingPath, setIsGeneratingPath] = useState(false);
   const { toast } = useToast();
+  const [resourceCount, setResourceCount] = useState(0);
+  const [isLoadingStats, setIsLoadingStats] = useState(true);
+
+  useEffect(() => {
+    const fetchStats = async () => {
+      if (currentUser?.schoolId) {
+        setIsLoadingStats(true);
+        const materials = await getLearningMaterialsBySchool(currentUser.schoolId);
+        setResourceCount(materials.length);
+        setIsLoadingStats(false);
+      } else if (!authLoading) {
+        setIsLoadingStats(false);
+      }
+    };
+     if(currentUser){
+        fetchStats();
+    }
+  }, [currentUser, getLearningMaterialsBySchool, authLoading]);
+
 
   const handleGeneratePath = async () => {
     setIsGeneratingPath(true);
@@ -19,9 +40,9 @@ export default function StudentDashboardPage() {
     try {
       // Mock inputs for now. In a real app, these would come from student data and teacher content.
       const input: GenerateLearningPathInput = {
-        studentPerformance: "Struggling with algebra, good at geometry.",
-        teacherContent: "Uploaded chapters on Algebra basics, Linear Equations, and Introduction to Geometry.",
-        studentGoals: "Improve algebra skills and prepare for the final exam.",
+        studentPerformance: "Struggling with algebra, good at geometry.", // TODO: Fetch actual student performance
+        teacherContent: "Uploaded chapters on Algebra basics, Linear Equations, and Introduction to Geometry.", // TODO: Fetch teacher content relevant to student
+        studentGoals: "Improve algebra skills and prepare for the final exam.", // TODO: Allow student to set goals
       };
       const result = await generateLearningPath(input);
       setLearningPath(result.learningPath);
@@ -34,6 +55,8 @@ export default function StudentDashboardPage() {
     }
   };
   
+  const isLoading = authLoading || isLoadingStats;
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
@@ -74,8 +97,11 @@ export default function StudentDashboardPage() {
             <BarChart2 className="h-5 w-5 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">60%</div> {/* Placeholder */}
+            <div className="text-2xl font-bold">N/A</div> {/* Placeholder */}
             <p className="text-xs text-muted-foreground">Completed of current module</p>
+            <Button variant="link" asChild className="px-0 pt-2">
+              <Link href="/student/progress">View Detailed Progress</Link>
+            </Button>
           </CardContent>
         </Card>
          <Card className="card-shadow hover:border-primary transition-colors">
@@ -84,8 +110,11 @@ export default function StudentDashboardPage() {
             <BookOpen className="h-5 w-5 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">12</div> {/* Placeholder */}
+             {isLoading ? <Loader2 className="h-6 w-6 animate-spin"/> : <div className="text-2xl font-bold">{resourceCount}</div>}
             <p className="text-xs text-muted-foreground">Documents and videos</p>
+            <Button variant="link" asChild className="px-0 pt-2">
+              <Link href="/student/resources">Browse Resources</Link>
+            </Button>
           </CardContent>
         </Card>
       </div>

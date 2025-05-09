@@ -1,6 +1,6 @@
 "use client";
 
-import type { ReactNode } from 'react';
+import type { ReactNode }from 'react';
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { 
   User as FirebaseUser, 
@@ -9,9 +9,9 @@ import {
   signInWithEmailAndPassword, 
   signOut as firebaseSignOut 
 } from 'firebase/auth';
-import { doc, getDoc, setDoc, collection, query, where, getDocs, writeBatch } from 'firebase/firestore';
+import { doc, getDoc, setDoc, collection, query, where, getDocs, writeBatch, updateDoc, addDoc, Timestamp, orderBy } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase';
-import type { UserProfile, UserRole } from '@/types';
+import type { UserProfile, UserRole, School, LearningMaterial, UserProfileWithId } from '@/types';
 import { useRouter } from 'next/navigation';
 
 interface AuthContextType {
@@ -23,6 +23,11 @@ interface AuthContextType {
   createSchool: (schoolName: string, adminId: string) => Promise<string | null>; // Returns schoolId or null
   joinSchoolWithInviteCode: (inviteCode: string, userId: string) => Promise<boolean>;
   checkAdminOnboardingStatus: () => Promise<{ isOnboarded: boolean; schoolId?: string }>;
+  getUsersBySchool: (schoolId: string) => Promise<UserProfileWithId[]>;
+  getSchoolDetails: (schoolId: string) => Promise<School | null>;
+  regenerateInviteCode: (schoolId: string) => Promise<string | null>;
+  addLearningMaterial: (material: Omit<LearningMaterial, 'id' | 'createdAt' | 'updatedAt'>) => Promise<string | null>;
+  getLearningMaterialsBySchool: (schoolId: string) => Promise<LearningMaterial[]>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -48,8 +53,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             schoolId: userData.schoolId,
           } as UserProfile);
         } else {
-          // This case might happen if user doc creation failed or is delayed
-          // For now, treat as no role, or try to create a default one if needed
           setCurrentUser({ ...user, role: null } as UserProfile);
         }
       } else {
@@ -62,8 +65,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }, []);
 
   const signUp = async (email: string, pass: string, role: UserRole, displayName: string): Promise<UserProfile | null> => {
+    setLoading(true);
     try {
-      setLoading(true);
       const userCredential = await createUserWithEmailAndPassword(auth, email, pass);
       const firebaseUser = userCredential.user;
       
@@ -89,8 +92,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const logIn = async (email: string, pass: string): Promise<UserProfile | null> => {
+    setLoading(true);
     try {
-      setLoading(true);
       const userCredential = await signInWithEmailAndPassword(auth, email, pass);
       const firebaseUser = userCredential.user;
 
@@ -121,11 +124,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const logOut = async () => {
+    setLoading(true);
     try {
-      setLoading(true);
       await firebaseSignOut(auth);
       setCurrentUser(null);
-      router.push('/'); // Redirect to home after logout
+      router.push('/'); 
     } catch (error) {
       console.error("Error logging out:", error);
     } finally {
@@ -138,7 +141,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     try {
       const inviteCode = Math.random().toString(36).substring(2, 8).toUpperCase();
       const schoolRef = doc(collection(db, "schools"));
-      const schoolData = {
+      const schoolData: School = {
         name: schoolName,
         adminId: adminId,
         inviteCode: inviteCode,
@@ -153,7 +156,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       
       await batch.commit();
 
-      // Update current user state
       if (currentUser && currentUser.uid === adminId) {
         setCurrentUser(prev => prev ? ({ ...prev, schoolId: schoolRef.id }) : null);
       }
@@ -185,7 +187,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       const userRef = doc(db, "users", userId);
       await setDoc(userRef, { schoolId: schoolId }, { merge: true });
       
-      // Update current user state
       if (currentUser && currentUser.uid === userId) {
         setCurrentUser(prev => prev ? ({ ...prev, schoolId: schoolId }) : null);
       }
@@ -203,20 +204,127 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     if (!currentUser || currentUser.role !== 'admin') {
       return { isOnboarded: false };
     }
+    // Re-fetch to ensure freshness, currentUser might be stale if schoolId was just set
     const userDocRef = doc(db, "users", currentUser.uid);
     const userDocSnap = await getDoc(userDocRef);
     if (userDocSnap.exists() && userDocSnap.data().schoolId) {
-      return { isOnboarded: true, schoolId: userDocSnap.data().schoolId };
+      // also update currentUser state if it's different
+      const schoolId = userDocSnap.data().schoolId;
+      if (currentUser.schoolId !== schoolId) {
+        setCurrentUser(prev => prev ? { ...prev, schoolId } : null);
+      }
+      return { isOnboarded: true, schoolId: schoolId };
     }
     return { isOnboarded: false };
   };
 
+  const getUsersBySchool = async (schoolId: string): Promise<UserProfileWithId[]> => {
+    if (!schoolId) return [];
+    setLoading(true);
+    try {
+      const usersRef = collection(db, "users");
+      const q = query(usersRef, where("schoolId", "==", schoolId));
+      const querySnapshot = await getDocs(q);
+      const users: UserProfileWithId[] = [];
+      querySnapshot.forEach((doc) => {
+        users.push({ id: doc.id, ...doc.data() } as UserProfileWithId);
+      });
+      return users;
+    } catch (error) {
+      console.error("Error fetching users by school:", error);
+      return [];
+    } finally {
+      setLoading(false);
+    }
+  };
 
-  return (
-    <AuthContext.Provider value={{ currentUser, loading, signUp, logIn, logOut, createSchool, joinSchoolWithInviteCode, checkAdminOnboardingStatus }}>
-      {children}
-    </AuthContext.Provider>
-  );
+  const getSchoolDetails = async (schoolId: string): Promise<School | null> => {
+    if (!schoolId) return null;
+    setLoading(true);
+    try {
+      const schoolRef = doc(db, "schools", schoolId);
+      const schoolSnap = await getDoc(schoolRef);
+      if (schoolSnap.exists()) {
+        return schoolSnap.data() as School;
+      }
+      return null;
+    } catch (error) {
+      console.error("Error fetching school details:", error);
+      return null;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const regenerateInviteCode = async (schoolId: string): Promise<string | null> => {
+    if (!schoolId || (currentUser && currentUser.role !== 'admin')) return null;
+    setLoading(true);
+    try {
+      const newInviteCode = Math.random().toString(36).substring(2, 8).toUpperCase();
+      const schoolRef = doc(db, "schools", schoolId);
+      await updateDoc(schoolRef, { inviteCode: newInviteCode });
+      return newInviteCode;
+    } catch (error) {
+      console.error("Error regenerating invite code:", error);
+      return null;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const addLearningMaterial = async (materialData: Omit<LearningMaterial, 'id' | 'createdAt' | 'updatedAt'>): Promise<string | null> => {
+    setLoading(true);
+    try {
+      const docRef = await addDoc(collection(db, "learningMaterials"), {
+        ...materialData,
+        createdAt: Timestamp.now(),
+      });
+      return docRef.id;
+    } catch (error) {
+      console.error("Error adding learning material:", error);
+      return null;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const getLearningMaterialsBySchool = async (schoolId: string): Promise<LearningMaterial[]> => {
+    if (!schoolId) return [];
+    setLoading(true);
+    try {
+      const materialsRef = collection(db, "learningMaterials");
+      const q = query(materialsRef, where("schoolId", "==", schoolId), orderBy("createdAt", "desc"));
+      const querySnapshot = await getDocs(q);
+      const materials: LearningMaterial[] = [];
+      querySnapshot.forEach((doc) => {
+        materials.push({ id: doc.id, ...doc.data() } as LearningMaterial);
+      });
+      return materials;
+    } catch (error) {
+      console.error("Error fetching learning materials:", error);
+      return [];
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const value = {
+    currentUser,
+    loading,
+    signUp,
+    logIn,
+    logOut,
+    createSchool,
+    joinSchoolWithInviteCode,
+    checkAdminOnboardingStatus,
+    getUsersBySchool,
+    getSchoolDetails,
+    regenerateInviteCode,
+    addLearningMaterial,
+    getLearningMaterialsBySchool,
+  };
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
 
 export const useAuth = () => {
