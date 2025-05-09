@@ -38,21 +38,24 @@ import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import type { UserRole } from "@/types";
 
-const baseSchema = z.object({
-  email: z.string().email({ message: "Invalid email address." }),
-  password: z.string().min(6, { message: "Password must be at least 6 characters." }),
+// ------------------
+// Schemas
+// ------------------
+
+const loginSchema = z.object({
+  email: z.string().email("Invalid email address."),
+  password: z.string().min(6, "Password must be at least 6 characters."),
 });
 
-const signupSchema = baseSchema.extend({
-  displayName: z.string().min(2, { message: "Display name must be at least 2 characters." }),
+const signupSchema = loginSchema.extend({
+  displayName: z.string().min(2, "Display name must be at least 2 characters."),
   role: z.enum(["admin", "teacher", "student"], {
     required_error: "Please select a role.",
   }),
 });
 
-type LoginFormValues = z.infer<typeof baseSchema>;
+type LoginFormValues = z.infer<typeof loginSchema>;
 type SignupFormValues = z.infer<typeof signupSchema>;
-type FormValues = LoginFormValues | SignupFormValues;
 
 type AuthFormProps = {
   mode: "login" | "signup";
@@ -65,15 +68,22 @@ export default function AuthForm({ mode }: AuthFormProps) {
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = React.useState(false);
 
-  const formSchema = mode === "signup" ? signupSchema : baseSchema;
+  const isSignup = mode === "signup";
+  const formSchema = isSignup ? signupSchema : loginSchema;
 
-  const form = useForm<FormValues>({
+  const form = useForm<SignupFormValues | LoginFormValues>({
     resolver: zodResolver(formSchema),
-    defaultValues: {
-      email: "",
-      password: "",
-      ...(mode === "signup" && { displayName: "", role: undefined }),
-    },
+    defaultValues: isSignup
+      ? {
+          email: "",
+          password: "",
+          displayName: "",
+          role: undefined,
+        }
+      : {
+          email: "",
+          password: "",
+        },
   });
 
   const isLoading = authLoading || isSubmitting;
@@ -86,13 +96,13 @@ export default function AuthForm({ mode }: AuthFormProps) {
     return "/";
   }
 
-  async function onSubmit(values: FormValues) {
+  async function onSubmit(values: SignupFormValues | LoginFormValues) {
     setIsSubmitting(true);
 
     try {
       let userProfile;
 
-      if (mode === "signup") {
+      if (isSignup) {
         const { email, password, displayName, role } = values as SignupFormValues;
         userProfile = await signUp(email, password, role, displayName);
       } else {
@@ -102,11 +112,12 @@ export default function AuthForm({ mode }: AuthFormProps) {
 
       if (userProfile) {
         toast({
-          title: mode === "signup" ? "Signup Successful!" : "Login Successful!",
+          title: isSignup ? "Signup Successful!" : "Login Successful!",
           description: "Redirecting...",
         });
 
         const redirectTo = searchParams.get("redirectTo") || redirectToDashboard(userProfile.role, userProfile.schoolId);
+        form.reset();
         router.push(redirectTo);
       } else {
         toast({
@@ -116,10 +127,23 @@ export default function AuthForm({ mode }: AuthFormProps) {
         });
       }
     } catch (error: any) {
-      console.error(error);
+      console.error("Auth Error:", error);
+
+      let errorMessage = "Something went wrong. Please try again.";
+      if (typeof error === "object" && error?.code) {
+        // Optional: friendly Firebase-style error messages
+        const firebaseErrors: Record<string, string> = {
+          "auth/email-already-in-use": "This email is already in use.",
+          "auth/user-not-found": "No user found with that email.",
+          "auth/wrong-password": "Incorrect password.",
+          "auth/invalid-email": "Invalid email address.",
+        };
+        errorMessage = firebaseErrors[error.code] || errorMessage;
+      }
+
       toast({
         title: "Error",
-        description: error.message || "Something went wrong. Please try again.",
+        description: errorMessage,
         variant: "destructive",
       });
     } finally {
@@ -130,17 +154,18 @@ export default function AuthForm({ mode }: AuthFormProps) {
   return (
     <Card className="w-full max-w-md shadow-xl">
       <CardHeader>
-        <CardTitle>{mode === "signup" ? "Create an Account" : "Welcome Back!"}</CardTitle>
+        <CardTitle>{isSignup ? "Create an Account" : "Welcome Back!"}</CardTitle>
         <CardDescription>
-          {mode === "signup"
+          {isSignup
             ? "Enter your details to join Learnify."
             : "Log in to access your dashboard."}
         </CardDescription>
       </CardHeader>
+
       <CardContent>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-            {mode === "signup" && (
+            {isSignup && (
               <FormField
                 control={form.control}
                 name="displayName"
@@ -148,7 +173,12 @@ export default function AuthForm({ mode }: AuthFormProps) {
                   <FormItem>
                     <FormLabel htmlFor="displayName">Display Name</FormLabel>
                     <FormControl>
-                      <Input id="displayName" placeholder="John Doe" {...field} />
+                      <Input
+                        id="displayName"
+                        placeholder="John Doe"
+                        aria-invalid={!!form.formState.errors.displayName}
+                        {...field}
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -163,7 +193,14 @@ export default function AuthForm({ mode }: AuthFormProps) {
                 <FormItem>
                   <FormLabel htmlFor="email">Email</FormLabel>
                   <FormControl>
-                    <Input id="email" type="email" placeholder="you@example.com" {...field} />
+                    <Input
+                      id="email"
+                      type="email"
+                      placeholder="you@example.com"
+                      autoComplete="email"
+                      aria-invalid={!!form.formState.errors.email}
+                      {...field}
+                    />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -177,23 +214,30 @@ export default function AuthForm({ mode }: AuthFormProps) {
                 <FormItem>
                   <FormLabel htmlFor="password">Password</FormLabel>
                   <FormControl>
-                    <Input id="password" type="password" placeholder="••••••••" {...field} />
+                    <Input
+                      id="password"
+                      type="password"
+                      placeholder="••••••••"
+                      autoComplete="current-password"
+                      aria-invalid={!!form.formState.errors.password}
+                      {...field}
+                    />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
               )}
             />
 
-            {mode === "signup" && (
+            {isSignup && (
               <FormField
                 control={form.control}
                 name="role"
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel htmlFor="role">I am a...</FormLabel>
-                    <Select onValueChange={field.onChange} defaultValue={field.value as string | undefined}>
+                    <Select onValueChange={field.onChange} defaultValue={field.value}>
                       <FormControl>
-                        <SelectTrigger id="role">
+                        <SelectTrigger id="role" aria-invalid={!!form.formState.errors.role}>
                           <SelectValue placeholder="Select your role" />
                         </SelectTrigger>
                       </FormControl>
@@ -213,19 +257,21 @@ export default function AuthForm({ mode }: AuthFormProps) {
               type="submit"
               className="w-full bg-primary hover:bg-primary/90 button-shadow"
               disabled={isLoading}
+              aria-busy={isLoading}
             >
               {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              {mode === "signup" ? "Sign Up" : "Log In"}
+              {isSignup ? "Sign Up" : "Log In"}
             </Button>
           </form>
         </Form>
       </CardContent>
+
       <CardFooter className="flex flex-col space-y-2">
         <p className="text-sm text-muted-foreground">
-          {mode === "signup" ? "Already have an account?" : "Don't have an account?"}{" "}
+          {isSignup ? "Already have an account?" : "Don't have an account?"}{" "}
           <Button variant="link" asChild className="p-0 text-primary">
-            <Link href={mode === "signup" ? "/auth/login" : "/auth/signup"}>
-              {mode === "signup" ? "Log In" : "Sign Up"}
+            <Link href={isSignup ? "/auth/login" : "/auth/signup"}>
+              {isSignup ? "Log In" : "Sign Up"}
             </Link>
           </Button>
         </p>
