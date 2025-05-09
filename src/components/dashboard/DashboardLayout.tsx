@@ -48,9 +48,8 @@ export default function DashboardLayout({ children, userRole }: DashboardLayoutP
       {/* Sidebar */}
       <aside className="w-64 bg-background p-4 border-r flex flex-col shadow-lg">
         <div className="mb-8">
-          <Link href="/" aria-label="Go to Homepage">
-            <Logo/>
-          </Link>
+          {/* Removed Link wrapper around Logo, as Logo itself is a Link */}
+          <Logo aria-label="Go to Homepage" />
         </div>
         <nav className="flex-grow space-y-1">
           {currentNavItems.map(item => (
