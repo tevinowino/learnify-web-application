@@ -83,7 +83,7 @@ export default function DashboardLayout({ children, userRole }: DashboardLayoutP
             </Link>
           </SidebarHeader>
           <ScrollArea className="flex-grow">
-            <SidebarContent className="p-2">
+            <SidebarContent className="px-2 pt-16">
               <SidebarMenu>
                 {currentNavItems.map(item => (
                   <SidebarMenuItem key={item.href}>
