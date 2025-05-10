@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { Loader2, PlusCircle, BookOpen, UploadCloud, LinkIcon, FileTextIcon, VideoIcon, Trash2, EditIcon, ChevronDown } from 'lucide-react';
+import { Loader2, PlusCircle, BookOpen, UploadCloud, LinkIcon as LinkLucideIcon, FileTextIcon, VideoIcon, Trash2, EditIcon as EditLucideIcon } from 'lucide-react'; // Renamed Link to LinkLucideIcon
 import type { LearningMaterial, LearningMaterialType, ClassWithTeacherInfo } from '@/types';
 import { useToast } from '@/hooks/use-toast';
 import { formatDistanceToNow } from 'date-fns';
@@ -18,12 +18,11 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from '@/components/ui/dialog';
-import Link from 'next/link';
-
+import Link from 'next/link'; // Kept Link from next/link as it's different from the icon
 
 const materialTypeIcons: Record<LearningMaterialType, React.ReactNode> = {
   text: <FileTextIcon className="h-4 w-4 mr-2" />,
-  link: <LinkIcon className="h-4 w-4 mr-2" />,
+  link: <LinkLucideIcon className="h-4 w-4 mr-2" />,
   pdf_link: <FileTextIcon className="h-4 w-4 mr-2 text-red-500" />, 
   video_link: <VideoIcon className="h-4 w-4 mr-2 text-blue-500" />, 
 };
@@ -34,6 +33,8 @@ const materialTypeLabels: Record<LearningMaterialType, string> = {
   pdf_link: "PDF Link",
   video_link: "Video Link",
 };
+
+const GENERAL_MATERIAL_VALUE = "__GENERAL_MATERIAL__"; // Unique constant for "no class" option
 
 export default function ManageMaterialsPage() {
   const { 
@@ -50,7 +51,7 @@ export default function ManageMaterialsPage() {
   const [title, setTitle] = useState('');
   const [content, setContent] = useState(''); 
   const [materialType, setMaterialType] = useState<LearningMaterialType>('text');
-  const [selectedClassId, setSelectedClassId] = useState<string | undefined>(undefined);
+  const [selectedClassId, setSelectedClassId] = useState<string | undefined>(undefined); // For saving
   
   const [materials, setMaterials] = useState<LearningMaterial[]>([]);
   const [teacherClasses, setTeacherClasses] = useState<ClassWithTeacherInfo[]>([]);
@@ -62,8 +63,7 @@ export default function ManageMaterialsPage() {
   const [editTitle, setEditTitle] = useState('');
   const [editContent, setEditContent] = useState('');
   const [editMaterialType, setEditMaterialType] = useState<LearningMaterialType>('text');
-  const [editSelectedClassId, setEditSelectedClassId] = useState<string | undefined>(undefined);
-
+  const [editSelectedClassId, setEditSelectedClassId] = useState<string | undefined>(undefined); // For saving
 
   const fetchMaterialsAndClasses = useCallback(async () => {
     if (currentUser?.uid && currentUser.schoolId) {
@@ -72,7 +72,6 @@ export default function ManageMaterialsPage() {
         getLearningMaterialsByTeacher(currentUser.uid),
         getClassesByTeacher(currentUser.uid)
       ]);
-      // Sort materials client-side as orderBy was removed from service
       setMaterials(fetchedMaterials.sort((a,b) => b.createdAt.toMillis() - a.createdAt.toMillis()));
       setTeacherClasses(fetchedClasses);
       setIsLoadingPage(false);
@@ -105,7 +104,7 @@ export default function ManageMaterialsPage() {
       materialType,
       schoolId: currentUser.schoolId,
       teacherId: currentUser.uid,
-      classId: selectedClassId || undefined, 
+      classId: selectedClassId, // This is already undefined if "General" was conceptually chosen
     };
     const materialId = await addLearningMaterial(materialData);
     setIsSubmitting(false);
@@ -123,7 +122,7 @@ export default function ManageMaterialsPage() {
     setEditTitle(material.title);
     setEditContent(material.content);
     setEditMaterialType(material.materialType);
-    setEditSelectedClassId(material.classId || undefined);
+    setEditSelectedClassId(material.classId || undefined); // Set to undefined if no classId
   };
 
   const handleUpdateMaterial = async () => {
@@ -136,7 +135,7 @@ export default function ManageMaterialsPage() {
       title: editTitle,
       content: editContent,
       materialType: editMaterialType,
-      classId: editSelectedClassId || undefined,
+      classId: editSelectedClassId, // This is already undefined if "General" was conceptually chosen
     });
     setIsSubmitting(false);
     if (success) {
@@ -151,7 +150,7 @@ export default function ManageMaterialsPage() {
   const handleDeleteMaterial = async (materialId: string, materialTitle: string) => {
     if (!confirm(`Are you sure you want to delete "${materialTitle}"?`)) return;
     setIsSubmitting(true); 
-    const success = await deleteLearningMaterial(materialId);
+    const success = await deleteLearningMaterial(materialId, materialTitle); // Pass title for activity log
     setIsSubmitting(false);
     if (success) {
       toast({ title: "Material Deleted!", description: `"${materialTitle}" removed.`});
@@ -160,7 +159,6 @@ export default function ManageMaterialsPage() {
       toast({ title: "Error Deleting", description: "Failed to delete material.", variant: "destructive"});
     }
   };
-
 
   const pageOverallLoading = authLoading || isLoadingPage;
 
@@ -243,12 +241,15 @@ export default function ManageMaterialsPage() {
 
              <div>
               <label htmlFor="selectedClassId" className="block text-sm font-medium text-foreground mb-1">Assign to Class (Optional)</label>
-              <Select onValueChange={setSelectedClassId} value={selectedClassId}>
+              <Select 
+                value={selectedClassId ?? GENERAL_MATERIAL_VALUE} 
+                onValueChange={(value) => setSelectedClassId(value === GENERAL_MATERIAL_VALUE ? undefined : value)}
+              >
                 <SelectTrigger id="selectedClassId">
                   <SelectValue placeholder="Select a class or leave general" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">General Material (No Class)</SelectItem>
+                  <SelectItem value={GENERAL_MATERIAL_VALUE}>General Material (No Class)</SelectItem>
                   {teacherClasses.map(cls => (
                     <SelectItem key={cls.id} value={cls.id}>{cls.name}</SelectItem>
                   ))}
@@ -295,7 +296,7 @@ export default function ManageMaterialsPage() {
                         </div>
                         <div className="flex gap-2 mt-2 sm:mt-0 self-start sm:self-auto flex-shrink-0">
                            <Button variant="outline" size="sm" onClick={() => openEditDialog(material)} className="button-shadow">
-                              <EditIcon className="mr-1 h-3 w-3"/> Edit
+                              <EditLucideIcon className="mr-1 h-3 w-3"/> Edit
                             </Button>
                            <Button variant="destructive" size="sm" onClick={() => handleDeleteMaterial(material.id, material.title)} disabled={isSubmitting} className="button-shadow">
                               <Trash2 className="mr-1 h-3 w-3"/> Delete
@@ -308,7 +309,7 @@ export default function ManageMaterialsPage() {
                         <p className="text-sm text-muted-foreground line-clamp-3">{material.content}</p>
                       ) : (
                         <Link href={material.content} target="_blank" rel="noopener noreferrer" className="text-sm text-primary hover:underline break-all">
-                          {material.content} <LinkIcon className="inline h-3 w-3 ml-1"/>
+                          {material.content} <LinkLucideIcon className="inline h-3 w-3 ml-1"/>
                         </Link>
                       )}
                     </CardContent>
@@ -363,10 +364,13 @@ export default function ManageMaterialsPage() {
               </div>
               <div className="space-y-2">
                 <label htmlFor="editSelectedClassId" className="block text-sm font-medium">Assign to Class (Optional)</label>
-                <Select onValueChange={setEditSelectedClassId} value={editSelectedClassId}>
+                <Select 
+                  value={editSelectedClassId ?? GENERAL_MATERIAL_VALUE} 
+                  onValueChange={(value) => setEditSelectedClassId(value === GENERAL_MATERIAL_VALUE ? undefined : value)}
+                >
                   <SelectTrigger id="editSelectedClassId"><SelectValue placeholder="General Material"/></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">General Material (No Class)</SelectItem>
+                    <SelectItem value={GENERAL_MATERIAL_VALUE}>General Material (No Class)</SelectItem>
                     {teacherClasses.map(cls => (
                       <SelectItem key={cls.id} value={cls.id}>{cls.name}</SelectItem>
                     ))}
