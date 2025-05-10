@@ -151,7 +151,7 @@ export default function ManageMaterialsPage() {
   const handleDeleteMaterial = async (materialId: string, materialTitle: string) => {
     if (!confirm(`Are you sure you want to delete "${materialTitle}"?`)) return;
     setIsSubmitting(true); 
-    const success = await deleteLearningMaterial(materialId);
+    const success = await deleteLearningMaterial(materialId, materialTitle);
     setIsSubmitting(false);
     if (success) {
       toast({ title: "Material Deleted!", description: `"${materialTitle}" removed.`});
@@ -160,7 +160,6 @@ export default function ManageMaterialsPage() {
       toast({ title: "Error Deleting", description: "Failed to delete material.", variant: "destructive"});
     }
   };
-
 
   const pageOverallLoading = authLoading || isLoadingPage;
 
