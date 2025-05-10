@@ -32,6 +32,8 @@ interface CreateClassDialogProps {
   onSuccess: () => void; // Callback for after successful creation
 }
 
+const NO_TEACHER_VALUE = "__NO_TEACHER__";
+
 export default function CreateClassDialog({ teachers, schoolId, onCreateClass, onSuccess }: CreateClassDialogProps) {
   const { toast } = useToast();
   const [newClassName, setNewClassName] = useState('');
@@ -45,7 +47,8 @@ export default function CreateClassDialog({ teachers, schoolId, onCreateClass, o
       return;
     }
     setIsSubmitting(true);
-    const classId = await onCreateClass(newClassName, schoolId, selectedTeacherForNewClass);
+    const teacherIdToSave = selectedTeacherForNewClass === NO_TEACHER_VALUE ? undefined : selectedTeacherForNewClass;
+    const classId = await onCreateClass(newClassName, schoolId, teacherIdToSave);
     setIsSubmitting(false);
     if (classId) {
       toast({ title: "Class Created!", description: `"${newClassName}" has been successfully created.` });
@@ -90,7 +93,7 @@ export default function CreateClassDialog({ teachers, schoolId, onCreateClass, o
                   <SelectValue placeholder="Assign a teacher (optional)" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">No Teacher Assigned</SelectItem>
+                  <SelectItem value={NO_TEACHER_VALUE}>No Teacher Assigned</SelectItem>
                   {teachers.map(teacher => (
                     <SelectItem key={teacher.id} value={teacher.id}>{teacher.displayName}</SelectItem>
                   ))}

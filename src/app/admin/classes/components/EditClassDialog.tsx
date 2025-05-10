@@ -34,6 +34,8 @@ interface EditClassDialogProps {
   onSuccess: () => void;
 }
 
+const NO_TEACHER_VALUE = "__NO_TEACHER__";
+
 export default function EditClassDialog({ 
   classItem, 
   teachers, 
@@ -54,7 +56,9 @@ export default function EditClassDialog({
   useEffect(() => {
     if (classItem) {
       setEditedClassName(classItem.name);
-      setSelectedTeacherForEditClass(classItem.teacherId || undefined);
+      // If teacherId is null/undefined, selectedTeacherForEditClass becomes undefined, showing placeholder.
+      // If teacherId exists, it's set. If user then selects "No Teacher", it becomes NO_TEACHER_VALUE.
+      setSelectedTeacherForEditClass(classItem.teacherId || undefined); 
       setCurrentClassInviteCode(classItem.classInviteCode || 'N/A');
     }
   }, [classItem]);
@@ -65,7 +69,8 @@ export default function EditClassDialog({
       return;
     }
     setIsSubmitting(true);
-    const success = await onUpdateClass(classItem.id, { name: editedClassName, teacherId: selectedTeacherForEditClass });
+    const teacherIdToSave = selectedTeacherForEditClass === NO_TEACHER_VALUE ? undefined : selectedTeacherForEditClass;
+    const success = await onUpdateClass(classItem.id, { name: editedClassName, teacherId: teacherIdToSave });
     setIsSubmitting(false);
     if (success) {
       toast({ title: "Class Updated!", description: `"${editedClassName}" has been successfully updated.` });
@@ -116,12 +121,15 @@ export default function EditClassDialog({
           </div>
           <div className="grid grid-cols-4 items-center gap-4">
             <label htmlFor="edit-class-teacher" className="text-right col-span-1">Teacher</label>
-            <Select onValueChange={setSelectedTeacherForEditClass} value={selectedTeacherForEditClass}>
+            <Select 
+              onValueChange={setSelectedTeacherForEditClass} 
+              value={selectedTeacherForEditClass}
+            >
               <SelectTrigger className="col-span-3">
                 <SelectValue placeholder="Assign a teacher" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">No Teacher Assigned</SelectItem>
+                <SelectItem value={NO_TEACHER_VALUE}>No Teacher Assigned</SelectItem>
                  {teachers.map(teacher => (
                   <SelectItem key={teacher.id} value={teacher.id}>{teacher.displayName}</SelectItem>
                 ))}
