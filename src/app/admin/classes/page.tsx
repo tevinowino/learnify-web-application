@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useEffect, useState, useCallback } from 'react';
@@ -69,6 +68,7 @@ export default function ManageClassesPage() {
     } else {
       toast({ title: "Error", description: "Failed to delete class.", variant: "destructive" });
     }
+    setIsSubmitting(false);
   };
 
   const pageOverallLoading = authLoading || isLoadingPage;
@@ -96,8 +96,8 @@ export default function ManageClassesPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <h1 className="text-3xl font-bold">Manage Classes</h1>
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <h1 className="text-2xl sm:text-3xl font-bold">Manage Classes</h1>
         <CreateClassDialog 
           teachers={teachers} 
           schoolId={currentUser.schoolId}
@@ -121,8 +121,8 @@ export default function ManageClassesPage() {
             <div className="space-y-4">
               {classes.map(classItem => (
                 <Card key={classItem.id} className="hover:border-primary/50 transition-colors">
-                  <CardHeader className="flex flex-row justify-between items-start">
-                    <div>
+                  <CardHeader className="flex flex-col sm:flex-row justify-between items-start sm:items-center">
+                    <div className="mb-2 sm:mb-0">
                       <CardTitle>{classItem.name}</CardTitle>
                       <CardDescription>
                         Teacher: {classItem.teacherDisplayName || 'Not Assigned'} <br />
@@ -130,17 +130,17 @@ export default function ManageClassesPage() {
                         Invite Code: {classItem.classInviteCode || 'N/A'}
                       </CardDescription>
                     </div>
-                     <div className="flex gap-2">
-                        <Button variant="outline" size="sm" onClick={() => setEditingClass(classItem)} className="button-shadow">
+                     <div className="flex gap-2 flex-wrap sm:flex-nowrap w-full sm:w-auto">
+                        <Button variant="outline" size="sm" onClick={() => setEditingClass(classItem)} className="button-shadow flex-grow sm:flex-grow-0">
                             <Edit className="mr-1 h-3 w-3"/> Edit
                         </Button>
-                        <Button variant="destructive" size="sm" onClick={() => handleDeleteClass(classItem.id, classItem.name)} disabled={isSubmitting} className="button-shadow">
+                        <Button variant="destructive" size="sm" onClick={() => handleDeleteClass(classItem.id, classItem.name)} disabled={isSubmitting} className="button-shadow flex-grow sm:flex-grow-0">
                           <Trash2 className="mr-1 h-3 w-3"/> Delete
                         </Button>
                       </div>
                   </CardHeader>
                   <CardFooter>
-                     <Button variant="secondary" size="sm" onClick={() => setManagingStudentsClass(classItem)} className="button-shadow">
+                     <Button variant="secondary" size="sm" onClick={() => setManagingStudentsClass(classItem)} className="button-shadow w-full sm:w-auto">
                         <Users className="mr-2 h-4 w-4"/> Manage Students
                       </Button>
                   </CardFooter>
@@ -179,4 +179,3 @@ export default function ManageClassesPage() {
     </div>
   );
 }
-

@@ -1,4 +1,3 @@
-
 "use client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -109,12 +108,12 @@ export default function StudentDashboardPage() {
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-3xl font-bold">Student Dashboard</h1>
-          <p className="text-muted-foreground">Welcome back, {currentUser?.displayName || "Student"}! Let's continue your learning journey.</p>
+          <h1 className="text-2xl sm:text-3xl font-bold">Student Dashboard</h1>
+          <p className="text-muted-foreground text-sm sm:text-base">Welcome back, {currentUser?.displayName || "Student"}! Let's continue your learning journey.</p>
         </div>
       </div>
 
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <Card className="card-shadow hover:border-primary transition-colors">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm font-medium">My Classes</CardTitle>
@@ -123,7 +122,7 @@ export default function StudentDashboardPage() {
             <CardContent>
                 {isLoading ? <Loader2 className="h-6 w-6 animate-spin"/> : <div className="text-2xl font-bold">{enrolledClasses.length}</div>}
                 <p className="text-xs text-muted-foreground">Currently enrolled</p>
-                <Button variant="link" asChild className="px-0 pt-2">
+                <Button variant="link" asChild className="px-0 pt-2 text-sm">
                     <Link href="/student/classes">View My Classes</Link>
                 </Button>
             </CardContent>
@@ -138,7 +137,7 @@ export default function StudentDashboardPage() {
                     enrolledClasses.reduce((sum, cls) => sum + (cls.totalAssignmentsCount || 0) ,0)
                 }</div>}
                 <p className="text-xs text-muted-foreground">Across all classes</p>
-                 <Button variant="link" asChild className="px-0 pt-2">
+                 <Button variant="link" asChild className="px-0 pt-2 text-sm">
                     <Link href="/student/assignments">View All Assignments</Link>
                 </Button>
             </CardContent>
@@ -151,7 +150,7 @@ export default function StudentDashboardPage() {
           <CardContent>
              {isLoading ? <Loader2 className="h-6 w-6 animate-spin"/> : <div className="text-2xl font-bold">{resourceCount}</div>}
             <p className="text-xs text-muted-foreground">Documents and videos</p>
-            <Button variant="link" asChild className="px-0 pt-2">
+            <Button variant="link" asChild className="px-0 pt-2 text-sm">
               <Link href="/student/resources">Browse Resources</Link>
             </Button>
           </CardContent>
@@ -166,7 +165,7 @@ export default function StudentDashboardPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <Button onClick={handleGeneratePath} disabled={isGeneratingPath || isLoading} className="bg-accent hover:bg-accent/90 text-accent-foreground button-shadow">
+          <Button onClick={handleGeneratePath} disabled={isGeneratingPath || isLoading} className="bg-accent hover:bg-accent/90 text-accent-foreground button-shadow w-full sm:w-auto">
             {(isGeneratingPath || isLoading) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             {learningPath ? "Regenerate My Path" : "Generate My Learning Path"}
           </Button>
@@ -203,7 +202,7 @@ export default function StudentDashboardPage() {
                       For: {assignment.className || 'N/A'}
                     </p>
                     <p className="text-xs text-muted-foreground">
-                      Due: {format(assignment.deadline.toDate(), 'PPp')}
+                      Due: {format(assignment.deadline.toDate(), 'PPp')} ({formatDistanceToNow(assignment.deadline.toDate(), { addSuffix: true })})
                     </p>
                   </li>
                 ))}
@@ -211,7 +210,7 @@ export default function StudentDashboardPage() {
             ) : (
               <p className="text-muted-foreground">No upcoming assignments to show right now. Great job!</p>
             )}
-            <Button variant="link" asChild className="px-0 pt-3">
+            <Button variant="link" asChild className="px-0 pt-3 text-sm">
               <Link href="/student/assignments">View All Assignments</Link>
             </Button>
           </CardContent>
@@ -243,7 +242,7 @@ export default function StudentDashboardPage() {
             ) : (
               <p className="text-muted-foreground">No new materials recently.</p>
             )}
-            <Button variant="link" asChild className="px-0 pt-3">
+            <Button variant="link" asChild className="px-0 pt-3 text-sm">
               <Link href="/student/resources">Browse All Resources</Link>
             </Button>
           </CardContent>
@@ -252,4 +251,3 @@ export default function StudentDashboardPage() {
     </div>
   );
 }
-

@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useEffect, useState, useCallback } from 'react';
@@ -188,7 +187,7 @@ export default function ManageMaterialsPage() {
 
   return (
     <div className="space-y-8">
-      <h1 className="text-3xl font-bold">Manage Learning Materials</h1>
+      <h1 className="text-2xl sm:text-3xl font-bold">Manage Learning Materials</h1>
 
       <Card className="card-shadow">
         <CardHeader>
@@ -257,7 +256,7 @@ export default function ManageMaterialsPage() {
               </Select>
             </div>
 
-            <Button type="submit" disabled={isSubmitting || !title.trim() || !content.trim()} className="bg-primary hover:bg-primary/90 button-shadow">
+            <Button type="submit" disabled={isSubmitting || !title.trim() || !content.trim()} className="bg-primary hover:bg-primary/90 button-shadow w-full sm:w-auto">
               {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               <PlusCircle className="mr-2 h-4 w-4" /> Add Material
             </Button>
@@ -283,18 +282,18 @@ export default function ManageMaterialsPage() {
                 return (
                   <Card key={material.id} className="hover:border-primary/50 transition-colors">
                     <CardHeader>
-                      <div className="flex justify-between items-start">
-                        <div>
-                           <CardTitle className="flex items-center">
+                      <div className="flex flex-col sm:flex-row justify-between items-start gap-2">
+                        <div className="flex-grow">
+                           <CardTitle className="flex items-center text-lg">
                             {materialTypeIcons[material.materialType]}
                             {material.title}
                           </CardTitle>
-                          <CardDescription>
+                          <CardDescription className="text-xs">
                             Type: {materialTypeLabels[material.materialType]} | Class: {assignedClass?.name || 'General'} <br />
                             Uploaded {material.createdAt ? formatDistanceToNow(material.createdAt.toDate(), { addSuffix: true }) : 'recently'}
                           </CardDescription>
                         </div>
-                        <div className="flex gap-2">
+                        <div className="flex gap-2 mt-2 sm:mt-0 self-start sm:self-auto flex-shrink-0">
                            <Button variant="outline" size="sm" onClick={() => openEditDialog(material)} className="button-shadow">
                               <EditIcon className="mr-1 h-3 w-3"/> Edit
                             </Button>
@@ -389,4 +388,3 @@ export default function ManageMaterialsPage() {
     </div>
   );
 }
-

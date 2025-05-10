@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useEffect, useState, useCallback } from 'react';
@@ -89,9 +88,9 @@ export default function ManageUsersPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <h1 className="text-3xl font-bold">Manage Users</h1>
-        <Button asChild className="bg-primary hover:bg-primary/90 button-shadow">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <h1 className="text-2xl sm:text-3xl font-bold">Manage Users</h1>
+        <Button asChild className="bg-primary hover:bg-primary/90 button-shadow w-full sm:w-auto">
           <Link href="/admin/users/add"> 
             <PlusCircle className="mr-2 h-4 w-4" /> Add New User
           </Link>
@@ -99,9 +98,9 @@ export default function ManageUsersPage() {
       </div>
 
       <Tabs defaultValue="active_users" className="w-full">
-        <TabsList className="grid w-full grid-cols-2">
-          <TabsTrigger value="active_users">Active Users ({activeUsers.length})</TabsTrigger>
-          <TabsTrigger value="pending_verification">
+        <TabsList className="grid w-full grid-cols-1 sm:grid-cols-2 h-auto sm:h-10">
+          <TabsTrigger value="active_users" className="py-2 sm:py-1.5">Active Users ({activeUsers.length})</TabsTrigger>
+          <TabsTrigger value="pending_verification" className="py-2 sm:py-1.5">
             Pending Verification ({pendingUsers.length})
             {pendingUsers.length > 0 && <span className="ml-2 inline-flex items-center justify-center w-2 h-2 rounded-full bg-destructive"></span>}
           </TabsTrigger>

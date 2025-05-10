@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useEffect, useState, useCallback } from 'react';
@@ -118,7 +117,7 @@ export default function TeacherAssignmentsPage() {
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <h1 className="text-3xl font-bold">Manage Assignments</h1>
+        <h1 className="text-2xl sm:text-3xl font-bold">Manage Assignments</h1>
         <Button asChild className="bg-primary hover:bg-primary/90 button-shadow w-full sm:w-auto">
           <Link href="/teacher/assignments/create">
             <PlusCircle className="mr-2 h-4 w-4" /> Create New Assignment
@@ -185,7 +184,7 @@ export default function TeacherAssignmentsPage() {
                            {assignment.totalSubmissions || 0} / {studentCounts[assignment.classId] || 0}
                          </Badge>
                       </TableCell>
-                      <TableCell className="text-right space-x-2">
+                      <TableCell className="text-right space-x-2 whitespace-nowrap">
                          <Button variant="outline" size="sm" asChild className="button-shadow">
                            <Link href={`/teacher/assignments/${assignment.id}/edit`}>
                              <Edit3 className="mr-1 h-3 w-3"/> Edit
@@ -213,4 +212,3 @@ export default function TeacherAssignmentsPage() {
     </div>
   );
 }
-
