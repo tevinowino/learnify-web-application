@@ -40,6 +40,7 @@ const materialTypeLabels: Record<LearningMaterialType, string> = {
 };
 
 const GENERAL_MATERIAL_VALUE = "__GENERAL_MATERIAL__"; // Unique constant for "no class" option
+const NO_SUBJECT_VALUE = "__NO_SUBJECT__"; // Unique constant for "no subject" option
 
 export default function ManageMaterialsPage() {
   const { 
@@ -49,7 +50,7 @@ export default function ManageMaterialsPage() {
     getClassesByTeacher,
     deleteLearningMaterial,
     updateLearningMaterial,
-    getSubjectsBySchool, // Added
+    getSubjectsBySchool, 
     loading: authLoading 
   } = useAuth();
   const { toast } = useToast();
@@ -58,12 +59,12 @@ export default function ManageMaterialsPage() {
   const [content, setContent] = useState(''); 
   const [materialType, setMaterialType] = useState<LearningMaterialType>('text');
   const [selectedClassId, setSelectedClassId] = useState<string | undefined>(undefined);
-  const [selectedSubjectId, setSelectedSubjectId] = useState<string | undefined>(undefined); // Added
-  const [selectedFile, setSelectedFile] = useState<File | null>(null); // Added for PDF upload
+  const [selectedSubjectId, setSelectedSubjectId] = useState<string | undefined>(undefined); 
+  const [selectedFile, setSelectedFile] = useState<File | null>(null); 
   
-  const [materials, setMaterials] = useState<LearningMaterial[]>([]); // Will become LearningMaterialWithSubjectInfo
+  const [materials, setMaterials] = useState<LearningMaterial[]>([]); 
   const [teacherClasses, setTeacherClasses] = useState<ClassWithTeacherInfo[]>([]);
-  const [schoolSubjects, setSchoolSubjects] = useState<Subject[]>([]); // Added
+  const [schoolSubjects, setSchoolSubjects] = useState<Subject[]>([]); 
   
   const [isLoadingPage, setIsLoadingPage] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -73,26 +74,26 @@ export default function ManageMaterialsPage() {
   const [editContent, setEditContent] = useState('');
   const [editMaterialType, setEditMaterialType] = useState<LearningMaterialType>('text');
   const [editSelectedClassId, setEditSelectedClassId] = useState<string | undefined>(undefined);
-  const [editSelectedSubjectId, setEditSelectedSubjectId] = useState<string | undefined>(undefined); // Added
-  const [editSelectedFile, setEditSelectedFile] = useState<File | null>(null); // Added
+  const [editSelectedSubjectId, setEditSelectedSubjectId] = useState<string | undefined>(undefined); 
+  const [editSelectedFile, setEditSelectedFile] = useState<File | null>(null); 
 
 
-  const fetchMaterialsAndClassesAndSubjects = useCallback(async () => { // Renamed function
+  const fetchMaterialsAndClassesAndSubjects = useCallback(async () => { 
     if (currentUser?.uid && currentUser.schoolId) {
       setIsLoadingPage(true);
-      const [fetchedMaterials, fetchedClasses, fetchedSubjects] = await Promise.all([ // Added subjects fetch
+      const [fetchedMaterials, fetchedClasses, fetchedSubjects] = await Promise.all([ 
         getLearningMaterialsByTeacher(currentUser.uid),
         getClassesByTeacher(currentUser.uid),
         getSubjectsBySchool(currentUser.schoolId) 
       ]);
       setMaterials(fetchedMaterials.sort((a,b) => b.createdAt.toMillis() - a.createdAt.toMillis()));
       setTeacherClasses(fetchedClasses);
-      setSchoolSubjects(fetchedSubjects); // Set subjects
+      setSchoolSubjects(fetchedSubjects); 
       setIsLoadingPage(false);
     } else if (!authLoading) {
       setIsLoadingPage(false);
     }
-  }, [currentUser, getLearningMaterialsByTeacher, getClassesByTeacher, getSubjectsBySchool, authLoading]); // Added getSubjectsBySchool
+  }, [currentUser, getLearningMaterialsByTeacher, getClassesByTeacher, getSubjectsBySchool, authLoading]); 
 
   useEffect(() => {
     fetchMaterialsAndClassesAndSubjects();
@@ -103,8 +104,8 @@ export default function ManageMaterialsPage() {
     setContent('');
     setMaterialType('text');
     setSelectedClassId(undefined);
-    setSelectedSubjectId(undefined); // Added
-    setSelectedFile(null); // Added
+    setSelectedSubjectId(undefined); 
+    setSelectedFile(null); 
   }
 
   const handleSubmitMaterial = async (e: React.FormEvent) => {
@@ -117,11 +118,7 @@ export default function ManageMaterialsPage() {
     
     let materialContent = content;
     if (materialType === 'pdf_upload' && selectedFile) {
-      // Placeholder for actual file upload logic
-      // In a real app: const fileUrl = await uploadFileToStorage(selectedFile, `materials/${currentUser.schoolId}/${selectedFile.name}`);
-      // if (!fileUrl) { toast({ ... }); setIsSubmitting(false); return; }
-      // materialContent = fileUrl;
-      materialContent = `[Uploaded File: ${selectedFile.name}]`; // Placeholder
+      materialContent = `[Uploaded File: ${selectedFile.name}]`; 
       toast({ title: "File Upload (Placeholder)", description: "File upload functionality is not yet implemented. Storing filename for now.", variant: "default" });
     }
 
@@ -132,7 +129,7 @@ export default function ManageMaterialsPage() {
       schoolId: currentUser.schoolId,
       teacherId: currentUser.uid,
       classId: selectedClassId,
-      subjectId: selectedSubjectId, // Added
+      subjectId: selectedSubjectId, 
     };
     const materialId = await addLearningMaterial(materialData);
     setIsSubmitting(false);
@@ -151,8 +148,8 @@ export default function ManageMaterialsPage() {
     setEditContent(material.content);
     setEditMaterialType(material.materialType);
     setEditSelectedClassId(material.classId || undefined); 
-    setEditSelectedSubjectId(material.subjectId || undefined); // Added
-    setEditSelectedFile(null); // Reset file for edit
+    setEditSelectedSubjectId(material.subjectId || undefined); 
+    setEditSelectedFile(null); 
   };
 
   const handleUpdateMaterial = async () => {
@@ -164,11 +161,7 @@ export default function ManageMaterialsPage() {
 
     let finalContent = editContent;
     if (editMaterialType === 'pdf_upload' && editSelectedFile) {
-      // Placeholder for actual file upload logic
-      // const fileUrl = await uploadFileToStorage(editSelectedFile, `materials/${currentUser.schoolId}/${editSelectedFile.name}`);
-      // if (!fileUrl) { toast({ ... }); setIsSubmitting(false); return; }
-      // finalContent = fileUrl;
-      finalContent = `[Uploaded File: ${editSelectedFile.name}]`; // Placeholder
+      finalContent = `[Uploaded File: ${editSelectedFile.name}]`; 
       toast({ title: "File Upload (Placeholder)", description: "File upload functionality is not yet implemented. Storing filename for now.", variant: "default" });
     }
 
@@ -178,7 +171,7 @@ export default function ManageMaterialsPage() {
       content: finalContent,
       materialType: editMaterialType,
       classId: editSelectedClassId, 
-      subjectId: editSelectedSubjectId, // Added
+      subjectId: editSelectedSubjectId, 
     });
     setIsSubmitting(false);
     if (success) {
@@ -278,7 +271,7 @@ export default function ManageMaterialsPage() {
                   type="file" 
                   accept=".pdf"
                   onChange={(e) => setSelectedFile(e.target.files ? e.target.files[0] : null)} 
-                  required={!editingMaterial} // Required only if not editing an existing file link
+                  required={!editingMaterial} 
                 />
               ) : (
                 <Textarea 
@@ -296,12 +289,12 @@ export default function ManageMaterialsPage() {
               <div>
                 <Label htmlFor="selectedSubjectId" className="block text-sm font-medium text-foreground mb-1">Subject (Optional)</Label>
                 <Select 
-                  value={selectedSubjectId ?? ""} 
-                  onValueChange={(value) => setSelectedSubjectId(value === "" ? undefined : value)}
+                  value={selectedSubjectId ?? NO_SUBJECT_VALUE} 
+                  onValueChange={(value) => setSelectedSubjectId(value === NO_SUBJECT_VALUE ? undefined : value)}
                 >
                   <SelectTrigger id="selectedSubjectId"><SelectValue placeholder="Select a subject" /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">No Subject / General</SelectItem>
+                    <SelectItem value={NO_SUBJECT_VALUE}>No Subject / General</SelectItem>
                     {schoolSubjects.map(sub => (
                       <SelectItem key={sub.id} value={sub.id}>{sub.name}</SelectItem>
                     ))}
@@ -350,7 +343,7 @@ export default function ManageMaterialsPage() {
             <div className="space-y-4">
               {materials.map(material => {
                 const assignedClass = teacherClasses.find(c => c.id === material.classId);
-                const assignedSubject = schoolSubjects.find(s => s.id === material.subjectId); // Find subject
+                const assignedSubject = schoolSubjects.find(s => s.id === material.subjectId); 
                 return (
                   <Card key={material.id} className="hover:border-primary/50 transition-colors">
                     <CardHeader>
@@ -363,7 +356,7 @@ export default function ManageMaterialsPage() {
                           <CardDescription className="text-xs">
                             Type: {materialTypeLabels[material.materialType]} | 
                             Class: {assignedClass?.name || 'General'} |
-                            Subject: {assignedSubject?.name || 'N/A'} {/* Display subject */}
+                            Subject: {assignedSubject?.name || 'N/A'} 
                             <br />
                             Uploaded {material.createdAt ? formatDistanceToNow(material.createdAt.toDate(), { addSuffix: true }) : 'recently'}
                           </CardDescription>
@@ -384,7 +377,7 @@ export default function ManageMaterialsPage() {
                       ) : material.materialType === 'pdf_upload' ? (
                         <p className="text-sm text-muted-foreground">
                           <FileTextIcon className="inline h-4 w-4 mr-1 text-orange-500"/> 
-                          {material.content} {/* This will be the placeholder like "[Uploaded File: ...]" */}
+                          {material.content} 
                         </p>
                       ) : (
                         <Link href={material.content} target="_blank" rel="noopener noreferrer" className="text-sm text-primary hover:underline break-all">
@@ -459,12 +452,12 @@ export default function ManageMaterialsPage() {
               <div className="space-y-2">
                 <Label htmlFor="editSelectedSubjectId" className="block text-sm font-medium">Subject (Optional)</Label>
                 <Select 
-                  value={editSelectedSubjectId ?? ""} 
-                  onValueChange={(value) => setEditSelectedSubjectId(value === "" ? undefined : value)}
+                  value={editSelectedSubjectId ?? NO_SUBJECT_VALUE} 
+                  onValueChange={(value) => setEditSelectedSubjectId(value === NO_SUBJECT_VALUE ? undefined : value)}
                 >
                   <SelectTrigger id="editSelectedSubjectId"><SelectValue placeholder="Select a subject"/></SelectTrigger>
                   <SelectContent>
-                     <SelectItem value="">No Subject / General</SelectItem>
+                     <SelectItem value={NO_SUBJECT_VALUE}>No Subject / General</SelectItem>
                     {schoolSubjects.map(sub => (
                       <SelectItem key={sub.id} value={sub.id}>{sub.name}</SelectItem>
                     ))}
@@ -501,4 +494,3 @@ export default function ManageMaterialsPage() {
     </div>
   );
 }
-
