@@ -12,6 +12,7 @@ import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
+import Link from 'next/link'; // Added import for Link
 
 export default function SchoolSettingsPage() {
   const { currentUser, getSchoolDetails, regenerateInviteCode, updateSchoolDetails, loading: authLoading } = useAuth();
