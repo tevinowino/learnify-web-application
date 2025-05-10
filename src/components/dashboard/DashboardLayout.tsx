@@ -62,15 +62,15 @@ export default function DashboardLayout({ children, userRole }: DashboardLayoutP
 
   return (
     <SidebarProvider>
-      <div className="flex min-h-screen bg-secondary/30">
+      <div className="flex min-h-screen bg-secondary/30 ">
         <Sidebar collapsible="icon" side="left" variant="sidebar" className="hidden md:flex"> {/* Desktop Sidebar */}
           <SidebarHeader className="p-4">
-             <Link href="/" aria-label="Learnify Home">
+             {/* <Link href="/" aria-label="Learnify Home">
                 <Logo />
-            </Link>
+            </Link> */}
           </SidebarHeader>
           <ScrollArea className="flex-grow">
-            <SidebarContent className="p-2">
+            <SidebarContent className="px-2 pt-16">
               <SidebarMenu>
                 {currentNavItems.map(item => (
                   <SidebarMenuItem key={item.href}>
@@ -115,9 +115,9 @@ export default function DashboardLayout({ children, userRole }: DashboardLayoutP
               <span className="sr-only">Toggle sidebar</span>
             </SidebarTrigger>
             <div className="md:hidden">
-                <Link href="/" aria-label="Learnify Home">
+                {/* <Link href="/" aria-label="Learnify Home">
                   <Logo />
-                </Link>
+                </Link> */}
             </div>
             {/* Add other header elements like search or user menu for mobile header if needed */}
           </header>
