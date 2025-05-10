@@ -13,10 +13,10 @@ export const siteConfig = {
       title: "About",
       href: "/#about", 
     },
-    {
-      title: "Pricing",
-      href: "/#pricing",
-    },
+    // { // Removed Pricing link
+    //   title: "Pricing",
+    //   href: "/#pricing",
+    // },
     {
       title: "Contact Us",
       href: "/#contact",
@@ -28,7 +28,7 @@ export const siteConfig = {
   footerNav: [
     { title: "About Us", href: "/#about" },
     { title: "Contact", href: "/#contact" },
-    { title: "Privacy Policy", href: "/privacy" }, // Assuming dedicated page
-    { title: "Terms of Service", href: "/terms" }, // Assuming dedicated page
+    { title: "Privacy Policy", href: "/privacy" }, 
+    { title: "Terms of Service", href: "/terms" }, 
   ],
 };
