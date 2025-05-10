@@ -1,19 +1,39 @@
 
 import { doc, collection, query, where, getDocs, addDoc, Timestamp, orderBy, deleteDoc, updateDoc, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import type { LearningMaterial, LearningMaterialWithTeacherInfo } from '@/types';
+import type { LearningMaterial, LearningMaterialWithTeacherInfo, LearningMaterialType } from '@/types';
 import type { getUserProfileService as GetUserProfileServiceType } from './userService';
 import type { getClassDetailsService as GetClassDetailsServiceType } from './classService';
 
 
 export const addLearningMaterialService = async (materialData: Omit<LearningMaterial, 'id' | 'createdAt' | 'updatedAt'>): Promise<string | null> => {
   try {
-    const materialWithTimestamp = {
-      ...materialData,
+    // Create a new object for Firestore, excluding any fields that are undefined.
+    const dataToSave: any = {
+      title: materialData.title,
+      content: materialData.content,
+      materialType: materialData.materialType,
+      schoolId: materialData.schoolId,
+      teacherId: materialData.teacherId,
       createdAt: Timestamp.now(),
       updatedAt: Timestamp.now(),
     };
-    const docRef = await addDoc(collection(db, "learningMaterials"), materialWithTimestamp);
+
+    if (materialData.classId !== undefined) {
+      dataToSave.classId = materialData.classId;
+    }
+    if (materialData.subjectId !== undefined) {
+      dataToSave.subjectId = materialData.subjectId;
+    }
+    if (materialData.attachmentUrl !== undefined) {
+      dataToSave.attachmentUrl = materialData.attachmentUrl;
+    } else if (materialData.materialType === 'pdf_upload' && materialData.content.startsWith('[Uploaded File:')) {
+      // If attachmentUrl is undefined but it's a pdf_upload with placeholder content, use content as attachmentUrl
+      dataToSave.attachmentUrl = materialData.content;
+    }
+
+
+    const docRef = await addDoc(collection(db, "learningMaterials"), dataToSave);
     await updateDoc(doc(db, "learningMaterials", docRef.id), { id: docRef.id });
     return docRef.id;
   } catch (error) {
@@ -28,13 +48,10 @@ export const getLearningMaterialsByTeacherService = async (teacherId: string, cl
     const materialsRef = collection(db, "learningMaterials");
     let q;
     if (classId) {
-      // Querying by teacherId and classId together. orderBy on 'createdAt' would need a composite index.
       q = query(materialsRef, where("teacherId", "==", teacherId), where("classId", "==", classId));
     } else {
-      // Querying by teacherId only. orderBy on 'createdAt' would need a composite index.
       q = query(materialsRef, where("teacherId", "==", teacherId));
     }
-    // Removed orderBy("createdAt", "desc"). Client-side sorting needed.
     const querySnapshot = await getDocs(q);
     return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as LearningMaterial));
   } catch (error) {
@@ -47,9 +64,7 @@ export const getLearningMaterialsByClassService = async (classId: string): Promi
   if (!classId) return [];
   try {
       const materialsRef = collection(db, "learningMaterials");
-      // Querying by classId only. orderBy on 'createdAt' would need a composite index.
       const q = query(materialsRef, where("classId", "==", classId));
-      // Removed orderBy("createdAt", "desc"). Client-side sorting needed.
       const querySnapshot = await getDocs(q);
       return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as LearningMaterial));
   } catch (error) {
@@ -66,9 +81,7 @@ export const getLearningMaterialsBySchoolService = async (
   if (!schoolId) return [];
   try {
     const materialsRef = collection(db, "learningMaterials");
-    // Querying by schoolId only. orderBy on 'createdAt' would need a composite index.
     const q = query(materialsRef, where("schoolId", "==", schoolId));
-    // Removed orderBy("createdAt", "desc"). Client-side sorting needed.
     const querySnapshot = await getDocs(q);
     
     const materialsPromises = querySnapshot.docs.map(async (docSnapshot) => {
@@ -102,10 +115,25 @@ export const deleteLearningMaterialService = async (materialId: string): Promise
   }
 };
 
-export const updateLearningMaterialService = async (materialId: string, data: Partial<Pick<LearningMaterial, 'title' | 'content' | 'classId' | 'materialType'>>): Promise<boolean> => {
+export const updateLearningMaterialService = async (
+  materialId: string,
+  data: Partial<Omit<LearningMaterial, 'id' | 'createdAt' | 'updatedAt' | 'teacherId' | 'schoolId'>>
+): Promise<boolean> => {
   try {
     const materialRef = doc(db, "learningMaterials", materialId);
-    await updateDoc(materialRef, { ...data, updatedAt: Timestamp.now() });
+    // Create a clean object for Firestore, ensuring no undefined values are passed.
+    // If a field is intended to be removed, it should be passed as `null` from the component.
+    const cleanData: any = {};
+    for (const key in data) {
+      if (Object.prototype.hasOwnProperty.call(data, key)) {
+        const value = (data as any)[key];
+        if (value !== undefined) {
+          cleanData[key] = value;
+        }
+      }
+    }
+    
+    await updateDoc(materialRef, { ...cleanData, updatedAt: Timestamp.now() });
     return true;
   } catch (error) {
     console.error("Error updating learning material in service:", error);
@@ -123,4 +151,3 @@ export const getLearningMaterialByIdService = async (materialId: string): Promis
     return null;
   }
 };
-

@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { Loader2, PlusCircle, BookOpen, UploadCloud, LinkIcon as LinkLucideIcon, FileTextIcon, VideoIcon, Trash2, EditIcon as EditLucideIcon } from 'lucide-react'; // Renamed Link to LinkLucideIcon
+import { Loader2, PlusCircle, BookOpen, UploadCloud, LinkIcon as LinkLucideIcon, FileTextIcon, VideoIcon, Trash2, EditIcon as EditLucideIcon } from 'lucide-react'; 
 import type { LearningMaterial, LearningMaterialType, ClassWithTeacherInfo, Subject } from '@/types';
 import { useToast } from '@/hooks/use-toast';
 import { formatDistanceToNow } from 'date-fns';
@@ -19,7 +19,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from '@/components/ui/dialog';
-import Link from 'next/link'; // Kept Link from next/link as it's different from the icon
+import Link from 'next/link'; 
 import { Label } from '@/components/ui/label';
 
 
@@ -39,8 +39,8 @@ const materialTypeLabels: Record<LearningMaterialType, string> = {
   pdf_upload: "PDF Upload",
 };
 
-const GENERAL_MATERIAL_VALUE = "__GENERAL_MATERIAL__"; // Unique constant for "no class" option
-const NO_SUBJECT_VALUE = "__NO_SUBJECT__"; // Unique constant for "no subject" option
+const GENERAL_MATERIAL_VALUE = "__GENERAL_MATERIAL__"; 
+const NO_SUBJECT_VALUE = "__NO_SUBJECT__"; 
 
 export default function ManageMaterialsPage() {
   const { 
@@ -117,9 +117,17 @@ export default function ManageMaterialsPage() {
     setIsSubmitting(true);
     
     let materialContent = content;
+    let attachmentUrlForDb: string | undefined = undefined;
+
     if (materialType === 'pdf_upload' && selectedFile) {
       materialContent = `[Uploaded File: ${selectedFile.name}]`; 
+      attachmentUrlForDb = `[Uploaded File: ${selectedFile.name}]`; // Placeholder for attachmentUrl
       toast({ title: "File Upload (Placeholder)", description: "File upload functionality is not yet implemented. Storing filename for now.", variant: "default" });
+    } else if (materialType === 'pdf_link' || materialType === 'video_link' || materialType === 'link') {
+      // For link types, content is the URL. attachmentUrl can also store this URL if the schema intends it.
+      // Or it can be left undefined/null if `content` is the sole source for the link.
+      // Based on current type, attachmentUrl is optional and can hold the same.
+      attachmentUrlForDb = content; 
     }
 
     const materialData: Omit<LearningMaterial, 'id' | 'createdAt' | 'updatedAt'> = {
@@ -130,6 +138,7 @@ export default function ManageMaterialsPage() {
       teacherId: currentUser.uid,
       classId: selectedClassId,
       subjectId: selectedSubjectId, 
+      attachmentUrl: attachmentUrlForDb,
     };
     const materialId = await addLearningMaterial(materialData);
     setIsSubmitting(false);
@@ -153,26 +162,44 @@ export default function ManageMaterialsPage() {
   };
 
   const handleUpdateMaterial = async () => {
-    if (!editingMaterial || !editTitle.trim() || (editMaterialType !== 'pdf_upload' && !editContent.trim()) || (editMaterialType === 'pdf_upload' && !editSelectedFile && !editContent.startsWith("[Uploaded File:")) ) {
+    if (!editingMaterial || !editTitle.trim() || (editMaterialType !== 'pdf_upload' && !editContent.trim()) || (editMaterialType === 'pdf_upload' && !editSelectedFile && !editingMaterial.content?.startsWith("[Uploaded File:")) ) {
        toast({ title: "Missing Information", description: "Title and content/URL/file cannot be empty.", variant: "destructive" });
       return;
     }
     setIsSubmitting(true);
 
     let finalContent = editContent;
-    if (editMaterialType === 'pdf_upload' && editSelectedFile) {
-      finalContent = `[Uploaded File: ${editSelectedFile.name}]`; 
-      toast({ title: "File Upload (Placeholder)", description: "File upload functionality is not yet implemented. Storing filename for now.", variant: "default" });
+    let finalAttachmentUrl: string | null = null; // Use null to explicitly clear if needed
+
+    if (editMaterialType === 'pdf_upload') {
+      if (editSelectedFile) {
+        finalContent = `[Uploaded File: ${editSelectedFile.name}]`;
+        finalAttachmentUrl = `[Uploaded File: ${editSelectedFile.name}]`;
+      } else if (editingMaterial?.content?.startsWith("[Uploaded File:")) {
+        finalContent = editingMaterial.content;
+        finalAttachmentUrl = editingMaterial.attachmentUrl || editingMaterial.content; 
+      } else {
+        finalContent = "[No PDF Uploaded]"; 
+        finalAttachmentUrl = null;
+      }
+    } else if (editMaterialType === 'text') {
+        finalContent = editContent;
+        finalAttachmentUrl = null; 
+    } else { // Link types
+        finalContent = editContent; // Content is the URL
+        finalAttachmentUrl = editContent; // Or null if content is sole source for links
     }
 
-
-    const success = await updateLearningMaterial(editingMaterial.id, {
+    const updatePayload: Partial<Omit<LearningMaterial, 'id' | 'createdAt' | 'updatedAt' | 'teacherId' | 'schoolId'>> = {
       title: editTitle,
       content: finalContent,
       materialType: editMaterialType,
-      classId: editSelectedClassId, 
-      subjectId: editSelectedSubjectId, 
-    });
+      classId: editSelectedClassId === undefined ? null : editSelectedClassId,
+      subjectId: editSelectedSubjectId === undefined ? null : editSelectedSubjectId,
+      attachmentUrl: finalAttachmentUrl,
+    };
+
+    const success = await updateLearningMaterial(editingMaterial.id, updatePayload);
     setIsSubmitting(false);
     if (success) {
       toast({ title: "Material Updated!", description: "Successfully updated."});
@@ -271,7 +298,7 @@ export default function ManageMaterialsPage() {
                   type="file" 
                   accept=".pdf"
                   onChange={(e) => setSelectedFile(e.target.files ? e.target.files[0] : null)} 
-                  required={!editingMaterial} 
+                  required
                 />
               ) : (
                 <Textarea 
@@ -377,7 +404,7 @@ export default function ManageMaterialsPage() {
                       ) : material.materialType === 'pdf_upload' ? (
                         <p className="text-sm text-muted-foreground">
                           <FileTextIcon className="inline h-4 w-4 mr-1 text-orange-500"/> 
-                          {material.content} 
+                          {material.attachmentUrl || material.content} 
                         </p>
                       ) : (
                         <Link href={material.content} target="_blank" rel="noopener noreferrer" className="text-sm text-primary hover:underline break-all">
@@ -407,7 +434,7 @@ export default function ManageMaterialsPage() {
               </div>
               <div className="space-y-2">
                 <Label htmlFor="editMaterialType" className="block text-sm font-medium">Type</Label>
-                <Select onValueChange={(v) => {setEditMaterialType(v as LearningMaterialType); if (v === 'pdf_upload') setEditContent(''); setEditSelectedFile(null);}} value={editMaterialType}>
+                <Select onValueChange={(v) => {setEditMaterialType(v as LearningMaterialType); if (v === 'pdf_upload') setEditContent(editingMaterial?.content?.startsWith("[Uploaded File:") ? editingMaterial.content : ''); setEditSelectedFile(null);}} value={editMaterialType}>
                   <SelectTrigger id="editMaterialType">
                     <SelectValue/>
                   </SelectTrigger>
@@ -429,8 +456,8 @@ export default function ManageMaterialsPage() {
                 </Label>
                  {editMaterialType === 'pdf_upload' ? (
                     <>
-                      {editingMaterial.content.startsWith("[Uploaded File:") && !editSelectedFile && (
-                         <p className="text-sm text-muted-foreground p-2 border rounded-md bg-muted/50">Current: {editingMaterial.content}</p>
+                      {editingMaterial.attachmentUrl && !editSelectedFile && (
+                         <p className="text-sm text-muted-foreground p-2 border rounded-md bg-muted/50">Current: {editingMaterial.attachmentUrl}</p>
                       )}
                       <Input 
                         id="editMaterialFile" 
@@ -482,7 +509,7 @@ export default function ManageMaterialsPage() {
             </div>
             <DialogFooter>
               <DialogClose asChild><Button variant="outline">Cancel</Button></DialogClose>
-              <Button onClick={handleUpdateMaterial} disabled={isSubmitting || !editTitle.trim() || (editMaterialType !== 'pdf_upload' && !editContent.trim()) || (editMaterialType === 'pdf_upload' && !editSelectedFile && !editContent.startsWith("[Uploaded File:"))}>
+              <Button onClick={handleUpdateMaterial} disabled={isSubmitting || !editTitle.trim() || (editMaterialType !== 'pdf_upload' && !editContent.trim()) || (editMaterialType === 'pdf_upload' && !editSelectedFile && !editingMaterial?.content?.startsWith("[Uploaded File:"))}>
                 {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Save Changes
               </Button>
@@ -494,3 +521,4 @@ export default function ManageMaterialsPage() {
     </div>
   );
 }
+
