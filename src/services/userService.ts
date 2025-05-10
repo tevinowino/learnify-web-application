@@ -85,7 +85,9 @@ export const getUsersBySchoolService = async (schoolId: string): Promise<UserPro
     const usersRef = collection(db, "users");
     const q = query(usersRef, where("schoolId", "==", schoolId));
     const querySnapshot = await getDocs(q);
-    return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data(), status: doc.data().status || 'active' } as UserProfileWithId));
+    // Client-side sorting for consistency as orderBy was removed
+    const users = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data(), status: doc.data().status || 'active' } as UserProfileWithId));
+    return users.sort((a, b) => (a.displayName || "").localeCompare(b.displayName || ""));
   } catch (error) {
     console.error("Error fetching users by school in service:", error);
     return [];
@@ -98,7 +100,9 @@ export const getUsersBySchoolAndRoleService = async (schoolId: string, role: Use
     const usersRef = collection(db, "users");
     const q = query(usersRef, where("schoolId", "==", schoolId), where("role", "==", role));
     const querySnapshot = await getDocs(q);
-    return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data(), status: doc.data().status || 'active' } as UserProfileWithId));
+    // Client-side sorting for consistency
+    const users = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data(), status: doc.data().status || 'active' } as UserProfileWithId));
+    return users.sort((a, b) => (a.displayName || "").localeCompare(b.displayName || ""));
   } catch (error) {
     console.error("Error fetching users by school and role in service:", error);
     return [];
@@ -125,7 +129,7 @@ export const adminCreateUserService = async (
         createdAt: Timestamp.now(),
         classIds: [],
         studentAssignments: {},
-        status: 'active' as UserStatus,
+        status: 'active' as UserStatus, // Admin created users are active immediately
       };
       await setDoc(doc(db, "users", firebaseUser.uid), userProfileData);
       return { id: firebaseUser.uid, ...userProfileData } as UserProfileWithId;
@@ -144,7 +148,7 @@ export const updateUserRoleAndSchoolService = async (userId: string, data: { rol
      if (data.classIds === null) { 
         updateData.classIds = [];
       }
-    if (data.role && !data.status) {
+    if (data.role && !data.status) { // If role is changing, ensure status is active unless specified
         updateData.status = 'active';
     }
     await updateDoc(userRef, updateData);
@@ -158,13 +162,33 @@ export const updateUserRoleAndSchoolService = async (userId: string, data: { rol
 export const approveUserService = async (userId: string, schoolId: string): Promise<boolean> => {
   try {
     const userRef = doc(db, "users", userId);
-    await updateDoc(userRef, { status: 'active', schoolId, updatedAt: Timestamp.now() });
-    // If schoolName was stored for pending users and needs to be confirmed/updated, do it here
-    // Example: const schoolData = await getSchoolDetailsService(schoolId);
-    // await updateDoc(userRef, { schoolName: schoolData.name });
+    // When approving, if schoolId wasn't set during signup (e.g. for Admin self-onboarding), set it now.
+    // Also, ensure their status becomes active.
+    const schoolDocRef = doc(db, "schools", schoolId);
+    const schoolSnap = await getDoc(schoolDocRef);
+    const schoolName = schoolSnap.exists() ? schoolSnap.data().name : 'Unknown School';
+
+    await updateDoc(userRef, { status: 'active', schoolId, schoolName, updatedAt: Timestamp.now() });
     return true;
   } catch (error) {
     console.error("Error approving user in service:", error);
+    return false;
+  }
+};
+
+export const completeStudentOnboardingService = async (userId: string, classId: string, subjectIds: string[]): Promise<boolean> => {
+  if (!userId || !classId || !subjectIds) return false;
+  try {
+    const userRef = doc(db, "users", userId);
+    await updateDoc(userRef, {
+      classIds: [classId], // Student is typically in one primary class, can be expanded later if needed
+      subjects: subjectIds,
+      updatedAt: Timestamp.now(),
+      // Optionally, set a flag like `hasCompletedOnboarding: true` if needed
+    });
+    return true;
+  } catch (error) {
+    console.error("Error completing student onboarding in service:", error);
     return false;
   }
 };

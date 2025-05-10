@@ -28,7 +28,7 @@ export interface School {
   inviteCode: string;
   createdAt?: Timestamp;
   updatedAt?: Timestamp;
-  isExamMode?: boolean; // For Exam Mode feature
+  isExamModeActive?: boolean; 
 }
 
 export interface Subject {
@@ -128,6 +128,46 @@ export interface ClassStudentProgress {
   overallGrade?: string; 
 }
 
+export type ExamPeriodStatus = 'upcoming' | 'active' | 'grading' | 'completed';
+
+export interface ExamPeriod {
+  id: string;
+  name: string; 
+  schoolId: string;
+  startDate: Timestamp;
+  endDate: Timestamp;
+  assignedClassIds: string[];
+  status: ExamPeriodStatus; 
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+}
+
+export interface ExamPeriodWithClassNames extends ExamPeriod {
+    assignedClassNames?: string[]; // For display purposes
+}
+
+
+export interface ExamResult {
+  id: string;
+  studentId: string;
+  examPeriodId: string;
+  classId: string;
+  schoolId: string;
+  subjectId: string; 
+  marks: string | number; 
+  remarks?: string;
+  teacherId: string; 
+  createdAt: Timestamp;
+  updatedAt?: Timestamp;
+}
+
+export interface ExamResultWithStudentInfo extends ExamResult {
+    studentName?: string;
+    studentEmail?: string;
+    subjectName?: string; // if subjects are fetched
+}
+
+
 export interface Activity {
   id: string;
   schoolId: string;
@@ -144,15 +184,15 @@ export interface Activity {
     | 'subject_created'
     | 'user_registered'
     | 'user_approved'
-    | 'attendance_marked' // New
-    | 'exam_period_created' // New
-    | 'exam_results_entered'; // New
+    | 'attendance_marked'
+    | 'exam_period_created'
+    | 'exam_results_entered'
+    | 'exam_period_finalized'; // New type
   message: string; 
   link?: string; 
   timestamp: Timestamp;
 }
 
-// New Types for Attendance and Exams
 export type AttendanceStatus = 'present' | 'absent' | 'late' | 'excused';
 
 export interface AttendanceRecord {
@@ -160,33 +200,8 @@ export interface AttendanceRecord {
   studentId: string;
   classId: string;
   schoolId: string;
-  date: Timestamp; // Date of attendance
+  date: Timestamp; 
   status: AttendanceStatus;
-  markedBy: string; // teacherId
+  markedBy: string; 
   createdAt: Timestamp;
-}
-
-export interface ExamPeriod {
-  id: string;
-  name: string; // e.g., "Mid-Term Exams 2024"
-  schoolId: string;
-  startDate: Timestamp;
-  endDate: Timestamp;
-  assignedClassIds: string[];
-  isCompleted: boolean; // Admin marks this true when all results are in
-  createdAt: Timestamp;
-  updatedAt: Timestamp;
-}
-
-export interface ExamResult {
-  id: string;
-  studentId: string;
-  examPeriodId: string;
-  classId: string;
-  subjectId: string;
-  marks: string | number; // Flexible for different grading systems
-  remarks?: string;
-  teacherId: string; // Who entered the result
-  createdAt: Timestamp;
-  updatedAt: Timestamp;
 }
