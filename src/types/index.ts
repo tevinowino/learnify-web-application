@@ -9,13 +9,13 @@ export type UserStatus = 'pending_verification' | 'active' | 'rejected' | 'disab
 export interface UserProfile extends FirebaseUser {
   role: UserRole;
   schoolId?: string;
-  schoolName?: string; // Used to display school name while pending verification
-  status?: UserStatus; // User's status in the system/school
-  classIds?: string[]; // For students, classes they are enrolled in
-  studentAssignments?: Record<string, { status: 'submitted' | 'graded' | 'missing'; grade?: string | number }>; // student specific assignment status: assignmentId -> { status, grade }
+  schoolName?: string; 
+  status?: UserStatus; 
+  classIds?: string[]; 
+  subjects?: string[]; // New: Student's chosen subjects
+  studentAssignments?: Record<string, { status: 'submitted' | 'graded' | 'missing'; grade?: string | number }>; 
 }
 
-// Useful for when fetching users from collection and needing their Firestore document ID
 export interface UserProfileWithId extends UserProfile {
   id: string;
 }
@@ -23,9 +23,19 @@ export interface UserProfileWithId extends UserProfile {
 export interface School {
   id:string;
   name: string;
-  adminId: string; // UID of the admin who created the school
+  adminId: string; 
   inviteCode: string;
   createdAt?: Timestamp;
+  updatedAt?: Timestamp;
+  // Subjects might be stored as a subcollection or directly on the school doc if simple list
+  // For now, assuming a separate 'subjects' collection linked by schoolId
+}
+
+export interface Subject {
+  id: string;
+  name: string;
+  schoolId: string;
+  createdAt: Timestamp;
   updatedAt?: Timestamp;
 }
 
@@ -34,11 +44,11 @@ export type LearningMaterialType = 'text' | 'link' | 'video_link' | 'pdf_link';
 export interface LearningMaterial {
   id: string;
   title: string;
-  content: string; // Text content or URL for link types
+  content: string; 
   materialType: LearningMaterialType;
   schoolId: string;
-  teacherId: string; // UID of the teacher who uploaded it
-  classId?: string; // Optional: if material is specific to a class
+  teacherId: string; 
+  classId?: string; 
   createdAt: Timestamp;
   updatedAt?: Timestamp;
 }
@@ -53,17 +63,17 @@ export interface Class {
   id: string;
   name: string;
   schoolId: string;
-  teacherId?: string; // UID of the assigned teacher
-  studentIds?: string[]; // Array of student UIDs enrolled in the class
-  classInviteCode?: string; // Unique code for students to join this specific class
+  teacherId?: string; 
+  studentIds?: string[]; 
+  classInviteCode?: string; 
   createdAt: Timestamp;
   updatedAt?: Timestamp;
 }
 
 export interface ClassWithTeacherInfo extends Class {
   teacherDisplayName?: string;
-  submittedAssignmentsCount?: number; // For student dashboard: count of assignments they've submitted for this class
-  totalAssignmentsCount?: number;     // For student dashboard: total assignments in this class
+  submittedAssignmentsCount?: number; 
+  totalAssignmentsCount?: number;     
 }
 
 export type SubmissionFormat = 'text_entry' | 'file_link';
@@ -72,15 +82,15 @@ export interface Assignment {
   id: string;
   classId: string;
   teacherId: string;
-  schoolId: string; // Added schoolId
+  schoolId: string; 
   title: string;
   description: string;
   deadline: Timestamp;
   allowedSubmissionFormats: SubmissionFormat[];
   createdAt: Timestamp;
   updatedAt?: Timestamp;
-  totalSubmissions?: number; // Denormalized count of actual submissions received
-  status?: 'submitted' | 'graded' | 'missing' | 'late'; // Student-specific status
+  totalSubmissions?: number; 
+  status?: 'submitted' | 'graded' | 'missing' | 'late'; 
 }
 
 export interface AssignmentWithClassInfo extends Assignment {
@@ -99,11 +109,11 @@ export interface Submission {
   classId: string;
   studentId: string;
   submittedAt: Timestamp;
-  content: string; // Text for text_entry, URL for file_link
+  content: string; 
   submissionType: SubmissionFormat;
   grade?: string | number;
   feedback?: string;
-  status: 'submitted' | 'graded' | 'late'; // 'late' is determined at submission time vs deadline.
+  status: 'submitted' | 'graded' | 'late'; 
 }
 
 export interface SubmissionWithStudentName extends Submission {
@@ -111,10 +121,31 @@ export interface SubmissionWithStudentName extends Submission {
   studentEmail?: string;
 }
 
-export interface ClassStudentProgress { // Basic structure for progress tracking
+export interface ClassStudentProgress { 
   studentId: string;
   studentName: string;
   completedAssignments: number;
-  overallGrade?: string; // Or more detailed metrics
+  overallGrade?: string; 
+}
+
+export interface Activity {
+  id: string;
+  schoolId: string;
+  classId?: string; // Optional: if activity is class-specific
+  actorId?: string; // UID of user who performed the action
+  actorName?: string; // Display name of actor
+  type:
+    | 'assignment_created'
+    | 'material_uploaded'
+    | 'submission_received'
+    | 'submission_graded'
+    | 'student_joined_class'
+    | 'class_created'
+    | 'subject_created'
+    | 'user_registered'
+    | 'user_approved';
+  message: string; // e.g., "New assignment 'Math Homework 1' posted for Algebra 1 by Mr. Smith."
+  link?: string; // Optional link to the relevant item, e.g., /teacher/assignments/[assignmentId]
+  timestamp: Timestamp;
 }
 

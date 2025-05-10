@@ -1,17 +1,18 @@
+
 "use client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { BarChart2, BookOpen, Sparkles, Loader2, Clock, FolderOpen, ListChecks } from "lucide-react";
+import { Sparkles, Loader2, Clock, FolderOpen, ListChecks, BookOpen, Activity } from "lucide-react";
 import { useEffect, useState, useCallback } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { generateLearningPath, GenerateLearningPathInput } from '@/ai/flows/generate-learning-path';
 import { useAuth } from "@/hooks/useAuth";
 import Link from "next/link";
-import type { AssignmentWithClassAndSubmissionInfo, LearningMaterial, ClassWithTeacherInfo } from "@/types";
+import type { AssignmentWithClassAndSubmissionInfo, LearningMaterial, ClassWithTeacherInfo, Activity as ActivityType } from "@/types";
 import { format, formatDistanceToNow } from 'date-fns';
 
 export default function StudentDashboardPage() {
-  const { currentUser, getLearningMaterialsBySchool, getAssignmentsForStudentByClass, getClassesByIds, loading: authLoading } = useAuth();
+  const { currentUser, getLearningMaterialsBySchool, getAssignmentsForStudentByClass, getClassesByIds, getActivities, loading: authLoading } = useAuth();
   const [learningPath, setLearningPath] = useState("");
   const [isGeneratingPath, setIsGeneratingPath] = useState(false);
   const { toast } = useToast();
@@ -20,6 +21,7 @@ export default function StudentDashboardPage() {
   const [enrolledClasses, setEnrolledClasses] = useState<ClassWithTeacherInfo[]>([]);
   const [upcomingAssignments, setUpcomingAssignments] = useState<AssignmentWithClassAndSubmissionInfo[]>([]);
   const [recentMaterials, setRecentMaterials] = useState<LearningMaterial[]>([]);
+  const [recentActivities, setRecentActivities] = useState<ActivityType[]>([]);
   const [isLoadingStats, setIsLoadingStats] = useState(true);
 
   const fetchDashboardData = useCallback(async () => {
@@ -29,12 +31,14 @@ export default function StudentDashboardPage() {
     }
     setIsLoadingStats(true);
     try {
-      const [classesDetails, schoolMaterials] = await Promise.all([
+      const [classesDetails, schoolMaterials, activities] = await Promise.all([
         getClassesByIds(currentUser.classIds),
-        getLearningMaterialsBySchool(currentUser.schoolId) 
+        getLearningMaterialsBySchool(currentUser.schoolId),
+        getActivities(currentUser.schoolId, { classId: currentUser.classIds[0] }, 5) // Activities for first class or school wide
       ]);
       setEnrolledClasses(classesDetails);
       setResourceCount(schoolMaterials.length); 
+      setRecentActivities(activities);
 
       let allAssignments: AssignmentWithClassAndSubmissionInfo[] = [];
       for (const cls of classesDetails) {
@@ -53,7 +57,6 @@ export default function StudentDashboardPage() {
       const relevantMaterials = schoolMaterials.filter(material => 
         !material.classId || studentClassIdsSet.has(material.classId)
       );
-      // Sort recent materials client-side
       setRecentMaterials(relevantMaterials.sort((a,b) => b.createdAt.toMillis() - a.createdAt.toMillis()).slice(0,3));
 
     } catch (error) {
@@ -62,13 +65,18 @@ export default function StudentDashboardPage() {
     } finally {
       setIsLoadingStats(false);
     }
-  }, [currentUser, getAssignmentsForStudentByClass, getClassesByIds, getLearningMaterialsBySchool, authLoading, toast]);
+  }, [currentUser, getAssignmentsForStudentByClass, getClassesByIds, getLearningMaterialsBySchool, getActivities, authLoading, toast]);
 
   useEffect(() => {
-    if(currentUser){
+    if(currentUser && currentUser.classIds && currentUser.classIds.length > 0){ // Ensure classes are loaded before fetching
         fetchDashboardData();
+    } else if (currentUser && (!currentUser.classIds || currentUser.classIds.length === 0) && !authLoading) {
+      // If no classes, don't fetch class-specific data, maybe redirect to onboarding
+      setIsLoadingStats(false);
+      // Consider redirecting to onboarding if classIds is empty and not loading
+      // router.push('/student/onboarding');
     }
-  }, [currentUser, fetchDashboardData]);
+  }, [currentUser, fetchDashboardData, authLoading]);
 
 
   const handleGeneratePath = async () => {
@@ -84,12 +92,12 @@ export default function StudentDashboardPage() {
         ? Object.entries(currentUser.studentAssignments).map(([key, val]) => `Assignment ${key}: ${val.status} (Grade: ${val.grade || 'N/A'})`).join(', ')
         : "No performance data yet.";
       
-      const teacherContent = `Student is enrolled in ${enrolledClasses.map(c => c.name).join(', ')}. Teacher uploaded various materials.`;
+      const teacherContent = `Student is enrolled in ${enrolledClasses.map(c => c.name).join(', ')}. Teacher uploaded various materials. Student is interested in ${currentUser.subjects?.join(', ') || 'various topics'}.`;
 
       const input: GenerateLearningPathInput = {
         studentPerformance: studentPerformance || "No specific performance data recorded yet.",
         teacherContent: teacherContent || "General curriculum.",
-        studentGoals: "Master current topics and prepare for upcoming assessments.", 
+        studentGoals: `Master current topics in ${currentUser.subjects?.join(', ') || 'selected subjects'} and prepare for upcoming assessments.`, 
       };
       const result = await generateLearningPath(input);
       setLearningPath(result.learningPath);
@@ -103,6 +111,25 @@ export default function StudentDashboardPage() {
   };
   
   const isLoading = authLoading || isLoadingStats;
+  
+  if (currentUser && (!currentUser.classIds || currentUser.classIds.length === 0) && !authLoading && !isLoadingStats) {
+     return (
+        <div className="flex h-[calc(100vh-10rem)] items-center justify-center">
+            <Card className="w-full max-w-md shadow-xl text-center">
+                <CardHeader>
+                    <CardTitle>Complete Your Onboarding</CardTitle>
+                    <CardDescription>Please select your class and subjects to get started.</CardDescription>
+                </CardHeader>
+                 <CardContent>
+                    <Button asChild className="button-shadow">
+                        <Link href="/student/onboarding">Go to Onboarding</Link>
+                    </Button>
+                </CardContent>
+            </Card>
+        </div>
+     );
+  }
+
 
   return (
     <div className="space-y-6">
@@ -218,33 +245,28 @@ export default function StudentDashboardPage() {
 
          <Card className="card-shadow">
           <CardHeader>
-            <CardTitle className="flex items-center"><BookOpen className="mr-2 h-5 w-5 text-primary"/>Recent Learning Materials</CardTitle>
+            <CardTitle className="flex items-center"><Activity className="mr-2 h-5 w-5 text-primary"/>Recent Activity</CardTitle>
              <CardDescription>
-              Newly added resources for your classes or school.
+              Latest updates for your classes and school.
             </CardDescription>
           </CardHeader>
           <CardContent>
             {isLoading ? <Loader2 className="mx-auto h-8 w-8 animate-spin text-primary"/> : 
-              recentMaterials.length > 0 ? (
-              <ul className="space-y-3">
-                {recentMaterials.map(material => (
-                  <li key={material.id} className="p-3 border rounded-md hover:bg-muted/50">
-                    <h4 className="font-semibold">{material.title}</h4>
-                    <p className="text-xs text-muted-foreground">
-                      Type: {material.materialType} | Class: {material.className || 'General'}
+              recentActivities.length > 0 ? (
+              <ul className="max-h-60 overflow-y-auto space-y-2">
+                {recentActivities.map(activity => (
+                  <li key={activity.id} className="p-3 border rounded-md text-sm hover:bg-muted/30">
+                    <p className="font-medium">{activity.message}</p>
+                     <p className="text-xs text-muted-foreground">
+                      {formatDistanceToNow(activity.timestamp.toDate(), { addSuffix: true })}
                     </p>
-                    <p className="text-xs text-muted-foreground">
-                      Uploaded: {formatDistanceToNow(material.createdAt.toDate(), { addSuffix: true })}
-                    </p>
+                    {activity.link && <Link href={activity.link} className="text-xs text-primary hover:underline">View Details</Link>}
                   </li>
                 ))}
               </ul>
             ) : (
-              <p className="text-muted-foreground">No new materials recently.</p>
+              <p className="text-muted-foreground text-center py-4">No recent activity to show.</p>
             )}
-            <Button variant="link" asChild className="px-0 pt-3 text-sm">
-              <Link href="/student/resources">Browse All Resources</Link>
-            </Button>
           </CardContent>
         </Card>
       </div>

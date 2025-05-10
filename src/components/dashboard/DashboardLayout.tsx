@@ -1,3 +1,4 @@
+
 "use client";
 
 import React from 'react';
@@ -5,8 +6,8 @@ import type { UserRole } from '@/types';
 import { useAuth } from '@/hooks/useAuth';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
-import { Home, Users, Settings, LogOut as LogOutIcon, Library, FileText, UserCircle2, BookCopy, UserCog, Edit3, ListChecks, FolderOpen, BarChart2, PanelLeft } from 'lucide-react'; 
-import Logo from '@/components/shared/Logo'; // Logo is now presentational
+import { Home, Users, Settings, LogOut as LogOutIcon, Library, FileText, UserCircle2, BookCopy, UserCog, Edit3, ListChecks, FolderOpen, BarChart2, PanelLeft, BookText as BookTextIcon } from 'lucide-react'; 
+import Logo from '@/components/shared/Logo'; 
 import {
   SidebarProvider,
   Sidebar,
@@ -18,7 +19,7 @@ import {
   SidebarMenu,
   SidebarMenuItem,
   SidebarMenuButton
-} from '@/components/ui/sidebar'; // Assuming these are correctly exported from your ui/sidebar.tsx
+} from '@/components/ui/sidebar'; 
 import { usePathname } from 'next/navigation';
 import { ScrollArea } from '../ui/scroll-area';
 
@@ -33,6 +34,7 @@ const navItemsConfig = {
     { href: '/admin/dashboard', label: 'Overview', icon: <Home /> },
     { href: '/admin/users', label: 'Manage Users', icon: <Users /> },
     { href: '/admin/classes', label: 'Manage Classes', icon: <BookCopy /> },
+    { href: '/admin/school-settings/subjects', label: 'Manage Subjects', icon: <BookTextIcon /> },
     { href: '/admin/settings', label: 'School Settings', icon: <Settings /> },
     { href: '/admin/profile', label: 'My Profile', icon: <UserCog /> },
   ],
@@ -63,7 +65,7 @@ export default function DashboardLayout({ children, userRole }: DashboardLayoutP
   return (
     <SidebarProvider>
       <div className="flex min-h-screen bg-secondary/30">
-        <Sidebar collapsible="icon" side="left" variant="sidebar" className="hidden md:flex"> {/* Desktop Sidebar */}
+        <Sidebar collapsible="icon" side="left" variant="sidebar" className="hidden md:flex"> {}
           <SidebarHeader className="p-4">
              <Link href="/" aria-label="Learnify Home">
                 <Logo />
@@ -108,8 +110,8 @@ export default function DashboardLayout({ children, userRole }: DashboardLayoutP
         </Sidebar>
 
         <SidebarInset className="flex flex-col">
-          {/* Header for main content area, includes mobile sidebar trigger */}
-          <header className="sticky top-0 z-40 flex h-14 items-center gap-4 border-b bg-background/95 px-4 backdrop-blur supports-[backdrop-filter]:bg-background/60 md:px-6 md:hidden">
+          {}
+          <header className="sticky top-0 z-40 flex h-14 items-center gap-4 border-b bg-background/95 px-4 backdrop-blur supports-[backdrop-filter]:bg-background/60 md:hidden">
             <SidebarTrigger className="md:hidden">
               <PanelLeft />
               <span className="sr-only">Toggle sidebar</span>
@@ -119,11 +121,11 @@ export default function DashboardLayout({ children, userRole }: DashboardLayoutP
                   <Logo />
                 </Link>
             </div>
-            {/* Add other header elements like search or user menu for mobile header if needed */}
+            {}
           </header>
           
           <main className="flex-1 p-4 sm:p-6 md:p-8 overflow-y-auto">
-            <div className="max-w-full mx-auto"> {/* Changed from max-w-7xl to max-w-full for better space utilization */}
+            <div className="max-w-full mx-auto"> {}
               {children}
             </div>
           </main>

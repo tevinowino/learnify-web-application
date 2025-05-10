@@ -1,14 +1,15 @@
+
 "use client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { BookOpen, UploadCloud, BarChart2, Sparkles, Loader2, Edit3, BookCopy, Clock } from "lucide-react";
+import { BookOpen, UploadCloud, Sparkles, Loader2, Edit3, BookCopy, Clock, Activity } from "lucide-react";
 import { useEffect, useState, useCallback } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { summarizeLearningMaterial, SummarizeLearningMaterialInput } from '@/ai/flows/summarize-learning-material';
 import { useAuth } from "@/hooks/useAuth";
 import Link from "next/link";
-import type { LearningMaterial, AssignmentWithClassInfo, ClassWithTeacherInfo } from "@/types";
+import type { LearningMaterial, AssignmentWithClassInfo, ClassWithTeacherInfo, Activity as ActivityType } from "@/types";
 import { format, formatDistanceToNow } from 'date-fns';
 
 export default function TeacherDashboardPage() {
@@ -17,6 +18,7 @@ export default function TeacherDashboardPage() {
     getLearningMaterialsByTeacher, 
     getAssignmentsByTeacher,
     getClassesByTeacher,
+    getActivities,
     loading: authLoading 
   } = useAuth();
 
@@ -29,20 +31,23 @@ export default function TeacherDashboardPage() {
   const [assignmentCount, setAssignmentCount] = useState(0);
   const [upcomingAssignments, setUpcomingAssignments] = useState<AssignmentWithClassInfo[]>([]);
   const [classCount, setClassCount] = useState(0);
+  const [recentActivities, setRecentActivities] = useState<ActivityType[]>([]);
   const [isLoadingStats, setIsLoadingStats] = useState(true);
 
   const fetchDashboardData = useCallback(async () => {
     if (currentUser?.uid && currentUser.schoolId) {
       setIsLoadingStats(true);
       try {
-        const [materials, assignments, classes] = await Promise.all([
+        const [materials, assignments, classes, activities] = await Promise.all([
           getLearningMaterialsByTeacher(currentUser.uid),
           getAssignmentsByTeacher(currentUser.uid),
-          getClassesByTeacher(currentUser.uid)
+          getClassesByTeacher(currentUser.uid),
+          getActivities(currentUser.schoolId, { userId: currentUser.uid }, 5) // Activities related to this teacher
         ]);
         setMaterialCount(materials.length);
         setAssignmentCount(assignments.length);
         setClassCount(classes.length);
+        setRecentActivities(activities);
 
         const now = new Date();
         const upcoming = assignments
@@ -60,7 +65,7 @@ export default function TeacherDashboardPage() {
     } else if(!authLoading) {
       setIsLoadingStats(false);
     }
-  }, [currentUser, getLearningMaterialsByTeacher, getAssignmentsByTeacher, getClassesByTeacher, authLoading, toast]);
+  }, [currentUser, getLearningMaterialsByTeacher, getAssignmentsByTeacher, getClassesByTeacher, getActivities, authLoading, toast]);
 
   useEffect(() => {
     if(currentUser){
@@ -210,6 +215,35 @@ export default function TeacherDashboardPage() {
           </CardContent>
         </Card>
       </div>
+      
+      <Card className="card-shadow">
+        <CardHeader>
+          <CardTitle className="flex items-center"><Activity className="mr-2 h-5 w-5 text-primary"/>Recent Activity</CardTitle>
+          <CardDescription>Latest updates and events related to your classes.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-2">
+          {isLoading ? (
+            <div className="flex justify-center py-4"><Loader2 className="h-6 w-6 animate-spin text-primary"/></div>
+          ) : recentActivities.length > 0 ? (
+            <ul className="max-h-60 overflow-y-auto space-y-2">
+              {recentActivities.map(activity => (
+                <li key={activity.id} className="p-3 border rounded-md text-sm hover:bg-muted/30">
+                  <p className="font-medium">{activity.message}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {formatDistanceToNow(activity.timestamp.toDate(), { addSuffix: true })}
+                  </p>
+                  {activity.link && <Link href={activity.link} className="text-xs text-primary hover:underline">View Details</Link>}
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <div className="text-center py-8 text-muted-foreground">
+              <Activity className="mx-auto h-10 w-10 mb-2"/>
+              <p>No recent activity to show.</p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
     </div>
   );
