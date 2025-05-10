@@ -6,7 +6,7 @@ import type { UserRole } from '@/types';
 import { useAuth } from '@/hooks/useAuth';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
-import { Home, Users, Settings, LogOut as LogOutIcon, Library, FileText, UserCircle2, BookCopy, UserCog, Edit3, ListChecks, FolderOpen, BarChart2, PanelLeft, BookText as BookTextIcon, Shield, HeartHandshake, Users2, FilePieChart, Activity } from 'lucide-react'; 
+import { Home, Users, Settings, LogOut as LogOutIcon, Library, FileText, UserCircle2, BookCopy, UserCog, Edit3, ListChecks, FolderOpen, BarChart2, PanelLeft, BookText as BookTextIcon, Shield, HeartHandshake, Users2, FilePieChart, Activity, Sparkles } from 'lucide-react'; 
 import Logo from '@/components/shared/Logo'; 
 import {
   SidebarProvider,
@@ -52,6 +52,7 @@ const navItemsConfig = {
   ],
   student: [
     { href: '/student/dashboard', label: 'My Dashboard', icon: <Home /> }, 
+    { href: '/student/akili', label: 'Akili Chat', icon: <Sparkles /> },
     { href: '/student/classes', label: 'My Classes', icon: <FolderOpen /> },
     { href: '/student/assignments', label: 'My Assignments', icon: <ListChecks /> },
     { href: '/student/resources', label: 'Learning Resources', icon: <FileText /> },
@@ -146,3 +147,4 @@ export default function DashboardLayout({ children, userRole }: DashboardLayoutP
     </SidebarProvider>
   );
 }
+
