@@ -1,37 +1,42 @@
+
 "use client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Users, BookOpen, Settings, PlusCircle, Loader2, BookCopy, Activity } from "lucide-react";
+import { Users, BookOpen, Settings, PlusCircle, Loader2, BookCopy, Activity, ListOrdered } from "lucide-react";
 import Link from "next/link";
 import { useAuth } from "@/hooks/useAuth"; 
 import React, { useEffect, useState, useCallback } from "react";
-import type { UserProfileWithId, ClassWithTeacherInfo } from "@/types";
+import type { UserProfileWithId, ClassWithTeacherInfo, Activity as ActivityType } from "@/types";
+import { formatDistanceToNow } from "date-fns";
 
 export default function AdminDashboardPage() {
-  const { currentUser, getUsersBySchool, getClassesBySchool, loading: authLoading } = useAuth();
+  const { currentUser, getUsersBySchool, getClassesBySchool, getActivities, loading: authLoading } = useAuth();
   const [totalUsers, setTotalUsers] = useState(0);
   const [teacherCount, setTeacherCount] = useState(0);
   const [studentCount, setStudentCount] = useState(0);
   const [classCount, setClassCount] = useState(0);
+  const [recentActivities, setRecentActivities] = useState<ActivityType[]>([]);
   const [isLoadingStats, setIsLoadingStats] = useState(true);
   
   const fetchDashboardData = useCallback(async () => {
     if (currentUser?.schoolId) {
       setIsLoadingStats(true);
-      const [users, classes] = await Promise.all([
+      const [users, classes, activities] = await Promise.all([
         getUsersBySchool(currentUser.schoolId),
-        getClassesBySchool(currentUser.schoolId)
+        getClassesBySchool(currentUser.schoolId),
+        getActivities(currentUser.schoolId, {}, 5) // Fetch top 5 school-wide activities
       ]);
       
       setTotalUsers(users.length);
       setTeacherCount(users.filter(user => user.role === 'teacher').length);
       setStudentCount(users.filter(user => user.role === 'student').length);
       setClassCount(classes.length);
+      setRecentActivities(activities);
       setIsLoadingStats(false);
     } else if(!authLoading) {
       setIsLoadingStats(false);
     }
-  }, [currentUser, getUsersBySchool, getClassesBySchool, authLoading]);
+  }, [currentUser, getUsersBySchool, getClassesBySchool, getActivities, authLoading]);
 
   useEffect(() => {
     if(currentUser) {
@@ -112,32 +117,50 @@ export default function AdminDashboardPage() {
       </div>
 
       <div className="grid gap-4 md:grid-cols-2">
+         <Card className="card-shadow">
+          <CardHeader>
+            <CardTitle className="flex items-center"><Activity className="mr-2 h-5 w-5 text-primary"/>Recent Activity</CardTitle>
+            <CardDescription>Latest updates and events in your school.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {isLoading ? (
+              <div className="flex justify-center py-4"><Loader2 className="h-6 w-6 animate-spin text-primary"/></div>
+            ) : recentActivities.length > 0 ? (
+              <ul className="max-h-60 overflow-y-auto space-y-2">
+                {recentActivities.map(activity => (
+                  <li key={activity.id} className="p-3 border rounded-md text-sm hover:bg-muted/30">
+                    <p className="font-medium">{activity.message}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {formatDistanceToNow(activity.timestamp.toDate(), { addSuffix: true })}
+                      {activity.actorName && ` by ${activity.actorName}`}
+                    </p>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <div className="text-center py-8 text-muted-foreground">
+                <Activity className="mx-auto h-10 w-10 mb-2"/>
+                <p>No recent activity to show.</p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
         <Card className="card-shadow">
           <CardHeader>
             <CardTitle className="flex items-center"><Settings className="mr-2 h-5 w-5 text-primary"/>School Configuration</CardTitle>
+            <CardDescription>Manage school name, invite codes, subjects, and other settings.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
-            <p className="text-sm text-muted-foreground">Manage school name, invite codes, and other settings.</p>
+            <Button variant="outline" asChild className="w-full button-shadow mb-2">
+              <Link href="/admin/settings">General School Settings</Link>
+            </Button>
             <Button variant="outline" asChild className="w-full button-shadow">
-              <Link href="/admin/settings">Go to School Settings</Link>
+              <Link href="/admin/school-settings/subjects">Manage Subjects</Link>
             </Button>
           </CardContent>
         </Card>
-        
-        <Card className="card-shadow">
-          <CardHeader>
-            <CardTitle className="flex items-center"><Activity className="mr-2 h-5 w-5 text-primary"/>Recent Activity</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            <div className="text-center py-8 text-muted-foreground">
-              <Activity className="mx-auto h-10 w-10 mb-2"/>
-              <p>Recent activity feed coming soon.</p>
-              <p className="text-xs">This will show latest user registrations, material uploads, etc.</p>
-            </div>
-          </CardContent>
-        </Card>
       </div>
-
     </div>
   );
 }
