@@ -10,6 +10,7 @@ import Link from 'next/link';
 import { formatDistanceToNow } from 'date-fns';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button'; // Added import
 
 export default function AdminActivityPage() {
   const { currentUser, getActivities, loading: authLoading } = useAuth();
