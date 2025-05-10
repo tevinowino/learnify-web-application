@@ -1,36 +1,47 @@
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { ArrowRight, Sparkles } from 'lucide-react';
-// Removed Image import
 
 export default function HeroSection() {
   return (
-    <section className="w-full py-12 md:py-24 lg:py-32 bg-gradient-to-br from-primary/10 via-background to-secondary/10">
-      <div className="container px-4 md:px-6">
-        <div className="grid gap-6 lg:grid-cols-1 text-center"> {/* Changed to single column and centered text */}
-          <div className="flex flex-col justify-center items-center space-y-4"> {/* Added items-center */}
-            <div className="space-y-2">
-              <h1 className="text-4xl font-bold tracking-tighter sm:text-5xl xl:text-6xl/none bg-clip-text text-transparent bg-gradient-to-r from-primary to-accent">
-                Unlock Your Potential with Personalized Learning
-              </h1>
-              <p className="max-w-[600px] mx-auto text-muted-foreground md:text-xl"> {/* Added mx-auto for centering */}
-                Learnify uses AI to create tailored learning paths, helping students of all levels achieve their academic goals.
-              </p>
+    <section className="relative w-full min-h-screen py-16 md:py-28 lg:py-36 overflow-hidden bg-gradient-to-br from-primary/20 via-background to-secondary/20 backdrop-blur-sm">
+      <div className="absolute inset-0 w-full h-full bg-grid-pattern opacity-5"></div>
+      <div className="container relative px-4 md:px-8 mx-auto">
+        <div className="flex flex-col items-center justify-center min-h-[70vh] gap-8 lg:gap-12">
+          <div className="max-w-4xl space-y-6 text-center animate-fade-in">
+            <div className="inline-flex items-center px-4 py-2 rounded-full bg-primary/10 backdrop-blur-sm mb-4">
+              <Sparkles className="w-4 h-4 mr-2 text-primary" />
+              <span className="text-sm font-medium text-primary">AI-Powered Learning Platform</span>
             </div>
-            <div className="flex flex-col gap-2 min-[400px]:flex-row justify-center"> {/* Added justify-center */}
-              <Button asChild size="lg" className="button-shadow bg-accent hover:bg-accent/90 text-accent-foreground">
-                <Link href="/auth/signup">
-                  Get Started Free <ArrowRight className="ml-2 h-5 w-5" />
-                </Link>
-              </Button>
-              <Button variant="outline" size="lg" asChild className="button-shadow">
-                <Link href="#how-it-works">
-                  Learn More
-                </Link>
-              </Button>
-            </div>
+            <h1 className="text-5xl font-extrabold tracking-tight sm:text-6xl xl:text-7xl/none bg-clip-text text-transparent bg-gradient-to-r from-primary via-accent to-secondary animate-gradient">
+              Unlock Your Potential with Personalized Learning
+            </h1>
+            <p className="max-w-2xl mx-auto text-lg md:text-xl text-muted-foreground/90 leading-relaxed">
+              Learnify uses AI to create tailored learning paths, helping students of all levels achieve their academic goals through adaptive technology and personalized guidance.
+            </p>
           </div>
-          {/* Image component removed */}
+          <div className="flex flex-col gap-4 min-[400px]:flex-row justify-center items-center w-full max-w-xl">
+            <Button 
+              asChild 
+              size="lg" 
+              className="w-full min-[400px]:w-auto px-8 py-6 text-lg font-semibold transition-all duration-300 transform hover:scale-105 bg-accent hover:bg-accent/90 text-accent-foreground shadow-xl hover:shadow-accent/25"
+            >
+              <Link href="/auth/signup">
+                Get Started Free <ArrowRight className="ml-2 h-5 w-5 animate-bounce-x" />
+              </Link>
+            </Button>
+            <Button 
+              variant="outline" 
+              size="lg" 
+              asChild 
+              className="w-full min-[400px]:w-auto px-8 py-6 text-lg font-semibold transition-all duration-300 transform hover:scale-105 border-2 hover:bg-primary/5 shadow-xl"
+            >
+              <Link href="#how-it-works">
+                Learn More
+              </Link>
+            </Button>
+          </div>
+          {/* <div className="absolute bottom-0 left-0 w-full h-24 bg-gradient-to-t from-background to-transparent"></div> */}
         </div>
       </div>
     </section>

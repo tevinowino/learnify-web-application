@@ -247,7 +247,7 @@ export default function TeacherClassDetailPage() {
   );
 }
 
-import { useToast as useOriginalToast } from '@/hooks/use-toast';
+import { useToast as useOriginalToast, useToast } from '@/hooks/use-toast';
 function toast(options: { title: string, description?: string, variant?: 'default' | 'destructive' }) {
     const { toast: showToast } = useOriginalToast();
     showToast(options);
