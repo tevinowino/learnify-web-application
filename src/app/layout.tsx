@@ -32,7 +32,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className={`${inter.variable} antialiased font-sans`}>
+      <body className={`${inter.variable} antialiased font-sans`} suppressHydrationWarning>
         <AuthProvider>
           <div className="flex flex-col min-h-screen">
             <Navbar />
