@@ -11,9 +11,9 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Loader2, PlusCircle, CalendarIcon, CheckSquare, Square, Edit3, ArrowLeft } from 'lucide-react';
+import { Loader2, PlusCircle, CalendarIcon, CheckSquare, Square, Edit3, ArrowLeft, UploadCloud } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import type { ClassWithTeacherInfo, SubmissionFormat } from '@/types';
+import type { ClassWithTeacherInfo, SubmissionFormat, Subject } from '@/types';
 import {
   Select,
   SelectContent,
@@ -32,9 +32,11 @@ const assignmentSchema = z.object({
   title: z.string().min(3, "Title must be at least 3 characters."),
   description: z.string().min(10, "Description must be at least 10 characters."),
   classId: z.string().min(1, "Please select a class."),
+  subjectId: z.string().optional(), // Subject is optional
   deadlineDate: z.date({ required_error: "Deadline date is required." }),
   deadlineTime: z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)$/, "Invalid time format (HH:MM)."),
   allowedSubmissionFormats: z.array(z.enum(['text_entry', 'file_link'])).min(1, "Select at least one submission format."),
+  attachment: z.instanceof(File).optional(), // For PDF attachment
 });
 
 type AssignmentFormValues = z.infer<typeof assignmentSchema>;
@@ -49,10 +51,11 @@ export default function CreateAssignmentPage() {
   const searchParams = useSearchParams();
   const preselectedClassId = searchParams.get('classId');
 
-  const { currentUser, createAssignment, getClassesByTeacher, loading: authLoading } = useAuth();
+  const { currentUser, createAssignment, getClassesByTeacher, getSubjectsBySchool, loading: authLoading } = useAuth();
   const { toast } = useToast();
   
   const [teacherClasses, setTeacherClasses] = useState<ClassWithTeacherInfo[]>([]);
+  const [schoolSubjects, setSchoolSubjects] = useState<Subject[]>([]); // Added
   const [isLoadingPage, setIsLoadingPage] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -62,17 +65,23 @@ export default function CreateAssignmentPage() {
       title: '',
       description: '',
       classId: preselectedClassId || '',
+      subjectId: undefined, // Added
       deadlineDate: undefined,
       deadlineTime: '23:59',
       allowedSubmissionFormats: ['text_entry'],
+      attachment: undefined, // Added
     },
   });
 
-  const fetchTeacherClasses = useCallback(async () => {
-    if (currentUser?.uid) {
+  const fetchTeacherData = useCallback(async () => { // Renamed function
+    if (currentUser?.uid && currentUser.schoolId) {
       setIsLoadingPage(true);
-      const classes = await getClassesByTeacher(currentUser.uid);
+      const [classes, subjects] = await Promise.all([ // Added subjects fetch
+        getClassesByTeacher(currentUser.uid),
+        getSubjectsBySchool(currentUser.schoolId)
+      ]);
       setTeacherClasses(classes);
+      setSchoolSubjects(subjects); // Set subjects
       if (preselectedClassId && classes.find(c => c.id === preselectedClassId)) {
         form.setValue('classId', preselectedClassId);
       }
@@ -80,11 +89,11 @@ export default function CreateAssignmentPage() {
     } else if (!authLoading) {
       setIsLoadingPage(false);
     }
-  }, [currentUser, getClassesByTeacher, authLoading, preselectedClassId, form]);
+  }, [currentUser, getClassesByTeacher, getSubjectsBySchool, authLoading, preselectedClassId, form]); // Added getSubjectsBySchool
 
   useEffect(() => {
-    fetchTeacherClasses();
-  }, [fetchTeacherClasses]);
+    fetchTeacherData();
+  }, [fetchTeacherData]);
 
   async function onSubmit(values: AssignmentFormValues) {
     if (!currentUser || !currentUser.uid || !currentUser.schoolId) {
@@ -97,14 +106,25 @@ export default function CreateAssignmentPage() {
     const deadline = new Date(values.deadlineDate);
     deadline.setHours(hours, minutes, 0, 0);
 
+    let attachmentUrlPlaceholder: string | undefined = undefined;
+    if (values.attachment) {
+      // Placeholder for actual file upload logic
+      // In a real app: attachmentUrlPlaceholder = await uploadFileToStorage(values.attachment, `assignments/${currentUser.schoolId}/${values.classId}/${values.attachment.name}`);
+      // if (!attachmentUrlPlaceholder) { toast({ ... }); setIsSubmitting(false); return; }
+      attachmentUrlPlaceholder = `[Uploaded File: ${values.attachment.name}]`; // Placeholder
+      toast({ title: "Attachment (Placeholder)", description: "Attachment upload functionality is not yet implemented. Storing filename.", variant: "default" });
+    }
+
     const assignmentData = {
       title: values.title,
       description: values.description,
       classId: values.classId,
-      teacherId: currentUser.uid, // This will be set in AuthContext
-      schoolId: currentUser.schoolId, // Add schoolId
-      deadline: deadline, // Firestore will convert to Timestamp
+      teacherId: currentUser.uid, 
+      schoolId: currentUser.schoolId,
+      deadline: deadline, 
       allowedSubmissionFormats: values.allowedSubmissionFormats,
+      subjectId: values.subjectId, // Added
+      attachmentUrl: attachmentUrlPlaceholder, // Added
     };
 
     const assignmentId = await createAssignment(assignmentData);
@@ -153,25 +173,48 @@ export default function CreateAssignmentPage() {
               {form.formState.errors.description && <p className="text-sm text-destructive mt-1">{form.formState.errors.description.message}</p>}
             </div>
 
-            <div>
-              <Label htmlFor="classId">Class</Label>
-              <Controller
-                control={form.control}
-                name="classId"
-                render={({ field }) => (
-                  <Select onValueChange={field.onChange} value={field.value} disabled={!!preselectedClassId}>
-                    <SelectTrigger id="classId">
-                      <SelectValue placeholder="Select a class" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {teacherClasses.map(cls => (
-                        <SelectItem key={cls.id} value={cls.id}>{cls.name}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                )}
-              />
-              {form.formState.errors.classId && <p className="text-sm text-destructive mt-1">{form.formState.errors.classId.message}</p>}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="classId">Class</Label>
+                <Controller
+                  control={form.control}
+                  name="classId"
+                  render={({ field }) => (
+                    <Select onValueChange={field.onChange} value={field.value} disabled={!!preselectedClassId}>
+                      <SelectTrigger id="classId">
+                        <SelectValue placeholder="Select a class" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {teacherClasses.map(cls => (
+                          <SelectItem key={cls.id} value={cls.id}>{cls.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                />
+                {form.formState.errors.classId && <p className="text-sm text-destructive mt-1">{form.formState.errors.classId.message}</p>}
+              </div>
+              <div>
+                <Label htmlFor="subjectId">Subject (Optional)</Label>
+                <Controller
+                  control={form.control}
+                  name="subjectId"
+                  render={({ field }) => (
+                    <Select onValueChange={field.onChange} value={field.value ?? ""}>
+                      <SelectTrigger id="subjectId">
+                        <SelectValue placeholder="Select a subject" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="">No Subject / General</SelectItem>
+                        {schoolSubjects.map(sub => (
+                          <SelectItem key={sub.id} value={sub.id}>{sub.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                />
+                {form.formState.errors.subjectId && <p className="text-sm text-destructive mt-1">{form.formState.errors.subjectId.message}</p>}
+              </div>
             </div>
             
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -234,7 +277,7 @@ export default function CreateAssignmentPage() {
                                     );
                                 }}
                             />
-                            <Label htmlFor={`format-${formatOption.id}`} className="font-normal">
+                            <Label htmlFor={`format-${formatOption.id}`} className="font-normal cursor-pointer">
                                 {formatOption.label}
                             </Label>
                             </div>
@@ -245,8 +288,31 @@ export default function CreateAssignmentPage() {
                 {form.formState.errors.allowedSubmissionFormats && <p className="text-sm text-destructive mt-1">{form.formState.errors.allowedSubmissionFormats.message}</p>}
             </div>
 
+            <div>
+              <Label htmlFor="attachment">Attach PDF (Optional)</Label>
+              <div className="flex items-center space-x-2 mt-1">
+                <UploadCloud className="h-5 w-5 text-muted-foreground" />
+                <Controller
+                  control={form.control}
+                  name="attachment"
+                  render={({ field: { onChange, value, ...restField } }) => (
+                    <Input 
+                      id="attachment" 
+                      type="file" 
+                      accept=".pdf"
+                      onChange={(e) => onChange(e.target.files ? e.target.files[0] : null)}
+                      className="flex-grow"
+                      {...restField}
+                    />
+                  )}
+                />
+              </div>
+              {form.getValues("attachment") && <p className="text-xs text-muted-foreground mt-1">Selected: {form.getValues("attachment")?.name}</p>}
+              {form.formState.errors.attachment && <p className="text-sm text-destructive mt-1">{form.formState.errors.attachment.message}</p>}
+            </div>
 
-            <Button type="submit" className="w-full bg-primary hover:bg-primary/90 button-shadow" disabled={isSubmitting || pageOverallLoading}>
+
+            <Button type="submit" className="w-full bg-primary hover:bg-primary/90 button-shadow" disabled={isSubmitting || pageOverallLoading || teacherClasses.length === 0}>
               {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               <PlusCircle className="mr-2 h-4 w-4" /> Create Assignment
             </Button>
@@ -256,3 +322,4 @@ export default function CreateAssignmentPage() {
     </div>
   );
 }
+

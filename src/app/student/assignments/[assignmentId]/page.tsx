@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useEffect, useState, useCallback } from 'react';
@@ -7,9 +8,9 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
-import { Loader2, ArrowLeft, CheckCircle, Clock, AlertTriangle, UploadCloud, Link as LinkIcon, FileTextIcon } from 'lucide-react';
+import { Loader2, ArrowLeft, CheckCircle, Clock, AlertTriangle, UploadCloud, Link as LinkIcon, FileTextIcon, VideoIcon, Download } from 'lucide-react';
 import type { AssignmentWithClassAndSubmissionInfo, Submission, SubmissionFormat } from '@/types';
-import { format } from 'date-fns';
+import { format, formatDistanceToNow } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
@@ -25,6 +26,7 @@ export default function StudentAssignmentDetailPage() {
     getAssignmentById, 
     getSubmissionByStudentForAssignment,
     addSubmission,
+    getSubjectById, // Added
     loading: authLoading 
   } = useAuth();
 
@@ -32,9 +34,10 @@ export default function StudentAssignmentDetailPage() {
   const [submission, setSubmission] = useState<Submission | null>(null);
   const [isLoadingPage, setIsLoadingPage] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [subjectName, setSubjectName] = useState<string | undefined>(undefined); // Added
   
   const [submissionContent, setSubmissionContent] = useState('');
-  const [submissionType, setSubmissionType] = useState<SubmissionFormat>('text_entry'); // Default or based on allowed formats
+  const [submissionType, setSubmissionType] = useState<SubmissionFormat>('text_entry'); 
 
   const fetchData = useCallback(async () => {
     if (!assignmentId || !currentUser?.uid) {
@@ -49,7 +52,6 @@ export default function StudentAssignmentDetailPage() {
         router.push('/student/assignments');
         return;
       }
-      // Ensure student is enrolled in the class of this assignment
       if (!currentUser.classIds?.includes(fetchedAssignment.classId)) {
         toast({ title: "Unauthorized", description: "You are not enrolled in the class for this assignment.", variant: "destructive" });
         router.push('/student/classes');
@@ -57,13 +59,18 @@ export default function StudentAssignmentDetailPage() {
       }
       setAssignment(fetchedAssignment);
 
+      if (fetchedAssignment.subjectId && getSubjectById) { // Fetch subject name
+        const subject = await getSubjectById(fetchedAssignment.subjectId);
+        setSubjectName(subject?.name);
+      }
+
       const fetchedSubmission = await getSubmissionByStudentForAssignment(assignmentId, currentUser.uid);
       setSubmission(fetchedSubmission);
       if (fetchedSubmission) {
         setSubmissionContent(fetchedSubmission.content);
         setSubmissionType(fetchedSubmission.submissionType);
       } else if (fetchedAssignment.allowedSubmissionFormats.length > 0) {
-        setSubmissionType(fetchedAssignment.allowedSubmissionFormats[0]); // Default to first allowed type
+        setSubmissionType(fetchedAssignment.allowedSubmissionFormats[0]); 
       }
 
     } catch (error) {
@@ -72,7 +79,7 @@ export default function StudentAssignmentDetailPage() {
     } finally {
       setIsLoadingPage(false);
     }
-  }, [assignmentId, currentUser, getAssignmentById, getSubmissionByStudentForAssignment, router, toast]);
+  }, [assignmentId, currentUser, getAssignmentById, getSubmissionByStudentForAssignment, getSubjectById, router, toast]); // Added getSubjectById
 
   useEffect(() => {
     fetchData();
@@ -96,7 +103,7 @@ export default function StudentAssignmentDetailPage() {
     setIsSubmitting(false);
     if (submissionId) {
       toast({title: "Submission Successful!", description: "Your work has been submitted."});
-      fetchData(); // Refresh data to show updated submission status
+      fetchData(); 
     } else {
       toast({title: "Submission Failed", description: "Could not submit your work. Please try again.", variant:"destructive"});
     }
@@ -106,7 +113,6 @@ export default function StudentAssignmentDetailPage() {
     let effectiveStatus = status;
     if(assignment && effectiveStatus !== 'graded' && effectiveStatus !== 'missing' && new Date() > assignment.deadline.toDate()){
         if(effectiveStatus === 'submitted') effectiveStatus = 'late';
-        // else if no submission and past deadline, it's 'missing' and implicitly late.
     }
 
     switch(effectiveStatus) {
@@ -137,7 +143,7 @@ export default function StudentAssignmentDetailPage() {
     );
   }
   
-  const canSubmit = assignment.submissionStatus !== 'graded'; // Or more complex logic for resubmission policies
+  const canSubmit = assignment.submissionStatus !== 'graded'; 
 
   return (
     <div className="space-y-6">
@@ -152,6 +158,7 @@ export default function StudentAssignmentDetailPage() {
               <CardTitle className="text-3xl">{assignment.title}</CardTitle>
               <CardDescription>
                 Class: {assignment.className || 'N/A'} <br />
+                Subject: {subjectName || assignment.subjectName || 'N/A'} <br /> {/* Display subject */}
                 Due: {format(assignment.deadline.toDate(), 'PPPP pppp')} ({formatDistanceToNow(assignment.deadline.toDate(), { addSuffix: true })})
               </CardDescription>
             </div>
@@ -163,6 +170,18 @@ export default function StudentAssignmentDetailPage() {
         <CardContent>
           <h3 className="font-semibold text-lg mb-1">Instructions:</h3>
           <p className="text-muted-foreground whitespace-pre-wrap">{assignment.description}</p>
+           {assignment.attachmentUrl && (
+             <div className="mt-3">
+                <Label className="font-medium">Attachment:</Label>
+                {/* This assumes attachmentUrl is a direct download link or a placeholder for future download functionality */}
+                <Button variant="link" asChild className="p-0 h-auto ml-2">
+                    <a href={assignment.attachmentUrl} target="_blank" rel="noopener noreferrer" download={assignment.attachmentUrl.startsWith("[Uploaded File:") ? assignment.attachmentUrl.substring(17, assignment.attachmentUrl.length -1) : undefined}>
+                        {assignment.attachmentUrl.startsWith("[Uploaded File:") ? assignment.attachmentUrl.substring(17, assignment.attachmentUrl.length -1) : "View Attachment"}
+                        <Download className="inline h-4 w-4 ml-1"/>
+                    </a>
+                </Button>
+             </div>
+           )}
            <div className="mt-3">
             <p className="text-sm font-medium">Allowed Submission Formats: <Badge variant="secondary">{assignment.allowedSubmissionFormats.map(f => f === 'text_entry' ? 'Text Entry' : 'File Link').join(', ')}</Badge></p>
           </div>
@@ -268,3 +287,4 @@ export default function StudentAssignmentDetailPage() {
     </div>
   );
 }
+

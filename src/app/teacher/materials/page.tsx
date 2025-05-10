@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useEffect, useState, useCallback } from 'react';
@@ -7,7 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Loader2, PlusCircle, BookOpen, UploadCloud, LinkIcon as LinkLucideIcon, FileTextIcon, VideoIcon, Trash2, EditIcon as EditLucideIcon } from 'lucide-react'; // Renamed Link to LinkLucideIcon
-import type { LearningMaterial, LearningMaterialType, ClassWithTeacherInfo } from '@/types';
+import type { LearningMaterial, LearningMaterialType, ClassWithTeacherInfo, Subject } from '@/types';
 import { useToast } from '@/hooks/use-toast';
 import { formatDistanceToNow } from 'date-fns';
 import {
@@ -19,12 +20,15 @@ import {
 } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from '@/components/ui/dialog';
 import Link from 'next/link'; // Kept Link from next/link as it's different from the icon
+import { Label } from '@/components/ui/label';
+
 
 const materialTypeIcons: Record<LearningMaterialType, React.ReactNode> = {
   text: <FileTextIcon className="h-4 w-4 mr-2" />,
   link: <LinkLucideIcon className="h-4 w-4 mr-2" />,
   pdf_link: <FileTextIcon className="h-4 w-4 mr-2 text-red-500" />, 
   video_link: <VideoIcon className="h-4 w-4 mr-2 text-blue-500" />, 
+  pdf_upload: <UploadCloud className="h-4 w-4 mr-2 text-orange-500" />,
 };
 
 const materialTypeLabels: Record<LearningMaterialType, string> = {
@@ -32,6 +36,7 @@ const materialTypeLabels: Record<LearningMaterialType, string> = {
   link: "General Link",
   pdf_link: "PDF Link",
   video_link: "Video Link",
+  pdf_upload: "PDF Upload",
 };
 
 const GENERAL_MATERIAL_VALUE = "__GENERAL_MATERIAL__"; // Unique constant for "no class" option
@@ -44,6 +49,7 @@ export default function ManageMaterialsPage() {
     getClassesByTeacher,
     deleteLearningMaterial,
     updateLearningMaterial,
+    getSubjectsBySchool, // Added
     loading: authLoading 
   } = useAuth();
   const { toast } = useToast();
@@ -51,10 +57,13 @@ export default function ManageMaterialsPage() {
   const [title, setTitle] = useState('');
   const [content, setContent] = useState(''); 
   const [materialType, setMaterialType] = useState<LearningMaterialType>('text');
-  const [selectedClassId, setSelectedClassId] = useState<string | undefined>(undefined); // For saving
+  const [selectedClassId, setSelectedClassId] = useState<string | undefined>(undefined);
+  const [selectedSubjectId, setSelectedSubjectId] = useState<string | undefined>(undefined); // Added
+  const [selectedFile, setSelectedFile] = useState<File | null>(null); // Added for PDF upload
   
-  const [materials, setMaterials] = useState<LearningMaterial[]>([]);
+  const [materials, setMaterials] = useState<LearningMaterial[]>([]); // Will become LearningMaterialWithSubjectInfo
   const [teacherClasses, setTeacherClasses] = useState<ClassWithTeacherInfo[]>([]);
+  const [schoolSubjects, setSchoolSubjects] = useState<Subject[]>([]); // Added
   
   const [isLoadingPage, setIsLoadingPage] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -63,55 +72,74 @@ export default function ManageMaterialsPage() {
   const [editTitle, setEditTitle] = useState('');
   const [editContent, setEditContent] = useState('');
   const [editMaterialType, setEditMaterialType] = useState<LearningMaterialType>('text');
-  const [editSelectedClassId, setEditSelectedClassId] = useState<string | undefined>(undefined); // For saving
+  const [editSelectedClassId, setEditSelectedClassId] = useState<string | undefined>(undefined);
+  const [editSelectedSubjectId, setEditSelectedSubjectId] = useState<string | undefined>(undefined); // Added
+  const [editSelectedFile, setEditSelectedFile] = useState<File | null>(null); // Added
 
-  const fetchMaterialsAndClasses = useCallback(async () => {
+
+  const fetchMaterialsAndClassesAndSubjects = useCallback(async () => { // Renamed function
     if (currentUser?.uid && currentUser.schoolId) {
       setIsLoadingPage(true);
-      const [fetchedMaterials, fetchedClasses] = await Promise.all([
+      const [fetchedMaterials, fetchedClasses, fetchedSubjects] = await Promise.all([ // Added subjects fetch
         getLearningMaterialsByTeacher(currentUser.uid),
-        getClassesByTeacher(currentUser.uid)
+        getClassesByTeacher(currentUser.uid),
+        getSubjectsBySchool(currentUser.schoolId) 
       ]);
       setMaterials(fetchedMaterials.sort((a,b) => b.createdAt.toMillis() - a.createdAt.toMillis()));
       setTeacherClasses(fetchedClasses);
+      setSchoolSubjects(fetchedSubjects); // Set subjects
       setIsLoadingPage(false);
     } else if (!authLoading) {
       setIsLoadingPage(false);
     }
-  }, [currentUser, getLearningMaterialsByTeacher, getClassesByTeacher, authLoading]);
+  }, [currentUser, getLearningMaterialsByTeacher, getClassesByTeacher, getSubjectsBySchool, authLoading]); // Added getSubjectsBySchool
 
   useEffect(() => {
-    fetchMaterialsAndClasses();
-  }, [fetchMaterialsAndClasses]);
+    fetchMaterialsAndClassesAndSubjects();
+  }, [fetchMaterialsAndClassesAndSubjects]);
 
   const resetForm = () => {
     setTitle('');
     setContent('');
     setMaterialType('text');
     setSelectedClassId(undefined);
+    setSelectedSubjectId(undefined); // Added
+    setSelectedFile(null); // Added
   }
 
   const handleSubmitMaterial = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!title.trim() || !content.trim() || !currentUser?.schoolId || !currentUser?.uid) {
-      toast({ title: "Missing Information", description: "Please provide title, content/URL, and select a type.", variant: "destructive" });
+    if (!title.trim() || !currentUser?.schoolId || !currentUser?.uid || (materialType !== 'pdf_upload' && !content.trim()) || (materialType === 'pdf_upload' && !selectedFile) ) {
+      toast({ title: "Missing Information", description: "Please provide title, content/URL or file, and select a type.", variant: "destructive" });
       return;
     }
     setIsSubmitting(true);
+    
+    let materialContent = content;
+    if (materialType === 'pdf_upload' && selectedFile) {
+      // Placeholder for actual file upload logic
+      // In a real app: const fileUrl = await uploadFileToStorage(selectedFile, `materials/${currentUser.schoolId}/${selectedFile.name}`);
+      // if (!fileUrl) { toast({ ... }); setIsSubmitting(false); return; }
+      // materialContent = fileUrl;
+      materialContent = `[Uploaded File: ${selectedFile.name}]`; // Placeholder
+      toast({ title: "File Upload (Placeholder)", description: "File upload functionality is not yet implemented. Storing filename for now.", variant: "default" });
+    }
+
     const materialData: Omit<LearningMaterial, 'id' | 'createdAt' | 'updatedAt'> = {
       title,
-      content,
+      content: materialContent,
       materialType,
       schoolId: currentUser.schoolId,
       teacherId: currentUser.uid,
-      classId: selectedClassId, // This is already undefined if "General" was conceptually chosen
+      classId: selectedClassId,
+      subjectId: selectedSubjectId, // Added
     };
     const materialId = await addLearningMaterial(materialData);
     setIsSubmitting(false);
     if (materialId) {
       toast({ title: "Material Added!", description: `"${title}" has been successfully added.` });
       resetForm();
-      fetchMaterialsAndClasses(); 
+      fetchMaterialsAndClassesAndSubjects(); 
     } else {
       toast({ title: "Error", description: "Failed to add material. Please try again.", variant: "destructive" });
     }
@@ -122,26 +150,41 @@ export default function ManageMaterialsPage() {
     setEditTitle(material.title);
     setEditContent(material.content);
     setEditMaterialType(material.materialType);
-    setEditSelectedClassId(material.classId || undefined); // Set to undefined if no classId
+    setEditSelectedClassId(material.classId || undefined); 
+    setEditSelectedSubjectId(material.subjectId || undefined); // Added
+    setEditSelectedFile(null); // Reset file for edit
   };
 
   const handleUpdateMaterial = async () => {
-    if (!editingMaterial || !editTitle.trim() || !editContent.trim()) {
-       toast({ title: "Missing Information", description: "Title and content/URL cannot be empty.", variant: "destructive" });
+    if (!editingMaterial || !editTitle.trim() || (editMaterialType !== 'pdf_upload' && !editContent.trim()) || (editMaterialType === 'pdf_upload' && !editSelectedFile && !editContent.startsWith("[Uploaded File:")) ) {
+       toast({ title: "Missing Information", description: "Title and content/URL/file cannot be empty.", variant: "destructive" });
       return;
     }
     setIsSubmitting(true);
+
+    let finalContent = editContent;
+    if (editMaterialType === 'pdf_upload' && editSelectedFile) {
+      // Placeholder for actual file upload logic
+      // const fileUrl = await uploadFileToStorage(editSelectedFile, `materials/${currentUser.schoolId}/${editSelectedFile.name}`);
+      // if (!fileUrl) { toast({ ... }); setIsSubmitting(false); return; }
+      // finalContent = fileUrl;
+      finalContent = `[Uploaded File: ${editSelectedFile.name}]`; // Placeholder
+      toast({ title: "File Upload (Placeholder)", description: "File upload functionality is not yet implemented. Storing filename for now.", variant: "default" });
+    }
+
+
     const success = await updateLearningMaterial(editingMaterial.id, {
       title: editTitle,
-      content: editContent,
+      content: finalContent,
       materialType: editMaterialType,
-      classId: editSelectedClassId, // This is already undefined if "General" was conceptually chosen
+      classId: editSelectedClassId, 
+      subjectId: editSelectedSubjectId, // Added
     });
     setIsSubmitting(false);
     if (success) {
       toast({ title: "Material Updated!", description: "Successfully updated."});
       setEditingMaterial(null);
-      fetchMaterialsAndClasses();
+      fetchMaterialsAndClassesAndSubjects();
     } else {
       toast({ title: "Error Updating", description: "Failed to update material.", variant: "destructive"});
     }
@@ -150,11 +193,11 @@ export default function ManageMaterialsPage() {
   const handleDeleteMaterial = async (materialId: string, materialTitle: string) => {
     if (!confirm(`Are you sure you want to delete "${materialTitle}"?`)) return;
     setIsSubmitting(true); 
-    const success = await deleteLearningMaterial(materialId, materialTitle); // Pass title for activity log
+    const success = await deleteLearningMaterial(materialId, materialTitle); 
     setIsSubmitting(false);
     if (success) {
       toast({ title: "Material Deleted!", description: `"${materialTitle}" removed.`});
-      fetchMaterialsAndClasses();
+      fetchMaterialsAndClassesAndSubjects();
     } else {
       toast({ title: "Error Deleting", description: "Failed to delete material.", variant: "destructive"});
     }
@@ -196,7 +239,7 @@ export default function ManageMaterialsPage() {
           <form onSubmit={handleSubmitMaterial} className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
-                <label htmlFor="materialTitle" className="block text-sm font-medium text-foreground mb-1">Title</label>
+                <Label htmlFor="materialTitle" className="block text-sm font-medium text-foreground mb-1">Title</Label>
                 <Input 
                   id="materialTitle" 
                   value={title} 
@@ -206,8 +249,8 @@ export default function ManageMaterialsPage() {
                 />
               </div>
               <div>
-                <label htmlFor="materialType" className="block text-sm font-medium text-foreground mb-1">Type</label>
-                <Select onValueChange={(value) => setMaterialType(value as LearningMaterialType)} value={materialType}>
+                <Label htmlFor="materialType" className="block text-sm font-medium text-foreground mb-1">Type</Label>
+                <Select onValueChange={(value) => {setMaterialType(value as LearningMaterialType); setContent(''); setSelectedFile(null);}} value={materialType}>
                   <SelectTrigger id="materialType">
                     <SelectValue placeholder="Select material type" />
                   </SelectTrigger>
@@ -226,38 +269,65 @@ export default function ManageMaterialsPage() {
             </div>
             
             <div>
-              <label htmlFor="materialContent" className="block text-sm font-medium text-foreground mb-1">
-                {materialType === 'text' ? 'Content / Notes' : 'URL'}
-              </label>
-              <Textarea 
-                id="materialContent" 
-                value={content} 
-                onChange={(e) => setContent(e.target.value)} 
-                placeholder={materialType === 'text' ? "Enter the learning material content here..." : "https://example.com/resource"}
-                rows={materialType === 'text' ? 8 : 3} 
-                required 
-              />
+              <Label htmlFor="materialContent" className="block text-sm font-medium text-foreground mb-1">
+                {materialType === 'text' ? 'Content / Notes' : materialType === 'pdf_upload' ? 'Upload PDF File' : 'URL'}
+              </Label>
+              {materialType === 'pdf_upload' ? (
+                <Input 
+                  id="materialFile" 
+                  type="file" 
+                  accept=".pdf"
+                  onChange={(e) => setSelectedFile(e.target.files ? e.target.files[0] : null)} 
+                  required={!editingMaterial} // Required only if not editing an existing file link
+                />
+              ) : (
+                <Textarea 
+                  id="materialContent" 
+                  value={content} 
+                  onChange={(e) => setContent(e.target.value)} 
+                  placeholder={materialType === 'text' ? "Enter the learning material content here..." : "https://example.com/resource"}
+                  rows={materialType === 'text' ? 8 : 3} 
+                  required 
+                />
+              )}
+            </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div>
+                <Label htmlFor="selectedSubjectId" className="block text-sm font-medium text-foreground mb-1">Subject (Optional)</Label>
+                <Select 
+                  value={selectedSubjectId ?? ""} 
+                  onValueChange={(value) => setSelectedSubjectId(value === "" ? undefined : value)}
+                >
+                  <SelectTrigger id="selectedSubjectId"><SelectValue placeholder="Select a subject" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">No Subject / General</SelectItem>
+                    {schoolSubjects.map(sub => (
+                      <SelectItem key={sub.id} value={sub.id}>{sub.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label htmlFor="selectedClassId" className="block text-sm font-medium text-foreground mb-1">Assign to Class (Optional)</Label>
+                <Select 
+                  value={selectedClassId ?? GENERAL_MATERIAL_VALUE} 
+                  onValueChange={(value) => setSelectedClassId(value === GENERAL_MATERIAL_VALUE ? undefined : value)}
+                >
+                  <SelectTrigger id="selectedClassId">
+                    <SelectValue placeholder="Select a class or leave general" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={GENERAL_MATERIAL_VALUE}>General Material (No Class)</SelectItem>
+                    {teacherClasses.map(cls => (
+                      <SelectItem key={cls.id} value={cls.id}>{cls.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
 
-             <div>
-              <label htmlFor="selectedClassId" className="block text-sm font-medium text-foreground mb-1">Assign to Class (Optional)</label>
-              <Select 
-                value={selectedClassId ?? GENERAL_MATERIAL_VALUE} 
-                onValueChange={(value) => setSelectedClassId(value === GENERAL_MATERIAL_VALUE ? undefined : value)}
-              >
-                <SelectTrigger id="selectedClassId">
-                  <SelectValue placeholder="Select a class or leave general" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={GENERAL_MATERIAL_VALUE}>General Material (No Class)</SelectItem>
-                  {teacherClasses.map(cls => (
-                    <SelectItem key={cls.id} value={cls.id}>{cls.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <Button type="submit" disabled={isSubmitting || !title.trim() || !content.trim()} className="bg-primary hover:bg-primary/90 button-shadow w-full sm:w-auto">
+            <Button type="submit" disabled={isSubmitting || !title.trim() || (materialType !== 'pdf_upload' && !content.trim()) || (materialType === 'pdf_upload' && !selectedFile)} className="bg-primary hover:bg-primary/90 button-shadow w-full sm:w-auto">
               {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               <PlusCircle className="mr-2 h-4 w-4" /> Add Material
             </Button>
@@ -280,6 +350,7 @@ export default function ManageMaterialsPage() {
             <div className="space-y-4">
               {materials.map(material => {
                 const assignedClass = teacherClasses.find(c => c.id === material.classId);
+                const assignedSubject = schoolSubjects.find(s => s.id === material.subjectId); // Find subject
                 return (
                   <Card key={material.id} className="hover:border-primary/50 transition-colors">
                     <CardHeader>
@@ -290,7 +361,10 @@ export default function ManageMaterialsPage() {
                             {material.title}
                           </CardTitle>
                           <CardDescription className="text-xs">
-                            Type: {materialTypeLabels[material.materialType]} | Class: {assignedClass?.name || 'General'} <br />
+                            Type: {materialTypeLabels[material.materialType]} | 
+                            Class: {assignedClass?.name || 'General'} |
+                            Subject: {assignedSubject?.name || 'N/A'} {/* Display subject */}
+                            <br />
                             Uploaded {material.createdAt ? formatDistanceToNow(material.createdAt.toDate(), { addSuffix: true }) : 'recently'}
                           </CardDescription>
                         </div>
@@ -307,6 +381,11 @@ export default function ManageMaterialsPage() {
                     <CardContent>
                       {material.materialType === 'text' ? (
                         <p className="text-sm text-muted-foreground line-clamp-3">{material.content}</p>
+                      ) : material.materialType === 'pdf_upload' ? (
+                        <p className="text-sm text-muted-foreground">
+                          <FileTextIcon className="inline h-4 w-4 mr-1 text-orange-500"/> 
+                          {material.content} {/* This will be the placeholder like "[Uploaded File: ...]" */}
+                        </p>
                       ) : (
                         <Link href={material.content} target="_blank" rel="noopener noreferrer" className="text-sm text-primary hover:underline break-all">
                           {material.content} <LinkLucideIcon className="inline h-3 w-3 ml-1"/>
@@ -330,12 +409,12 @@ export default function ManageMaterialsPage() {
             </DialogHeader>
             <div className="grid gap-4 py-4 max-h-[70vh] overflow-y-auto pr-2">
                <div className="space-y-2">
-                <label htmlFor="editMaterialTitle" className="block text-sm font-medium">Title</label>
+                <Label htmlFor="editMaterialTitle" className="block text-sm font-medium">Title</Label>
                 <Input id="editMaterialTitle" value={editTitle} onChange={(e) => setEditTitle(e.target.value)} />
               </div>
               <div className="space-y-2">
-                <label htmlFor="editMaterialType" className="block text-sm font-medium">Type</label>
-                <Select onValueChange={(v) => setEditMaterialType(v as LearningMaterialType)} value={editMaterialType}>
+                <Label htmlFor="editMaterialType" className="block text-sm font-medium">Type</Label>
+                <Select onValueChange={(v) => {setEditMaterialType(v as LearningMaterialType); if (v === 'pdf_upload') setEditContent(''); setEditSelectedFile(null);}} value={editMaterialType}>
                   <SelectTrigger id="editMaterialType">
                     <SelectValue/>
                   </SelectTrigger>
@@ -352,18 +431,48 @@ export default function ManageMaterialsPage() {
                 </Select>
               </div>
               <div className="space-y-2">
-                <label htmlFor="editMaterialContent" className="block text-sm font-medium">
-                  {editMaterialType === 'text' ? 'Content / Notes' : 'URL'}
-                </label>
-                <Textarea 
-                    id="editMaterialContent" 
-                    value={editContent} 
-                    onChange={(e) => setEditContent(e.target.value)}
-                    rows={editMaterialType === 'text' ? 8 : 3}
-                />
+                <Label htmlFor="editMaterialContent" className="block text-sm font-medium">
+                  {editMaterialType === 'text' ? 'Content / Notes' : editMaterialType === 'pdf_upload' ? 'Upload New PDF (Optional)' : 'URL'}
+                </Label>
+                 {editMaterialType === 'pdf_upload' ? (
+                    <>
+                      {editingMaterial.content.startsWith("[Uploaded File:") && !editSelectedFile && (
+                         <p className="text-sm text-muted-foreground p-2 border rounded-md bg-muted/50">Current: {editingMaterial.content}</p>
+                      )}
+                      <Input 
+                        id="editMaterialFile" 
+                        type="file" 
+                        accept=".pdf"
+                        onChange={(e) => setEditSelectedFile(e.target.files ? e.target.files[0] : null)} 
+                      />
+                      {editSelectedFile && <p className="text-xs text-muted-foreground">New file selected: {editSelectedFile.name}</p>}
+                    </>
+                  ) : (
+                    <Textarea 
+                        id="editMaterialContent" 
+                        value={editContent} 
+                        onChange={(e) => setEditContent(e.target.value)}
+                        rows={editMaterialType === 'text' ? 8 : 3}
+                    />
+                  )}
               </div>
               <div className="space-y-2">
-                <label htmlFor="editSelectedClassId" className="block text-sm font-medium">Assign to Class (Optional)</label>
+                <Label htmlFor="editSelectedSubjectId" className="block text-sm font-medium">Subject (Optional)</Label>
+                <Select 
+                  value={editSelectedSubjectId ?? ""} 
+                  onValueChange={(value) => setEditSelectedSubjectId(value === "" ? undefined : value)}
+                >
+                  <SelectTrigger id="editSelectedSubjectId"><SelectValue placeholder="Select a subject"/></SelectTrigger>
+                  <SelectContent>
+                     <SelectItem value="">No Subject / General</SelectItem>
+                    {schoolSubjects.map(sub => (
+                      <SelectItem key={sub.id} value={sub.id}>{sub.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="editSelectedClassId" className="block text-sm font-medium">Assign to Class (Optional)</Label>
                 <Select 
                   value={editSelectedClassId ?? GENERAL_MATERIAL_VALUE} 
                   onValueChange={(value) => setEditSelectedClassId(value === GENERAL_MATERIAL_VALUE ? undefined : value)}
@@ -380,7 +489,7 @@ export default function ManageMaterialsPage() {
             </div>
             <DialogFooter>
               <DialogClose asChild><Button variant="outline">Cancel</Button></DialogClose>
-              <Button onClick={handleUpdateMaterial} disabled={isSubmitting || !editTitle.trim() || !editContent.trim()}>
+              <Button onClick={handleUpdateMaterial} disabled={isSubmitting || !editTitle.trim() || (editMaterialType !== 'pdf_upload' && !editContent.trim()) || (editMaterialType === 'pdf_upload' && !editSelectedFile && !editContent.startsWith("[Uploaded File:"))}>
                 {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Save Changes
               </Button>
@@ -392,3 +501,4 @@ export default function ManageMaterialsPage() {
     </div>
   );
 }
+

@@ -39,7 +39,7 @@ export interface Subject {
   updatedAt?: Timestamp;
 }
 
-export type LearningMaterialType = 'text' | 'link' | 'video_link' | 'pdf_link';
+export type LearningMaterialType = 'text' | 'link' | 'video_link' | 'pdf_link' | 'pdf_upload';
 
 export interface LearningMaterial {
   id: string;
@@ -49,6 +49,7 @@ export interface LearningMaterial {
   schoolId: string;
   teacherId: string; 
   classId?: string; 
+  subjectId?: string;
   createdAt: Timestamp;
   updatedAt?: Timestamp;
 }
@@ -56,6 +57,7 @@ export interface LearningMaterial {
 export interface LearningMaterialWithTeacherInfo extends LearningMaterial {
   teacherDisplayName?: string;
   className?: string;
+  subjectName?: string;
 }
 
 
@@ -87,6 +89,8 @@ export interface Assignment {
   description: string;
   deadline: Timestamp;
   allowedSubmissionFormats: SubmissionFormat[];
+  subjectId?: string;
+  attachmentUrl?: string; // URL to an uploaded PDF or other file for the assignment description/task
   createdAt: Timestamp;
   updatedAt?: Timestamp;
   totalSubmissions?: number; 
@@ -95,6 +99,7 @@ export interface Assignment {
 
 export interface AssignmentWithClassInfo extends Assignment {
   className?: string;
+  subjectName?: string;
 }
 
 export interface AssignmentWithClassAndSubmissionInfo extends AssignmentWithClassInfo {
@@ -165,6 +170,7 @@ export interface ExamResultWithStudentInfo extends ExamResult {
     studentName?: string;
     studentEmail?: string;
     subjectName?: string; // if subjects are fetched
+    examPeriodName?: string; // if exam periods are fetched
 }
 
 

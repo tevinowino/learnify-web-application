@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useEffect, useState, useCallback } from 'react';
@@ -5,8 +6,8 @@ import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
-import { Loader2, FolderOpen, Library, Edit3, ArrowLeft, Link as LinkIcon, FileTextIcon, VideoIcon, CheckSquare, Clock, AlertTriangle } from 'lucide-react';
-import type { ClassWithTeacherInfo, LearningMaterial, AssignmentWithClassAndSubmissionInfo, LearningMaterialType } from '@/types';
+import { Loader2, FolderOpen, Library, Edit3, ArrowLeft, Link as LinkIcon, FileTextIcon, VideoIcon, CheckSquare, Clock, AlertTriangle, Download } from 'lucide-react';
+import type { ClassWithTeacherInfo, LearningMaterial, AssignmentWithClassAndSubmissionInfo, LearningMaterialType, UserProfileWithId, Subject } from '@/types';
 import Link from 'next/link';
 import { format, formatDistanceToNow } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
@@ -17,6 +18,7 @@ const materialTypeIcons: Record<LearningMaterialType, React.ReactNode> = {
   link: <LinkIcon className="h-4 w-4 mr-2" />,
   pdf_link: <FileTextIcon className="h-4 w-4 mr-2 text-red-500" />,
   video_link: <VideoIcon className="h-4 w-4 mr-2 text-blue-500" />,
+  pdf_upload: <FileTextIcon className="h-4 w-4 mr-2 text-orange-500" />,
 };
 
 export default function StudentClassDetailPage() {
@@ -30,11 +32,12 @@ export default function StudentClassDetailPage() {
     getClassDetails, 
     getLearningMaterialsByClass, 
     getAssignmentsForStudentByClass,
+    getSubjectById, // Added
     loading: authLoading 
   } = useAuth();
 
   const [classDetails, setClassDetails] = useState<ClassWithTeacherInfo | null>(null);
-  const [materials, setMaterials] = useState<LearningMaterial[]>([]);
+  const [materials, setMaterials] = useState<LearningMaterial[]>([]); // Should become LearningMaterialWithSubjectInfo
   const [assignments, setAssignments] = useState<AssignmentWithClassAndSubmissionInfo[]>([]);
   const [isLoadingPage, setIsLoadingPage] = useState(true);
 
@@ -45,13 +48,12 @@ export default function StudentClassDetailPage() {
     }
     setIsLoadingPage(true);
     try {
-      const [fetchedClassDetails, fetchedMaterials, fetchedAssignments] = await Promise.all([
+      const [fetchedClassDetails, fetchedMaterialsRaw, fetchedAssignmentsRaw] = await Promise.all([
         getClassDetails(classId),
         getLearningMaterialsByClass(classId),
         getAssignmentsForStudentByClass(classId, currentUser.uid)
       ]);
       
-      // Ensure student is actually enrolled or authorized
       if (!currentUser.classIds?.includes(classId) || !fetchedClassDetails) {
         toast({ title: "Unauthorized", description: "You are not enrolled in this class.", variant: "destructive" });
         router.push('/student/classes');
@@ -59,8 +61,26 @@ export default function StudentClassDetailPage() {
       }
 
       setClassDetails(fetchedClassDetails);
-      setMaterials(fetchedMaterials.sort((a,b) => b.createdAt.toMillis() - a.createdAt.toMillis()));
-      setAssignments(fetchedAssignments); // Already sorted by deadline in AuthContext
+
+      const enrichedMaterials = await Promise.all(fetchedMaterialsRaw.map(async m => {
+        let subjectName = 'N/A';
+        if (m.subjectId && getSubjectById) {
+          const subject = await getSubjectById(m.subjectId);
+          subjectName = subject?.name || 'N/A';
+        }
+        return {...m, subjectName};
+      }));
+      setMaterials(enrichedMaterials.sort((a,b) => b.createdAt.toMillis() - a.createdAt.toMillis()));
+      
+      const enrichedAssignments = await Promise.all(fetchedAssignmentsRaw.map(async a => {
+        let subjectName = 'N/A';
+        if (a.subjectId && getSubjectById) {
+            const subject = await getSubjectById(a.subjectId);
+            subjectName = subject?.name || 'N/A';
+        }
+        return {...a, subjectName};
+      }));
+      setAssignments(enrichedAssignments);
 
     } catch (error) {
       console.error("Failed to fetch class data:", error);
@@ -68,7 +88,7 @@ export default function StudentClassDetailPage() {
     } finally {
       setIsLoadingPage(false);
     }
-  }, [classId, currentUser, getClassDetails, getLearningMaterialsByClass, getAssignmentsForStudentByClass, router, toast]);
+  }, [classId, currentUser, getClassDetails, getLearningMaterialsByClass, getAssignmentsForStudentByClass, getSubjectById, router, toast]); // Added getSubjectById
 
   useEffect(() => {
     fetchData();
@@ -122,7 +142,6 @@ export default function StudentClassDetailPage() {
         </CardHeader>
       </Card>
 
-      {/* Learning Materials Section */}
       <Card className="card-shadow">
         <CardHeader>
           <CardTitle className="flex items-center"><Library className="mr-2 h-5 w-5 text-primary" />Learning Materials ({materials.length})</CardTitle>
@@ -136,11 +155,17 @@ export default function StudentClassDetailPage() {
                 <Card key={material.id} className="p-4 hover:bg-muted/50">
                   <h4 className="font-semibold flex items-center">{materialTypeIcons[material.materialType]} {material.title}</h4>
                   <p className="text-xs text-muted-foreground">
+                    Subject: {(material as LearningMaterialWithTeacherInfo).subjectName || 'N/A'} | 
                     Uploaded {material.createdAt ? formatDistanceToNow(material.createdAt.toDate(), { addSuffix: true }) : 'recently'}
                   </p>
                    {material.materialType === 'text' ? (
                       <p className="text-sm text-muted-foreground line-clamp-3 mt-1">{material.content}</p>
-                      // TODO: Add a "View Full Text" button/modal
+                    ) : material.materialType === 'pdf_upload' ? (
+                        <p className="text-sm text-primary hover:underline break-all mt-1">
+                            <FileTextIcon className="inline h-4 w-4 mr-1 text-orange-500"/> 
+                            {/* Placeholder - actual link or download functionality would go here */}
+                            {material.content} (View PDF)
+                        </p>
                     ) : (
                       <Button variant="link" asChild className="px-0 h-auto mt-1">
                         <a href={material.content} target="_blank" rel="noopener noreferrer" className="text-sm text-primary hover:underline break-all">
@@ -155,7 +180,6 @@ export default function StudentClassDetailPage() {
         </CardContent>
       </Card>
 
-      {/* Assignments Section */}
       <Card className="card-shadow">
         <CardHeader>
           <CardTitle className="flex items-center"><Edit3 className="mr-2 h-5 w-5 text-primary" />Assignments ({assignments.length})</CardTitle>
@@ -173,12 +197,23 @@ export default function StudentClassDetailPage() {
                                 <h4 className="font-semibold text-lg">{assignment.title}</h4>
                             </Link>
                             <p className="text-xs text-muted-foreground">
+                                Subject: {assignment.subjectName || 'N/A'} <br />
                                 Due: {format(assignment.deadline.toDate(), 'PPp')}
                             </p>
                         </div>
                         {getStatusBadge(assignment.submissionStatus)}
                     </div>
                      <p className="text-sm text-muted-foreground mt-1 line-clamp-2">{assignment.description}</p>
+                     {assignment.attachmentUrl && (
+                        <div className="mt-1">
+                           <Button variant="link" asChild className="p-0 h-auto text-xs">
+                               <a href={assignment.attachmentUrl} target="_blank" rel="noopener noreferrer" download={assignment.attachmentUrl.startsWith("[Uploaded File:") ? assignment.attachmentUrl.substring(17, assignment.attachmentUrl.length -1) : undefined}>
+                                {assignment.attachmentUrl.startsWith("[Uploaded File:") ? assignment.attachmentUrl.substring(17, assignment.attachmentUrl.length -1) : "View Attachment"}
+                                <Download className="inline h-3 w-3 ml-1"/>
+                               </a>
+                           </Button>
+                        </div>
+                     )}
                     {assignment.submissionGrade && <p className="text-sm mt-1">Grade: <span className="font-semibold">{assignment.submissionGrade}</span></p>}
                      <Button variant="outline" size="sm" asChild className="mt-2">
                         <Link href={`/student/assignments/${assignment.id}`}>
@@ -194,3 +229,4 @@ export default function StudentClassDetailPage() {
     </div>
   );
 }
+

@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useEffect, useState, useCallback } from 'react';
@@ -5,7 +6,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Loader2, Edit3, PlusCircle, Filter, Trash2 } from 'lucide-react';
-import type { AssignmentWithClassInfo, ClassWithTeacherInfo } from '@/types';
+import type { AssignmentWithClassInfo, ClassWithTeacherInfo, Subject } from '@/types'; // Added Subject
 import Link from 'next/link';
 import { format } from 'date-fns';
 import {
@@ -34,6 +35,7 @@ export default function TeacherAssignmentsPage() {
     getClassesByTeacher,
     deleteAssignment,
     getStudentsInClass, 
+    getSubjectById, // Added
     loading: authLoading 
   } = useAuth();
   const { toast } = useToast();
@@ -50,7 +52,7 @@ export default function TeacherAssignmentsPage() {
   const fetchAssignmentsAndClasses = useCallback(async () => {
     if (currentUser?.uid) {
       setIsLoadingPage(true);
-      const [fetchedAssignments, fetchedClasses] = await Promise.all([
+      const [fetchedAssignmentsRaw, fetchedClasses] = await Promise.all([
         getAssignmentsByTeacher(currentUser.uid),
         getClassesByTeacher(currentUser.uid)
       ]);
@@ -62,16 +64,27 @@ export default function TeacherAssignmentsPage() {
       }
       setStudentCounts(counts);
 
-      // Sort assignments client-side as orderBy was removed from service
-      const sortedAssignments = fetchedAssignments.sort((a, b) => b.createdAt.toMillis() - a.createdAt.toMillis());
+      // Enrich assignments with subject names
+      const enrichedAssignments = await Promise.all(
+        fetchedAssignmentsRaw.map(async (assignment) => {
+          let subjectName = 'N/A';
+          if (assignment.subjectId && getSubjectById) {
+            const subject = await getSubjectById(assignment.subjectId);
+            subjectName = subject?.name || 'N/A';
+          }
+          return { ...assignment, subjectName };
+        })
+      );
+
+      const sortedAssignments = enrichedAssignments.sort((a, b) => b.createdAt.toMillis() - a.createdAt.toMillis());
       setAssignments(sortedAssignments);
-      setFilteredAssignments(sortedAssignments); // Initialize filtered list
+      setFilteredAssignments(sortedAssignments); 
       setTeacherClasses(fetchedClasses);
       setIsLoadingPage(false);
     } else if (!authLoading) {
       setIsLoadingPage(false);
     }
-  }, [currentUser, getAssignmentsByTeacher, getClassesByTeacher, getStudentsInClass, authLoading]);
+  }, [currentUser, getAssignmentsByTeacher, getClassesByTeacher, getStudentsInClass, getSubjectById, authLoading]); // Added getSubjectById
 
   useEffect(() => {
     fetchAssignmentsAndClasses();
@@ -82,15 +95,13 @@ export default function TeacherAssignmentsPage() {
     if (selectedClassFilter !== 'all') {
       tempAssignments = tempAssignments.filter(a => a.classId === selectedClassFilter);
     }
-    // Already sorted by createdAt in fetch, further sorting by deadline if needed can be done here.
-    // For now, the createdAt sort is primary.
     setFilteredAssignments(tempAssignments);
   }, [selectedClassFilter, assignments]);
 
   const handleDeleteAssignment = async (assignmentId: string, assignmentTitle: string) => {
     if (!confirm(`Are you sure you want to delete assignment "${assignmentTitle}"? This will also delete all submissions.`)) return;
     setIsDeleting(assignmentId);
-    const success = await deleteAssignment(assignmentId);
+    const success = await deleteAssignment(assignmentId, assignmentTitle);
     if (success) {
       toast({ title: "Assignment Deleted", description: `"${assignmentTitle}" has been removed.` });
       fetchAssignmentsAndClasses(); 
@@ -164,6 +175,7 @@ export default function TeacherAssignmentsPage() {
                   <TableRow>
                     <TableHead>Title</TableHead>
                     <TableHead>Class</TableHead>
+                    <TableHead>Subject</TableHead> {/* Added Subject column */}
                     <TableHead>Deadline</TableHead>
                     <TableHead>Submissions</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
@@ -178,6 +190,7 @@ export default function TeacherAssignmentsPage() {
                         </Link>
                       </TableCell>
                       <TableCell>{assignment.className || 'N/A'}</TableCell>
+                      <TableCell>{assignment.subjectName || 'N/A'}</TableCell> {/* Display subject name */}
                       <TableCell>{format(assignment.deadline.toDate(), 'PPp')}</TableCell>
                        <TableCell>
                          <Badge variant={(assignment.totalSubmissions || 0) > 0 ? "default" : "secondary"}>
@@ -212,3 +225,4 @@ export default function TeacherAssignmentsPage() {
     </div>
   );
 }
+

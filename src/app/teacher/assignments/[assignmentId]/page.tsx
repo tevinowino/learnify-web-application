@@ -6,7 +6,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
-import { Loader2, Edit3, Users, CalendarDays, CheckCircle, XCircle, Clock, ArrowLeft, MessageSquare, Save, Link as LinkIcon } from 'lucide-react';
+import { Loader2, Edit3, Users, CalendarDays, CheckCircle, XCircle, Clock, ArrowLeft, MessageSquare, Save, Link as LinkIcon, Download } from 'lucide-react';
 import type { AssignmentWithClassInfo, SubmissionWithStudentName, SubmissionFormat } from '@/types';
 import Link from 'next/link';
 import { format } from 'date-fns';
@@ -45,6 +45,7 @@ export default function TeacherAssignmentDetailPage() {
     getAssignmentById, 
     getSubmissionsForAssignment,
     gradeSubmission,
+    getSubjectById, // Added
     loading: authLoading 
   } = useAuth();
 
@@ -52,6 +53,7 @@ export default function TeacherAssignmentDetailPage() {
   const [submissions, setSubmissions] = useState<SubmissionWithStudentName[]>([]);
   const [isLoadingPage, setIsLoadingPage] = useState(true);
   const [isGrading, setIsGrading] = useState<string | null>(null); 
+  const [subjectName, setSubjectName] = useState<string | undefined>(undefined); // Added
   
   const [gradeInput, setGradeInput] = useState<string>('');
   const [feedbackInput, setFeedbackInput] = useState<string>('');
@@ -77,8 +79,12 @@ export default function TeacherAssignmentDetailPage() {
       }
       
       setAssignment(fetchedAssignment);
-      // Sort submissions client-side as orderBy was removed from service
       setSubmissions(fetchedSubmissions.sort((a,b) => (a.studentDisplayName || "").localeCompare(b.studentDisplayName || "")));
+
+      if (fetchedAssignment?.subjectId && getSubjectById) { // Fetch subject name
+        const subject = await getSubjectById(fetchedAssignment.subjectId);
+        setSubjectName(subject?.name);
+      }
 
     } catch (error) {
       console.error("Failed to fetch assignment data:", error);
@@ -86,7 +92,7 @@ export default function TeacherAssignmentDetailPage() {
     } finally {
       setIsLoadingPage(false);
     }
-  }, [assignmentId, currentUser, getAssignmentById, getSubmissionsForAssignment, router, toast]);
+  }, [assignmentId, currentUser, getAssignmentById, getSubmissionsForAssignment, getSubjectById, router, toast]); // Added getSubjectById
 
   useEffect(() => {
     fetchData();
@@ -164,7 +170,10 @@ export default function TeacherAssignmentDetailPage() {
           <div className="flex justify-between items-start">
             <div>
               <CardTitle className="text-3xl flex items-center"><Edit3 className="mr-3 h-8 w-8 text-primary" /> {assignment.title}</CardTitle>
-              <CardDescription>Class: <Link href={`/teacher/classes/${assignment.classId}`} className="hover:underline text-primary">{assignment.className || 'N/A'}</Link></CardDescription>
+              <CardDescription>
+                Class: <Link href={`/teacher/classes/${assignment.classId}`} className="hover:underline text-primary">{assignment.className || 'N/A'}</Link> <br/>
+                Subject: {subjectName || assignment.subjectName || 'N/A'}
+              </CardDescription>
             </div>
             <Button variant="outline" size="sm" asChild className="button-shadow">
                 <Link href={`/teacher/assignments/${assignment.id}/edit`}>Edit Assignment</Link>
@@ -173,6 +182,17 @@ export default function TeacherAssignmentDetailPage() {
         </CardHeader>
         <CardContent>
           <p className="text-muted-foreground whitespace-pre-wrap">{assignment.description}</p>
+          {assignment.attachmentUrl && (
+             <div className="mt-3">
+                <Label className="font-medium">Attachment:</Label>
+                <Button variant="link" asChild className="p-0 h-auto ml-2">
+                    <a href={assignment.attachmentUrl} target="_blank" rel="noopener noreferrer" download={assignment.attachmentUrl.startsWith("[Uploaded File:") ? assignment.attachmentUrl.substring(17, assignment.attachmentUrl.length -1) : undefined}>
+                         {assignment.attachmentUrl.startsWith("[Uploaded File:") ? assignment.attachmentUrl.substring(17, assignment.attachmentUrl.length -1) : "View Attachment"}
+                        <Download className="inline h-4 w-4 ml-1"/>
+                    </a>
+                </Button>
+             </div>
+           )}
           <div className="mt-4 flex items-center text-sm text-muted-foreground">
             <CalendarDays className="mr-2 h-4 w-4" />
             Deadline: {format(assignment.deadline.toDate(), 'PPpp')}

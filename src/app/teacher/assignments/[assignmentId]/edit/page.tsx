@@ -11,9 +11,9 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Loader2, Save, CalendarIcon, CheckSquare, Square, Edit3, ArrowLeft } from 'lucide-react';
+import { Loader2, Save, CalendarIcon, CheckSquare, Square, Edit3, ArrowLeft, UploadCloud } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import type { ClassWithTeacherInfo, SubmissionFormat, Assignment } from '@/types';
+import type { ClassWithTeacherInfo, SubmissionFormat, Assignment, Subject } from '@/types';
 import {
   Select,
   SelectContent,
@@ -31,9 +31,12 @@ const assignmentEditSchema = z.object({
   title: z.string().min(3, "Title must be at least 3 characters."),
   description: z.string().min(10, "Description must be at least 10 characters."),
   classId: z.string().min(1, "Please select a class."), // Class cannot be changed after creation for simplicity
+  subjectId: z.string().optional(), // Subject is optional
   deadlineDate: z.date({ required_error: "Deadline date is required." }),
   deadlineTime: z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)$/, "Invalid time format (HH:MM)."),
   allowedSubmissionFormats: z.array(z.enum(['text_entry', 'file_link'])).min(1, "Select at least one submission format."),
+  attachment: z.instanceof(File).optional(), // For new PDF attachment
+  existingAttachmentUrl: z.string().optional(), // To keep track of current attachment
 });
 
 type AssignmentEditFormValues = z.infer<typeof assignmentEditSchema>;
@@ -48,10 +51,11 @@ export default function EditAssignmentPage() {
   const params = useParams();
   const assignmentId = params.assignmentId as string;
 
-  const { currentUser, getAssignmentById, updateAssignment, getClassesByTeacher, loading: authLoading } = useAuth();
+  const { currentUser, getAssignmentById, updateAssignment, getClassesByTeacher, getSubjectsBySchool, loading: authLoading } = useAuth();
   const { toast } = useToast();
   
   const [teacherClasses, setTeacherClasses] = useState<ClassWithTeacherInfo[]>([]);
+  const [schoolSubjects, setSchoolSubjects] = useState<Subject[]>([]); // Added
   const [currentAssignment, setCurrentAssignment] = useState<Assignment | null>(null);
   const [isLoadingPage, setIsLoadingPage] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -62,22 +66,26 @@ export default function EditAssignmentPage() {
       title: '',
       description: '',
       classId: '',
+      subjectId: undefined, // Added
       deadlineDate: undefined,
       deadlineTime: '23:59',
       allowedSubmissionFormats: ['text_entry'],
+      attachment: undefined, // Added
+      existingAttachmentUrl: undefined, // Added
     },
   });
 
-  const fetchAssignmentAndClasses = useCallback(async () => {
+  const fetchAssignmentAndRelatedData = useCallback(async () => { // Renamed
     if (!currentUser?.uid || !assignmentId) {
         setIsLoadingPage(false);
         return;
     }
     setIsLoadingPage(true);
     try {
-      const [fetchedAssignment, fetchedClasses] = await Promise.all([
+      const [fetchedAssignment, fetchedClasses, fetchedSubjects] = await Promise.all([ // Added subjects
         getAssignmentById(assignmentId),
-        getClassesByTeacher(currentUser.uid)
+        getClassesByTeacher(currentUser.uid),
+        getSubjectsBySchool(currentUser.schoolId || '') // Added
       ]);
       
       if (fetchedAssignment) {
@@ -92,26 +100,30 @@ export default function EditAssignmentPage() {
           title: fetchedAssignment.title,
           description: fetchedAssignment.description,
           classId: fetchedAssignment.classId,
+          subjectId: fetchedAssignment.subjectId || undefined, // Added
           deadlineDate: deadlineDate,
           deadlineTime: format(deadlineDate, "HH:mm"),
           allowedSubmissionFormats: fetchedAssignment.allowedSubmissionFormats,
+          attachment: undefined, // Reset file input on load
+          existingAttachmentUrl: fetchedAssignment.attachmentUrl || undefined, // Added
         });
       } else {
         toast({ title: "Not Found", description: "Assignment not found.", variant: "destructive" });
         router.push('/teacher/assignments');
       }
       setTeacherClasses(fetchedClasses);
+      setSchoolSubjects(fetchedSubjects); // Set subjects
 
     } catch (error) {
         toast({ title: "Error", description: "Failed to load assignment data.", variant: "destructive" });
     } finally {
         setIsLoadingPage(false);
     }
-  }, [currentUser, assignmentId, getAssignmentById, getClassesByTeacher, form, router, toast]);
+  }, [currentUser, assignmentId, getAssignmentById, getClassesByTeacher, getSubjectsBySchool, form, router, toast]); // Added getSubjectsBySchool
 
   useEffect(() => {
-    fetchAssignmentAndClasses();
-  }, [fetchAssignmentAndClasses]);
+    fetchAssignmentAndRelatedData();
+  }, [fetchAssignmentAndRelatedData]);
 
   async function onSubmit(values: AssignmentEditFormValues) {
     if (!currentAssignment) return;
@@ -121,15 +133,25 @@ export default function EditAssignmentPage() {
     const deadline = new Date(values.deadlineDate);
     deadline.setHours(hours, minutes, 0, 0);
 
+    let attachmentUrlToSave = values.existingAttachmentUrl;
+    if (values.attachment) {
+      // Placeholder for actual file upload logic
+      // attachmentUrlToSave = await uploadFileToStorage(values.attachment, `assignments/...`);
+      attachmentUrlToSave = `[Uploaded File: ${values.attachment.name}]`; // Placeholder
+      toast({ title: "Attachment (Placeholder)", description: "Attachment upload updated (placeholder).", variant: "default" });
+    }
+
+
     const updatedData = {
       title: values.title,
       description: values.description,
-      // classId is not changeable in this form for simplicity, could be added
       deadline: deadline,
       allowedSubmissionFormats: values.allowedSubmissionFormats,
+      subjectId: values.subjectId, // Added
+      attachmentUrl: attachmentUrlToSave, // Added
     };
 
-    const success = await updateAssignment(currentAssignment.id, updatedData);
+    const success = await updateAssignment(currentAssignment.id, currentAssignment.title, updatedData); // Pass old title for activity log
     setIsSubmitting(false);
 
     if (success) {
@@ -177,11 +199,34 @@ export default function EditAssignmentPage() {
               <Textarea id="description" {...form.register("description")} rows={5} />
               {form.formState.errors.description && <p className="text-sm text-destructive mt-1">{form.formState.errors.description.message}</p>}
             </div>
-
-            <div>
-              <Label htmlFor="classId">Class (Cannot be changed)</Label>
-               <Input id="classIdDisplay" value={teacherClasses.find(c => c.id === form.getValues("classId"))?.name || 'N/A'} readOnly className="bg-muted/50" />
-               {form.formState.errors.classId && <p className="text-sm text-destructive mt-1">{form.formState.errors.classId.message}</p>}
+            
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="classId">Class (Cannot be changed)</Label>
+                <Input id="classIdDisplay" value={teacherClasses.find(c => c.id === form.getValues("classId"))?.name || 'N/A'} readOnly className="bg-muted/50" />
+                {form.formState.errors.classId && <p className="text-sm text-destructive mt-1">{form.formState.errors.classId.message}</p>}
+              </div>
+              <div>
+                <Label htmlFor="subjectIdEdit">Subject (Optional)</Label>
+                <Controller
+                  control={form.control}
+                  name="subjectId"
+                  render={({ field }) => (
+                    <Select onValueChange={field.onChange} value={field.value ?? ""}>
+                      <SelectTrigger id="subjectIdEdit">
+                        <SelectValue placeholder="Select a subject" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="">No Subject / General</SelectItem>
+                        {schoolSubjects.map(sub => (
+                          <SelectItem key={sub.id} value={sub.id}>{sub.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                />
+                {form.formState.errors.subjectId && <p className="text-sm text-destructive mt-1">{form.formState.errors.subjectId.message}</p>}
+              </div>
             </div>
             
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -244,7 +289,7 @@ export default function EditAssignmentPage() {
                                     );
                                 }}
                             />
-                            <Label htmlFor={`format-edit-${formatOption.id}`} className="font-normal">
+                            <Label htmlFor={`format-edit-${formatOption.id}`} className="font-normal cursor-pointer">
                                 {formatOption.label}
                             </Label>
                             </div>
@@ -254,6 +299,33 @@ export default function EditAssignmentPage() {
                 />
                 {form.formState.errors.allowedSubmissionFormats && <p className="text-sm text-destructive mt-1">{form.formState.errors.allowedSubmissionFormats.message}</p>}
             </div>
+
+            <div>
+              <Label htmlFor="attachmentEdit">Attach PDF (Optional)</Label>
+              {form.getValues("existingAttachmentUrl") && (
+                <p className="text-xs text-muted-foreground mt-1">Current attachment: <a href={form.getValues("existingAttachmentUrl")} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">{form.getValues("existingAttachmentUrl")}</a> (Uploading a new file will replace this)</p>
+              )}
+              <div className="flex items-center space-x-2 mt-1">
+                <UploadCloud className="h-5 w-5 text-muted-foreground" />
+                <Controller
+                  control={form.control}
+                  name="attachment"
+                  render={({ field: { onChange, value, ...restField } }) => (
+                    <Input 
+                      id="attachmentEdit" 
+                      type="file" 
+                      accept=".pdf"
+                      onChange={(e) => onChange(e.target.files ? e.target.files[0] : null)}
+                      className="flex-grow"
+                      {...restField}
+                    />
+                  )}
+                />
+              </div>
+              {form.getValues("attachment") && <p className="text-xs text-muted-foreground mt-1">New file selected: {form.getValues("attachment")?.name}</p>}
+              {form.formState.errors.attachment && <p className="text-sm text-destructive mt-1">{form.formState.errors.attachment.message}</p>}
+            </div>
+
 
             <Button type="submit" className="w-full bg-primary hover:bg-primary/90 button-shadow" disabled={isSubmitting || pageOverallLoading || !form.formState.isDirty}>
               {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
@@ -265,3 +337,4 @@ export default function EditAssignmentPage() {
     </div>
   );
 }
+
