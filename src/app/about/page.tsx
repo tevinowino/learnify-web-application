@@ -1,6 +1,7 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Users, Zap, Target, Heart } from 'lucide-react';
+import { Users, Zap, Target, Heart, Code, UserCircle } from 'lucide-react';
+import Image from 'next/image';
 
 export default function AboutPage() {
   return (
@@ -33,6 +34,28 @@ export default function AboutPage() {
             <p className="text-center">
               A world where education adapts to the individual, empowering learners to achieve their dreams, educators to inspire with greater impact, and institutions to thrive. We envision a future where learning is not a one-size-fits-all model but a tailored journey for each student.
             </p>
+          </section>
+
+          <section>
+            <h2 className="text-2xl font-semibold text-foreground mb-4 text-center">Meet Our Founding Software Engineer <Code className="inline-block h-7 w-7 text-primary mb-1" /></h2>
+            <div className="flex flex-col md:flex-row items-center gap-8">
+              <div className="md:w-1/3 flex justify-center">
+                <Image
+                  src="https://picsum.photos/seed/tevin/300/300"
+                  alt="Tevin Owino"
+                  width={200}
+                  height={200}
+                  className="rounded-full shadow-lg"
+                  data-ai-hint="person engineer"
+                />
+              </div>
+              <div className="md:w-2/3 text-center md:text-left">
+                <h3 className="text-xl font-semibold text-foreground mb-2">Tevin Owino</h3>
+                <p className="text-muted-foreground">
+                  Tevin is a passionate and innovative software engineer with a vision for transforming education through technology. With a strong background in AI and full-stack development, Tevin leads the technical development of Learnify, ensuring a robust, scalable, and user-friendly platform. His dedication to creating impactful learning solutions is the driving force behind our cutting-edge features.
+                </p>
+              </div>
+            </div>
           </section>
 
           <section>
