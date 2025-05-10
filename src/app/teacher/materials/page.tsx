@@ -25,8 +25,8 @@ import Link from 'next/link';
 const materialTypeIcons: Record<LearningMaterialType, React.ReactNode> = {
   text: <FileTextIcon className="h-4 w-4 mr-2" />,
   link: <LinkIcon className="h-4 w-4 mr-2" />,
-  pdf_link: <FileTextIcon className="h-4 w-4 mr-2 text-red-500" />, // Example color
-  video_link: <VideoIcon className="h-4 w-4 mr-2 text-blue-500" />, // Example color
+  pdf_link: <FileTextIcon className="h-4 w-4 mr-2 text-red-500" />, 
+  video_link: <VideoIcon className="h-4 w-4 mr-2 text-blue-500" />, 
 };
 
 const materialTypeLabels: Record<LearningMaterialType, string> = {
@@ -49,7 +49,7 @@ export default function ManageMaterialsPage() {
   const { toast } = useToast();
   
   const [title, setTitle] = useState('');
-  const [content, setContent] = useState(''); // Will hold text or URL
+  const [content, setContent] = useState(''); 
   const [materialType, setMaterialType] = useState<LearningMaterialType>('text');
   const [selectedClassId, setSelectedClassId] = useState<string | undefined>(undefined);
   
@@ -73,6 +73,7 @@ export default function ManageMaterialsPage() {
         getLearningMaterialsByTeacher(currentUser.uid),
         getClassesByTeacher(currentUser.uid)
       ]);
+      // Sort materials client-side as orderBy was removed from service
       setMaterials(fetchedMaterials.sort((a,b) => b.createdAt.toMillis() - a.createdAt.toMillis()));
       setTeacherClasses(fetchedClasses);
       setIsLoadingPage(false);
@@ -105,14 +106,14 @@ export default function ManageMaterialsPage() {
       materialType,
       schoolId: currentUser.schoolId,
       teacherId: currentUser.uid,
-      classId: selectedClassId || undefined, // Ensure it's explicitly undefined if not selected
+      classId: selectedClassId || undefined, 
     };
     const materialId = await addLearningMaterial(materialData);
     setIsSubmitting(false);
     if (materialId) {
       toast({ title: "Material Added!", description: `"${title}" has been successfully added.` });
       resetForm();
-      fetchMaterialsAndClasses(); // Refresh materials list
+      fetchMaterialsAndClasses(); 
     } else {
       toast({ title: "Error", description: "Failed to add material. Please try again.", variant: "destructive" });
     }
@@ -150,7 +151,7 @@ export default function ManageMaterialsPage() {
 
   const handleDeleteMaterial = async (materialId: string, materialTitle: string) => {
     if (!confirm(`Are you sure you want to delete "${materialTitle}"?`)) return;
-    setIsSubmitting(true); // Use a general submitting flag or a specific deleting flag
+    setIsSubmitting(true); 
     const success = await deleteLearningMaterial(materialId);
     setIsSubmitting(false);
     if (success) {
@@ -320,7 +321,6 @@ export default function ManageMaterialsPage() {
         </CardContent>
       </Card>
 
-      {/* Edit Material Dialog */}
       {editingMaterial && (
         <Dialog open={!!editingMaterial} onOpenChange={(isOpen) => !isOpen && setEditingMaterial(null)}>
           <DialogContent className="sm:max-w-lg">
@@ -389,3 +389,4 @@ export default function ManageMaterialsPage() {
     </div>
   );
 }
+

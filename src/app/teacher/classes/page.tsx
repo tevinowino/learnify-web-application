@@ -18,7 +18,7 @@ export default function TeacherClassesPage() {
     if (currentUser?.uid) {
       setIsLoadingPage(true);
       const teacherClasses = await getClassesByTeacher(currentUser.uid);
-      // Sort classes by name for consistent display
+      // Sort classes by name client-side as orderBy was removed from service
       teacherClasses.sort((a, b) => a.name.localeCompare(b.name));
       setClasses(teacherClasses);
       setIsLoadingPage(false);
@@ -42,7 +42,6 @@ export default function TeacherClassesPage() {
   }
 
   if (!currentUser) {
-    // This case should ideally be handled by ProtectedRoute, but as a fallback
     return <p className="text-center text-destructive">You must be logged in to view this page.</p>;
   }
   
@@ -92,3 +91,4 @@ export default function TeacherClassesPage() {
     </div>
   );
 }
+

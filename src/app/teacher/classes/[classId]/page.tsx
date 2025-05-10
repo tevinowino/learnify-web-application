@@ -62,20 +62,20 @@ export default function TeacherClassDetailPage() {
       ]);
       
       if (fetchedClassDetails && fetchedClassDetails.teacherId !== currentUser.uid && currentUser.role !== 'admin') {
-        // Teacher trying to access a class not assigned to them
-        router.push('/teacher/classes'); // Or an unauthorized page
+        router.push('/teacher/classes');
         toast({title:"Unauthorized", description: "You are not assigned to this class.", variant:"destructive"});
         return;
       }
 
       setClassDetails(fetchedClassDetails);
+      // Sort materials and assignments client-side
       setMaterials(fetchedMaterials.sort((a,b) => b.createdAt.toMillis() - a.createdAt.toMillis()));
-      setAssignments(fetchedAssignments.sort((a,b) => b.createdAt.toMillis() - a.createdAt.toMillis()));
+      setAssignments(fetchedAssignments.sort((a,b) => b.deadline.toMillis() - a.deadline.toMillis())); // Sort by deadline desc
       setStudents(fetchedStudents.sort((a,b) => (a.displayName || "").localeCompare(b.displayName || "")));
 
     } catch (error) {
       console.error("Failed to fetch class data:", error);
-      // Potentially show a toast message
+      toast({title: "Error", description: "Could not load class data.", variant: "destructive"});
     } finally {
       setIsLoadingPage(false);
     }
@@ -85,7 +85,7 @@ export default function TeacherClassDetailPage() {
     fetchData();
   }, [fetchData]);
 
-  const { toast } = useToast(); // Import and use toast
+  const { toast } = useToast(); 
 
   if (authLoading || isLoadingPage) {
     return (
@@ -127,7 +127,6 @@ export default function TeacherClassDetailPage() {
         </CardHeader>
       </Card>
 
-      {/* Students List */}
       <Card className="card-shadow">
         <CardHeader className="flex flex-row justify-between items-center">
           <div >
@@ -160,7 +159,6 @@ export default function TeacherClassDetailPage() {
       </Card>
 
 
-      {/* Learning Materials Section */}
       <Card className="card-shadow">
         <CardHeader className="flex flex-row justify-between items-center">
           <div>
@@ -191,7 +189,6 @@ export default function TeacherClassDetailPage() {
                           {material.content} <LinkIcon className="inline h-3 w-3 ml-1"/>
                         </Link>
                       )}
-                  {/* Link to edit material page */}
                 </div>
               ))}
             </div>
@@ -199,7 +196,6 @@ export default function TeacherClassDetailPage() {
         </CardContent>
       </Card>
 
-      {/* Assignments Section */}
       <Card className="card-shadow">
         <CardHeader className="flex flex-row justify-between items-center">
            <div>
@@ -251,9 +247,9 @@ export default function TeacherClassDetailPage() {
   );
 }
 
-// Helper (can be moved to utils if used elsewhere)
 import { useToast as useOriginalToast } from '@/hooks/use-toast';
 function toast(options: { title: string, description?: string, variant?: 'default' | 'destructive' }) {
     const { toast: showToast } = useOriginalToast();
     showToast(options);
 }
+

@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import type { ReactNode }from 'react';
@@ -11,13 +10,20 @@ import {
   signInWithEmailAndPassword, 
   signOut as firebaseSignOut,
   updateProfile as updateFirebaseProfile,
-  updateEmail as updateFirebaseEmail, // Import for email update
+  updateEmail as updateFirebaseEmail,
   updatePassword as updateFirebasePassword,
 } from 'firebase/auth';
-import { doc, getDoc, setDoc, collection, query, where, getDocs, writeBatch, updateDoc, addDoc, Timestamp, orderBy, deleteDoc, arrayUnion, arrayRemove, documentId } from 'firebase/firestore';
-import { auth, db, app as firebaseApp } from '@/lib/firebase'; // Import app for creating temporary auth instance if needed
+import { doc, getDoc, Timestamp } from 'firebase/firestore';
+import { auth, db } from '@/lib/firebase';
 import type { UserProfile, UserRole, School, LearningMaterial, UserProfileWithId, Class, ClassWithTeacherInfo, LearningMaterialWithTeacherInfo, Assignment, Submission, SubmissionFormat, LearningMaterialType, AssignmentWithClassInfo, SubmissionWithStudentName, AssignmentWithClassAndSubmissionInfo, UserStatus } from '@/types';
 import { useRouter } from 'next/navigation';
+
+import * as SchoolService from '@/services/schoolService';
+import * as UserService from '@/services/userService';
+import * as ClassService from '@/services/classService';
+import * as MaterialService from '@/services/learningMaterialService';
+import * as AssignmentService from '@/services/assignmentService';
+import * as SubmissionService from '@/services/submissionService';
 
 interface AuthContextType {
   currentUser: UserProfile | null;
@@ -38,9 +44,9 @@ interface AuthContextType {
   getUsersBySchool: (schoolId: string) => Promise<UserProfileWithId[]>;
   getUsersBySchoolAndRole: (schoolId: string, role: UserRole) => Promise<UserProfileWithId[]>;
   adminCreateUserInSchool: (email: string, pass: string, displayName: string, role: UserRole, schoolId: string) => Promise<UserProfileWithId | null>;
-  updateUserRoleAndSchool: (userId: string, data: { role?: UserRole; schoolId?: string, classIds?: string[] }) => Promise<boolean>;
+  updateUserRoleAndSchool: (userId: string, data: { role?: UserRole; schoolId?: string, classIds?: string[], status?: UserStatus }) => Promise<boolean>;
   getUserProfile: (userId: string) => Promise<UserProfileWithId | null>;
-  approveUserForSchool: (userId: string, schoolId: string) => Promise<boolean>; // New for admin verification
+  approveUserForSchool: (userId: string, schoolId: string) => Promise<boolean>;
 
   // Admin & Teacher Class Management
   createClassInSchool: (className: string, schoolId: string, teacherId?: string) => Promise<string | null>;
@@ -58,7 +64,6 @@ interface AuthContextType {
   getClassesByTeacher: (teacherId: string) => Promise<ClassWithTeacherInfo[]>;
   getStudentsInMultipleClasses: (classIds: string[]) => Promise<UserProfileWithId[]>;
 
-
   // Teacher Material Management
   addLearningMaterial: (material: Omit<LearningMaterial, 'id' | 'createdAt' | 'updatedAt'>) => Promise<string | null>;
   getLearningMaterialsByTeacher: (teacherId: string, classId?: string) => Promise<LearningMaterial[]>;
@@ -67,7 +72,6 @@ interface AuthContextType {
   deleteLearningMaterial: (materialId: string) => Promise<boolean>;
   updateLearningMaterial: (materialId: string, data: Partial<Pick<LearningMaterial, 'title' | 'content' | 'classId' | 'materialType'>>) => Promise<boolean>;
   getLearningMaterialById: (materialId: string) => Promise<LearningMaterial | null>;
-
 
   // Teacher Assignment Management
   createAssignment: (assignmentData: Omit<Assignment, 'id' | 'createdAt' | 'updatedAt' | 'totalSubmissions'>) => Promise<string | null>;
@@ -87,7 +91,6 @@ interface AuthContextType {
   getAssignmentsForStudentByClass: (classId: string, studentId: string) => Promise<AssignmentWithClassAndSubmissionInfo[]>;
   getClassesByIds: (classIds: string[]) => Promise<ClassWithTeacherInfo[]>;
   joinClassWithCode: (classCode: string, studentId: string) => Promise<boolean>;
-
 
   // Profile Management
   updateUserDisplayName: (userId: string, displayName: string) => Promise<boolean>;
@@ -128,8 +131,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             toJSON: user.toJSON,
             role: userData.role as UserRole,
             schoolId: userData.schoolId,
-            schoolName: userData.schoolName, // For pending verification display
-            status: userData.status as UserStatus || 'active', // Default to active if status not set
+            schoolName: userData.schoolName,
+            status: userData.status as UserStatus || 'active',
             classIds: userData.classIds || [],
             studentAssignments: userData.studentAssignments || {},
           });
@@ -152,66 +155,20 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       }
       setLoading(false);
     });
-
     return () => unsubscribe();
   }, []);
 
+  // --- Core Authentication ---
   const signUp = async (email: string, pass: string, role: UserRole, displayName: string, schoolIdToJoin?: string, schoolName?: string): Promise<UserProfile | null> => {
     setLoading(true);
     try {
       const userCredential = await createUserWithEmailAndPassword(auth, email, pass);
       const firebaseUser = userCredential.user;
-      
-      if (firebaseUser) {
-        await updateFirebaseProfile(firebaseUser, { displayName });
-        
-        const userProfileData: Omit<UserProfile, keyof FirebaseUser | 'classIds' | 'studentAssignments'> & { uid: string, createdAt: Timestamp, classIds: string[], studentAssignments: {}, status: UserStatus, schoolId?: string, schoolName?: string } = {
-          uid: firebaseUser.uid,
-          email: firebaseUser.email,
-          displayName: displayName,
-          role: role,
-          createdAt: Timestamp.now(),
-          classIds: [],
-          studentAssignments: {},
-          status: 'active', // Default to active
-        };
+      if (!firebaseUser) return null;
 
-        if (role === 'teacher' || role === 'student') {
-          if (schoolIdToJoin) {
-            userProfileData.schoolId = schoolIdToJoin;
-            userProfileData.schoolName = schoolName; // Store school name for pending display
-            userProfileData.status = 'pending_verification';
-          } else {
-            // This case should ideally be prevented by form validation ensuring schoolIdToJoin is provided
-            // If not, they are active but unattached, which is not the target flow for this change.
-            // Consider how to handle this if form doesn't enforce schoolIdToJoin.
-            // For now, assuming form makes it mandatory.
-          }
-        }
-        // For admin, schoolId is set during onboarding. Status remains 'active'.
-
-        await setDoc(doc(db, "users", firebaseUser.uid), userProfileData);
-        
-        const profile: UserProfile = {
-          ...userProfileData,
-          photoURL: firebaseUser.photoURL,
-          emailVerified: firebaseUser.emailVerified,
-          isAnonymous: firebaseUser.isAnonymous,
-          metadata: firebaseUser.metadata,
-          providerData: firebaseUser.providerData,
-          providerId: firebaseUser.providerId,
-          tenantId: firebaseUser.tenantId,
-          refreshToken: firebaseUser.refreshToken,
-          delete: firebaseUser.delete,
-          getIdToken: firebaseUser.getIdToken,
-          getIdTokenResult: firebaseUser.getIdTokenResult,
-          reload: firebaseUser.reload,
-          toJSON: firebaseUser.toJSON,
-        };
-        // setCurrentUser(profile); // Let onAuthStateChanged handle setting currentUser for consistency
-        return profile; // Return profile so AuthForm can redirect based on status
-      }
-      return null;
+      await updateFirebaseProfile(firebaseUser, { displayName });
+      const profile = await UserService.createUserProfileInFirestore(firebaseUser, role, displayName, schoolIdToJoin, schoolName);
+      return profile;
     } catch (error) {
       console.error("Error signing up:", error);
       return null;
@@ -225,38 +182,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     try {
       const userCredential = await signInWithEmailAndPassword(auth, email, pass);
       const firebaseUser = userCredential.user;
-
       if (firebaseUser) {
-        const userDocRef = doc(db, "users", firebaseUser.uid);
-        const userDocSnap = await getDoc(userDocRef);
-        if (userDocSnap.exists()) {
-          const userData = userDocSnap.data();
-          const profile: UserProfile = {
-            uid: firebaseUser.uid,
-            email: firebaseUser.email,
-            displayName: userData.displayName || firebaseUser.displayName,
-            photoURL: firebaseUser.photoURL,
-            emailVerified: firebaseUser.emailVerified,
-            isAnonymous: firebaseUser.isAnonymous,
-            metadata: firebaseUser.metadata,
-            providerData: userCredential.user.providerData,
-            providerId: userCredential.user.providerId,
-            tenantId: userCredential.user.tenantId,
-            refreshToken: userCredential.user.refreshToken,
-            delete: userCredential.user.delete,
-            getIdToken: userCredential.user.getIdToken,
-            getIdTokenResult: userCredential.user.getIdTokenResult,
-            reload: userCredential.user.reload,
-            toJSON: userCredential.user.toJSON,
-            role: userData.role as UserRole,
-            schoolId: userData.schoolId,
-            schoolName: userData.schoolName,
-            status: userData.status as UserStatus || 'active',
-            classIds: userData.classIds || [],
-            studentAssignments: userData.studentAssignments || {},
-          };
-          // setCurrentUser(profile); // Let onAuthStateChanged handle this
-          return profile;
+        const profile = await UserService.getUserProfileService(firebaseUser.uid); // Ensure this merges FirebaseUser fields
+        if (profile) {
+           const fullProfile: UserProfile = {
+                ...firebaseUser, // Spread FirebaseUser properties
+                ...profile, // Spread Firestore properties (role, schoolId, etc.)
+                uid: firebaseUser.uid, // Ensure uid from FirebaseUser takes precedence
+            };
+          return fullProfile;
         }
       }
       return null;
@@ -267,26 +201,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setLoading(false);
     }
   };
-
-  const approveUserForSchool = async (userId: string, schoolId: string): Promise<boolean> => {
-    if (!currentUser || currentUser.role !== 'admin' || currentUser.schoolId !== schoolId) {
-        console.error("Unauthorized or school mismatch for approving user.");
-        return false;
-    }
-    setLoading(true);
-    try {
-        const userRef = doc(db, "users", userId);
-        await updateDoc(userRef, { status: 'active', updatedAt: Timestamp.now() });
-        // Optionally, if schoolName was stored for pending users, you might clear it or ensure schoolId is correct.
-        return true;
-    } catch (error) {
-        console.error("Error approving user for school:", error);
-        return false;
-    } finally {
-        setLoading(false);
-    }
-};
-
 
   const logOut = async () => {
     setLoading(true);
@@ -301,171 +215,92 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  const createSchool = async (schoolName: string, adminId: string): Promise<string | null> => {
+  // --- Profile Management ---
+  const updateUserDisplayName = async (userId: string, displayName: string): Promise<boolean> => {
     setLoading(true);
     try {
-      const inviteCode = Math.random().toString(36).substring(2, 8).toUpperCase();
-      const schoolRef = doc(collection(db, "schools"));
-      const schoolData: School = {
-        id: schoolRef.id,
-        name: schoolName,
-        adminId: adminId,
-        inviteCode: inviteCode,
-        createdAt: Timestamp.now(),
-      };
-      
-      const batch = writeBatch(db);
-      batch.set(schoolRef, schoolData);
-      
-      const userRef = doc(db, "users", adminId);
-      batch.update(userRef, { schoolId: schoolRef.id, schoolName: schoolName, status: 'active' }); // Admin is active in their new school
-      
-      await batch.commit();
-
-      if (currentUser && currentUser.uid === adminId) {
-        setCurrentUser(prev => prev ? ({ ...prev, schoolId: schoolRef.id, schoolName: schoolName, status: 'active' }) : null);
+      if (auth.currentUser && auth.currentUser.uid === userId) {
+        await updateFirebaseProfile(auth.currentUser, { displayName });
       }
-      
-      return schoolRef.id;
+      const success = await UserService.updateUserDisplayNameService(userId, displayName);
+      if (success && currentUser && currentUser.uid === userId) {
+        setCurrentUser(prev => prev ? { ...prev, displayName } : null);
+      }
+      return success;
     } catch (error) {
-      console.error("Error creating school:", error);
-      return null;
+      console.error("Error updating display name:", error);
+      return false;
     } finally {
       setLoading(false);
     }
+  };
+
+  const updateUserEmail = async (newEmail: string, currentPassword_not_used: string): Promise<boolean> => {
+    if (!auth.currentUser) return false;
+    setLoading(true);
+    try {
+      // Firebase Auth email update requires re-authentication, which is complex.
+      // Simplified to only update Firestore. For full functionality, implement re-auth.
+      // await updateFirebaseEmail(auth.currentUser, newEmail); // This would require re-auth
+      const success = await UserService.updateUserEmailInFirestore(auth.currentUser.uid, newEmail);
+      if (success && currentUser) {
+        setCurrentUser(prev => prev ? { ...prev, email: newEmail } : null);
+      }
+      return success;
+    } catch (error) {
+      console.error("Error updating email:", error);
+      return false;
+    } finally {
+      setLoading(false);
+    }
+  };
+  
+  const updateUserPassword = async (newPassword: string, currentPassword_not_used: string): Promise<boolean> => {
+    if (!auth.currentUser) return false;
+    setLoading(true);
+    try {
+      // Firebase Auth password update may require re-authentication for recent logins.
+      await updateFirebasePassword(auth.currentUser, newPassword);
+      return true;
+    } catch (error) {
+      console.error("Error updating password:", error);
+      return false;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // --- School Management ---
+  const createSchool = async (schoolName: string, adminId: string): Promise<string | null> => {
+    setLoading(true);
+    try {
+      const schoolId = await SchoolService.createSchoolService(schoolName, adminId);
+      if (schoolId && currentUser && currentUser.uid === adminId) {
+        setCurrentUser(prev => prev ? ({ ...prev, schoolId, schoolName, status: 'active' }) : null);
+      }
+      return schoolId;
+    } catch (error) { return null; } 
+    finally { setLoading(false); }
   };
 
   const joinSchoolWithInviteCode = async (inviteCode: string, userId: string): Promise<boolean> => {
     setLoading(true);
     try {
-      const schoolsRef = collection(db, "schools");
-      const q = query(schoolsRef, where("inviteCode", "==", inviteCode));
-      const querySnapshot = await getDocs(q);
-
-      if (querySnapshot.empty) {
-        console.log("Invalid invite code");
-        return false;
+      const schoolData = await SchoolService.joinSchoolWithInviteCodeService(inviteCode, userId);
+      if (schoolData && currentUser && currentUser.uid === userId) {
+        setCurrentUser(prev => prev ? ({ ...prev, schoolId: schoolData.id, schoolName: schoolData.name, status: 'active' }) : null);
       }
-
-      const schoolDoc = querySnapshot.docs[0];
-      const schoolId = schoolDoc.id;
-      const schoolData = schoolDoc.data() as School;
-
-      const userRef = doc(db, "users", userId);
-      // Admin joining another school is typically 'active'.
-      // This function is generally for admins during onboarding.
-      // If a teacher/student used this, their status might need separate handling, but they use schoolIdToJoin.
-      await updateDoc(userRef, { schoolId: schoolId, schoolName: schoolData.name, status: 'active' });
-      
-      if (currentUser && currentUser.uid === userId) {
-        setCurrentUser(prev => prev ? ({ ...prev, schoolId: schoolId, schoolName: schoolData.name, status: 'active' }) : null);
-      }
-
-      return true;
-    } catch (error) {
-      console.error("Error joining school:", error);
-      return false;
-    } finally {
-      setLoading(false);
-    }
+      return !!schoolData;
+    } catch (error) { return false; }
+    finally { setLoading(false); }
   };
-  
+
   const checkAdminOnboardingStatus = async (): Promise<{ isOnboarded: boolean; schoolId?: string }> => {
-    if (!currentUser || currentUser.role !== 'admin') {
-      return { isOnboarded: false };
-    }
-    // User's schoolId is already on currentUser from onAuthStateChanged
-    if (currentUser.schoolId) {
-      return { isOnboarded: true, schoolId: currentUser.schoolId };
-    }
-    return { isOnboarded: false };
+    if (!currentUser || currentUser.role !== 'admin') return { isOnboarded: false };
+    return { isOnboarded: !!currentUser.schoolId, schoolId: currentUser.schoolId };
   };
 
-  const getSchoolDetails = async (schoolId: string): Promise<School | null> => {
-    if (!schoolId) return null;
-    try {
-      const schoolRef = doc(db, "schools", schoolId);
-      const schoolSnap = await getDoc(schoolRef);
-      if (schoolSnap.exists()) {
-        return schoolSnap.data() as School;
-      }
-      return null;
-    } catch (error) {
-      console.error("Error fetching school details:", error);
-      return null;
-    }
-  };
-
-  const updateSchoolDetails = async (schoolId: string, data: Partial<Pick<School, 'name'>>): Promise<boolean> => {
-    if (!schoolId || !currentUser || currentUser.role !== 'admin') return false;
-    setLoading(true);
-    try {
-      const schoolRef = doc(db, "schools", schoolId);
-      const schoolSnap = await getDoc(schoolRef);
-      if (!schoolSnap.exists() || schoolSnap.data().adminId !== currentUser.uid) {
-        console.error("User is not authorized to update this school or school does not exist.");
-        return false;
-      }
-      await updateDoc(schoolRef, { ...data, updatedAt: Timestamp.now() });
-      return true;
-    } catch (error) {
-      console.error("Error updating school details:", error);
-      return false;
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const regenerateInviteCode = async (schoolId: string): Promise<string | null> => {
-    if (!schoolId || (currentUser && currentUser.role !== 'admin')) return null;
-    setLoading(true);
-    try {
-      const newInviteCode = Math.random().toString(36).substring(2, 8).toUpperCase();
-      const schoolRef = doc(db, "schools", schoolId);
-      await updateDoc(schoolRef, { inviteCode: newInviteCode });
-      return newInviteCode;
-    } catch (error) {
-      console.error("Error regenerating invite code:", error);
-      return null;
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const getUsersBySchool = async (schoolId: string): Promise<UserProfileWithId[]> => {
-    if (!schoolId) return [];
-    try {
-      const usersRef = collection(db, "users");
-      const q = query(usersRef, where("schoolId", "==", schoolId));
-      const querySnapshot = await getDocs(q);
-      const users: UserProfileWithId[] = [];
-      querySnapshot.forEach((doc) => {
-        users.push({ id: doc.id, ...doc.data(), status: doc.data().status || 'active' } as UserProfileWithId);
-      });
-      return users;
-    } catch (error) {
-      console.error("Error fetching users by school:", error);
-      return [];
-    }
-  };
-  
-  const getUsersBySchoolAndRole = async (schoolId: string, role: UserRole): Promise<UserProfileWithId[]> => {
-    if (!schoolId || !role) return [];
-    try {
-      const usersRef = collection(db, "users");
-      const q = query(usersRef, where("schoolId", "==", schoolId), where("role", "==", role));
-      const querySnapshot = await getDocs(q);
-      const users: UserProfileWithId[] = [];
-      querySnapshot.forEach((doc) => {
-        users.push({ id: doc.id, ...doc.data(), status: doc.data().status || 'active' } as UserProfileWithId);
-      });
-      return users;
-    } catch (error) {
-      console.error("Error fetching users by school and role:", error);
-      return [];
-    }
-  };
-
+  // --- User Management ---
   const adminCreateUserInSchool = async (email: string, pass: string, displayName: string, role: UserRole, schoolId: string): Promise<UserProfileWithId | null> => {
     setLoading(true);
     try {
@@ -517,838 +352,222 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       // For example, if error.code === 'auth/email-already-in-use'
       return null;
     } finally {
-      setLoading(false);
+        setLoading(false);
     }
   };
 
-  const updateUserRoleAndSchool = async (userId: string, data: { role?: UserRole; schoolId?: string, classIds?: string[], status?: UserStatus }): Promise<boolean> => {
-    if (!currentUser || currentUser.role !== 'admin') return false;
+  const approveUserForSchool = async (userId: string, schoolId: string): Promise<boolean> => {
+    if (!currentUser || currentUser.role !== 'admin' || currentUser.schoolId !== schoolId) return false;
     setLoading(true);
-    try {
-      const userRef = doc(db, "users", userId);
-      const updateData: any = { ...data, updatedAt: Timestamp.now() };
-      if (data.classIds === null) { 
-        updateData.classIds = [];
-      }
-      // If role is changed, ensure status is appropriate (e.g. 'active') unless explicitly set
-      if (data.role && !data.status) {
-        updateData.status = 'active';
-      }
-
-
-      await updateDoc(userRef, updateData);
-      return true;
-    } catch (error) {
-      console.error("Error updating user role/school/status:", error);
-      return false;
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const getUserProfile = async (userId: string): Promise<UserProfileWithId | null> => {
-    try {
-      const userDocRef = doc(db, "users", userId);
-      const userDocSnap = await getDoc(userDocRef);
-      if (userDocSnap.exists()) {
-        const data = userDocSnap.data();
-        return { id: userDocSnap.id, ...data, status: data.status || 'active' } as UserProfileWithId;
-      }
-      return null;
-    } catch (error) {
-      console.error("Error fetching user profile:", error);
-      return null;
-    }
-  };
-
-  const createClassInSchool = async (className: string, schoolId: string, teacherId?: string): Promise<string | null> => {
-    if (!currentUser || (currentUser.role !== 'admin' && currentUser.role !== 'teacher') || !schoolId) return null;
-    setLoading(true);
-    try {
-      const classRef = collection(db, "classes");
-      const classInviteCode = `C-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
-      const classData: Omit<Class, 'id'> = {
-        name: className,
-        schoolId: schoolId,
-        teacherId: teacherId || '', 
-        studentIds: [],
-        classInviteCode: classInviteCode,
-        createdAt: Timestamp.now(),
-        updatedAt: Timestamp.now(),
-      };
-      const docRef = await addDoc(classRef, classData);
-      await updateDoc(doc(db, "classes", docRef.id), { id: docRef.id }); 
-      return docRef.id;
-    } catch (error) {
-      console.error("Error creating class:", error);
-      return null;
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const getClassesBySchool = async (schoolId: string): Promise<ClassWithTeacherInfo[]> => {
-    if (!schoolId) return [];
-    try {
-      const classesRef = collection(db, "classes");
-      const q = query(classesRef, where("schoolId", "==", schoolId), orderBy("name"));
-      const querySnapshot = await getDocs(q);
-      const classesPromises = querySnapshot.docs.map(async (docSnapshot) => {
-        const classData = docSnapshot.data() as Class;
-        let teacherDisplayName = 'N/A';
-        if (classData.teacherId) {
-          const teacherProfile = await getUserProfile(classData.teacherId);
-          teacherDisplayName = teacherProfile?.displayName || 'N/A';
-        }
-        return { ...classData, id: docSnapshot.id, teacherDisplayName };
-      });
-      return Promise.all(classesPromises);
-    } catch (error) {
-      console.error("Error fetching classes:", error);
-      return [];
-    }
+    try { return await UserService.approveUserService(userId, schoolId); }
+    catch (error) { return false; }
+    finally { setLoading(false); }
   };
   
-  const getClassesByIds = async (classIds: string[]): Promise<ClassWithTeacherInfo[]> => {
-    if (!classIds || classIds.length === 0) return [];
-    try {
-      const MAX_CLASS_IDS_PER_QUERY = 30;
-      const classChunks: string[][] = [];
-      for (let i = 0; i < classIds.length; i += MAX_CLASS_IDS_PER_QUERY) {
-          classChunks.push(classIds.slice(i, i + MAX_CLASS_IDS_PER_QUERY));
-      }
-
-      let allClasses: ClassWithTeacherInfo[] = [];
-
-      for (const chunk of classChunks) {
-        if (chunk.length === 0) continue;
-        const classesRef = collection(db, "classes");
-        const q = query(classesRef, where(documentId(), "in", chunk));
-        const querySnapshot = await getDocs(q);
-        
-        const classesPromises = querySnapshot.docs.map(async (docSnapshot) => {
-          const classData = docSnapshot.data() as Class;
-          let teacherDisplayName = 'N/A';
-          if (classData.teacherId) {
-            const teacherProfile = await getUserProfile(classData.teacherId);
-            teacherDisplayName = teacherProfile?.displayName || 'N/A';
-          }
-          const assignmentsQuery = query(collection(db, "assignments"), where("classId", "==", classData.id));
-          const assignmentsSnapshot = await getDocs(assignmentsQuery);
-          const totalAssignmentsCount = assignmentsSnapshot.size;
-          
-          return { ...classData, id: docSnapshot.id, teacherDisplayName, totalAssignmentsCount };
-        });
-        const chunkClasses = await Promise.all(classesPromises);
-        allClasses = [...allClasses, ...chunkClasses];
-      }
-      
-      return allClasses.sort((a, b) => a.name.localeCompare(b.name));
-    } catch (error) {
-      console.error("Error fetching classes by IDs:", error);
-      return [];
-    }
-  };
-
-
-  const getClassDetails = async (classId: string): Promise<ClassWithTeacherInfo | null> => {
-    try {
-      const classRef = doc(db, "classes", classId);
-      const classSnap = await getDoc(classRef);
-      if (classSnap.exists()) {
-        const classData = classSnap.data() as Class;
-         let teacherDisplayName = 'N/A';
-        if (classData.teacherId) {
-          const teacherProfile = await getUserProfile(classData.teacherId);
-          teacherDisplayName = teacherProfile?.displayName || 'N/A';
-        }
-        return { ...classData, teacherDisplayName };
-      }
-      return null;
-    } catch (error) {
-      console.error("Error fetching class details:", error);
-      return null;
-    }
-  };
-
-  const updateClassDetails = async (classId: string, data: Partial<Pick<Class, 'name' | 'teacherId' | 'classInviteCode'>>): Promise<boolean> => {
-     if (!currentUser || (currentUser.role !== 'admin' && currentUser.role !== 'teacher')) return false;
+  const updateUserRoleAndSchool = async (userId: string, data: { role?: UserRole; schoolId?: string, classIds?: string[], status?: UserStatus }): Promise<boolean> => {
+     if (!currentUser || currentUser.role !== 'admin') return false;
     setLoading(true);
-    try {
-      const classRef = doc(db, "classes", classId);
-      await updateDoc(classRef, { ...data, updatedAt: Timestamp.now() });
-      return true;
-    } catch (error) {
-      console.error("Error updating class details:", error);
-      return false;
-    } finally {
-      setLoading(false);
-    }
+    try { return await UserService.updateUserRoleAndSchoolService(userId, data); }
+    catch (error) { return false; }
+    finally { setLoading(false); }
   };
 
+
+  // --- Class Management ---
+  const createClassInSchool = async (className: string, schoolId: string, teacherId?: string): Promise<string | null> => {
+    if (!currentUser || (currentUser.role !== 'admin' && currentUser.role !== 'teacher')) return null;
+    setLoading(true);
+    try { return await ClassService.createClassService(className, schoolId, teacherId || ''); }
+    catch (error) { return null; }
+    finally { setLoading(false); }
+  };
+  
   const enrollStudentInClass = async (classId: string, studentId: string): Promise<boolean> => {
     if (!currentUser || (currentUser.role !== 'admin' && currentUser.role !== 'teacher')) return false;
     setLoading(true);
-    try {
-      const batch = writeBatch(db);
-      const classRef = doc(db, "classes", classId);
-      batch.update(classRef, { studentIds: arrayUnion(studentId), updatedAt: Timestamp.now() });
-      
-      const studentRef = doc(db, "users", studentId);
-      batch.update(studentRef, { classIds: arrayUnion(classId), updatedAt: Timestamp.now() });
-      
-      await batch.commit();
-      return true;
-    } catch (error) {
-      console.error("Error enrolling student:", error);
-      return false;
-    } finally {
-      setLoading(false);
-    }
+    try { return await ClassService.enrollStudentInClassService(classId, studentId); }
+    catch (error) { return false; }
+    finally { setLoading(false); }
+  };
+
+  const removeStudentFromClass = async (classId: string, studentId: string): Promise<boolean> => {
+    if (!currentUser || (currentUser.role !== 'admin' && currentUser.role !== 'teacher')) return false;
+    setLoading(true);
+    try { return await ClassService.removeStudentFromClassService(classId, studentId); }
+    catch (error) { return false; }
+    finally { setLoading(false); }
+  };
+
+  const deleteClass = async (classId: string): Promise<boolean> => {
+    if (!currentUser || currentUser.role !== 'admin') return false;
+    setLoading(true);
+    try { return await ClassService.deleteClassService(classId); }
+    catch (error) { return false; }
+    finally { setLoading(false); }
+  };
+
+  const regenerateClassInviteCode = async (classId: string): Promise<string | null> => {
+    if (!currentUser || (currentUser.role !== 'admin' && currentUser.role !== 'teacher')) return null;
+    setLoading(true);
+    try { return await ClassService.regenerateClassInviteCodeService(classId); }
+    catch (error) { return null; }
+    finally { setLoading(false); }
   };
   
   const joinClassWithCode = async (classCode: string, studentId: string): Promise<boolean> => {
     if (!currentUser || currentUser.role !== 'student' || currentUser.uid !== studentId) return false;
     setLoading(true);
     try {
-      const classesRef = collection(db, "classes");
-      const q = query(classesRef, where("classInviteCode", "==", classCode));
-      const querySnapshot = await getDocs(q);
-
-      if (querySnapshot.empty) {
-        console.log("Invalid class invite code");
-        return false;
-      }
-
-      const classDoc = querySnapshot.docs[0];
-      const classId = classDoc.id;
-      const classData = classDoc.data() as Class;
-
-      if (classData.studentIds?.includes(studentId)) {
-        console.log("Student already enrolled in this class.");
-        // Ensure local state for currentUser is also up-to-date if somehow it's not
-        if (currentUser && !currentUser.classIds?.includes(classId)) {
-          setCurrentUser(prev => prev ? ({ ...prev, classIds: Array.from(new Set([...(prev.classIds || []), classId])) }) : null);
+      const success = await ClassService.joinClassWithCodeService(classCode, studentId);
+      if (success && currentUser) {
+        const classDetails = await ClassService.getClassByInviteCodeService(classCode);
+        if (classDetails) {
+          setCurrentUser(prev => prev ? ({ ...prev, classIds: Array.from(new Set([...(prev.classIds || []), classDetails.id])) }) : null);
         }
-        return true; 
       }
-      
-      const batch = writeBatch(db);
-      batch.update(classDoc.ref, { studentIds: arrayUnion(studentId), updatedAt: Timestamp.now() });
-      
-      const studentRef = doc(db, "users", studentId);
-      batch.update(studentRef, { classIds: arrayUnion(classId), updatedAt: Timestamp.now() });
-      
-      await batch.commit();
-
-      // Update local state
-      setCurrentUser(prev => prev ? ({ ...prev, classIds: Array.from(new Set([...(prev.classIds || []), classId])) }) : null);
-      return true;
-
-    } catch (error) {
-      console.error("Error joining class with code:", error);
-      return false;
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const regenerateClassInviteCode = async (classId: string): Promise<string | null> => {
-    if (!currentUser || (currentUser.role !== 'admin' && currentUser.role !== 'teacher')) return null;
-    setLoading(true);
-    try {
-      const newInviteCode = `C-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
-      const classRef = doc(db, "classes", classId);
-      await updateDoc(classRef, { classInviteCode: newInviteCode, updatedAt: Timestamp.now() });
-      return newInviteCode;
-    } catch (error) {
-      console.error("Error regenerating class invite code:", error);
-      return null;
-    } finally {
-      setLoading(false);
-    }
-  };
-
-
-  const removeStudentFromClass = async (classId: string, studentId: string): Promise<boolean> => {
-    if (!currentUser || (currentUser.role !== 'admin' && currentUser.role !== 'teacher')) return false;
-    setLoading(true);
-    try {
-      const batch = writeBatch(db);
-      const classRef = doc(db, "classes", classId);
-      batch.update(classRef, { studentIds: arrayRemove(studentId), updatedAt: Timestamp.now() });
-
-      const studentRef = doc(db, "users", studentId);
-      batch.update(studentRef, { classIds: arrayRemove(classId), updatedAt: Timestamp.now() });
-      await batch.commit();
-      return true;
-    } catch (error) {
-      console.error("Error removing student from class:", error);
-      return false;
-    } finally {
-      setLoading(false);
-    }
+      return success;
+    } catch (error) { return false; }
+    finally { setLoading(false); }
   };
   
-  const getStudentsInClass = async (classId: string): Promise<UserProfileWithId[]> => {
-    const classDetails = await getClassDetails(classId);
-    if (!classDetails || !classDetails.studentIds || classDetails.studentIds.length === 0) {
-      return [];
-    }
-    try {
-      const MAX_STUDENT_IDS_PER_QUERY = 30; 
-      const studentIdChunks: string[][] = [];
-      for (let i = 0; i < classDetails.studentIds.length; i += MAX_STUDENT_IDS_PER_QUERY) {
-          studentIdChunks.push(classDetails.studentIds.slice(i, i + MAX_STUDENT_IDS_PER_QUERY));
-      }
+  const getClassesBySchool = async (schoolId: string) => ClassService.getClassesBySchoolService(schoolId, UserService.getUserProfileService);
+  const getClassesByIds = async (classIds: string[]) => ClassService.getClassesByIdsService(classIds, UserService.getUserProfileService, AssignmentService.getAssignmentsByClassService);
+  const getClassDetails = async (classId: string) => ClassService.getClassDetailsService(classId, UserService.getUserProfileService);
+  const updateClassDetails = async (classId: string, data: Partial<Pick<Class, 'name' | 'teacherId' | 'classInviteCode'>>) => ClassService.updateClassDetailsService(classId, data);
+  const getStudentsInClass = async (classId: string) => ClassService.getStudentsInClassService(classId, UserService.getUserProfileService);
+  const getStudentsNotInClass = async (schoolId: string, classId: string) => ClassService.getStudentsNotInClassService(schoolId, classId, UserService.getUsersBySchoolAndRoleService, ClassService.getStudentsInClassService, UserService.getUserProfileService);
+  const getClassesByTeacher = async (teacherId: string) => ClassService.getClassesByTeacherService(teacherId);
+  const getStudentsInMultipleClasses = async (classIds: string[]) => ClassService.getStudentsInMultipleClassesService(classIds);
 
-      let allStudents: UserProfileWithId[] = [];
-      for (const chunk of studentIdChunks) {
-        if (chunk.length === 0) continue;
-        const usersRef = collection(db, "users");
-        const q = query(usersRef, where(documentId(), "in", chunk));
-        const querySnapshot = await getDocs(q);
-        const studentsInChunk = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data(), status: doc.data().status || 'active' } as UserProfileWithId));
-        allStudents = [...allStudents, ...studentsInChunk];
-      }
-      return allStudents;
-    } catch (error) {
-      console.error("Error fetching students in class:", error);
-      return [];
-    }
-  };
 
-  const getStudentsNotInClass = async (schoolId: string, classId: string): Promise<UserProfileWithId[]> => {
-    const allSchoolStudents = await getUsersBySchoolAndRole(schoolId, 'student');
-    const studentsInClass = await getStudentsInClass(classId);
-    const studentIdsInClass = new Set(studentsInClass.map(s => s.id));
-    return allSchoolStudents.filter(student => !studentIdsInClass.has(student.id) && student.status === 'active');
-  };
-
-  const deleteClass = async (classId: string): Promise<boolean> => {
-    if (!currentUser || currentUser.role !== 'admin') return false;
-    setLoading(true);
-    try {
-      const batch = writeBatch(db);
-      const classDetails = await getClassDetails(classId);
-      if (classDetails?.studentIds) {
-        classDetails.studentIds.forEach(studentId => {
-          const studentRef = doc(db, "users", studentId);
-          batch.update(studentRef, { classIds: arrayRemove(classId) });
-        });
-      }
-      const assignmentsQuery = query(collection(db, "assignments"), where("classId", "==", classId));
-      const assignmentsSnap = await getDocs(assignmentsQuery);
-      assignmentsSnap.docs.forEach(d => batch.delete(d.ref));
-
-      batch.delete(doc(db, "classes", classId));
-      await batch.commit();
-      return true;
-    } catch (error) {
-      console.error("Error deleting class:", error);
-      return false;
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const getClassesByTeacher = async (teacherId: string): Promise<ClassWithTeacherInfo[]> => {
-    if (!teacherId) return [];
-    try {
-      const classesRef = collection(db, "classes");
-      const q = query(classesRef, where("teacherId", "==", teacherId), orderBy("name"));
-      const querySnapshot = await getDocs(q);
-      const classes = querySnapshot.docs.map(docSnapshot => ({
-        ...(docSnapshot.data() as Class),
-        id: docSnapshot.id,
-      }));
-      return classes;
-    } catch (error) {
-      console.error("Error fetching classes by teacher:", error);
-      return [];
-    }
-  };
-
-  const getStudentsInMultipleClasses = async (classIds: string[]): Promise<UserProfileWithId[]> => {
-    if (!classIds || classIds.length === 0) return [];
-    try {
-      const q = query(collection(db, "users"), where("role", "==", "student"), where("classIds", "array-contains-any", classIds));
-      const querySnapshot = await getDocs(q);
-      return querySnapshot.docs.map(d => ({ id: d.id, ...d.data(), status: d.data().status || 'active' } as UserProfileWithId));
-    } catch (error) {
-      console.error("Error fetching students in multiple classes:", error);
-      return [];
-    }
-  };
-
+  // --- Learning Material Management ---
   const addLearningMaterial = async (materialData: Omit<LearningMaterial, 'id' | 'createdAt' | 'updatedAt'>): Promise<string | null> => {
     if (!currentUser || (currentUser.role !== 'teacher' && currentUser.role !== 'admin')) return null;
     setLoading(true);
-    try {
-      const materialWithTimestamp = {
-        ...materialData,
-        teacherId: materialData.teacherId || currentUser.uid, 
-        createdAt: Timestamp.now(),
-        updatedAt: Timestamp.now(),
-      };
-      const docRef = await addDoc(collection(db, "learningMaterials"), materialWithTimestamp);
-      await updateDoc(doc(db, "learningMaterials", docRef.id), { id: docRef.id }); 
-      return docRef.id;
-    } catch (error) {
-      console.error("Error adding learning material:", error);
-      return null;
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const getLearningMaterialsByTeacher = async (teacherId: string, classId?: string): Promise<LearningMaterial[]> => {
-    if (!teacherId) return [];
-    try {
-      const materialsRef = collection(db, "learningMaterials");
-      let q;
-      if (classId) {
-        q = query(materialsRef, where("teacherId", "==", teacherId), where("classId", "==", classId), orderBy("createdAt", "desc"));
-      } else {
-        q = query(materialsRef, where("teacherId", "==", teacherId), orderBy("createdAt", "desc"));
-      }
-      const querySnapshot = await getDocs(q);
-      return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as LearningMaterial));
-    } catch (error) {
-      console.error("Error fetching learning materials by teacher:", error);
-      return [];
-    }
+    try { return await MaterialService.addLearningMaterialService({ ...materialData, teacherId: materialData.teacherId || currentUser.uid }); }
+    catch (error) { return null; }
+    finally { setLoading(false); }
   };
   
-  const getLearningMaterialsByClass = async (classId: string): Promise<LearningMaterial[]> => {
-    if (!classId) return [];
-    try {
-        const materialsRef = collection(db, "learningMaterials");
-        const q = query(materialsRef, where("classId", "==", classId), orderBy("createdAt", "desc"));
-        const querySnapshot = await getDocs(q);
-        return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as LearningMaterial));
-    } catch (error) {
-        console.error("Error fetching materials by class:", error);
-        return [];
-    }
-  };
-
-
-  const getLearningMaterialsBySchool = async (schoolId: string): Promise<LearningMaterialWithTeacherInfo[]> => {
-    if (!schoolId) return [];
-    try {
-      const materialsRef = collection(db, "learningMaterials");
-      const q = query(materialsRef, where("schoolId", "==", schoolId), orderBy("createdAt", "desc"));
-      const querySnapshot = await getDocs(q);
-      
-      const materialsPromises = querySnapshot.docs.map(async (docSnapshot) => {
-        const material = { id: docSnapshot.id, ...docSnapshot.data() } as LearningMaterial;
-        let teacherDisplayName = 'N/A';
-        let className = 'General';
-        if (material.teacherId) {
-          const teacherProfile = await getUserProfile(material.teacherId);
-          teacherDisplayName = teacherProfile?.displayName || 'N/A';
-        }
-        if (material.classId) {
-            const classInfo = await getClassDetails(material.classId);
-            className = classInfo?.name || 'Unknown Class';
-        }
-        return { ...material, teacherDisplayName, className };
-      });
-      
-      return Promise.all(materialsPromises);
-    } catch (error) {
-      console.error("Error fetching learning materials by school:", error);
-      return [];
-    }
-  };
-
   const deleteLearningMaterial = async (materialId: string): Promise<boolean> => {
     if (!currentUser || (currentUser.role !== 'teacher' && currentUser.role !== 'admin')) return false;
     setLoading(true);
-    try {
-      await deleteDoc(doc(db, "learningMaterials", materialId));
-      return true;
-    } catch (error) {
-      console.error("Error deleting learning material:", error);
-      return false;
-    } finally {
-      setLoading(false);
-    }
+    try { return await MaterialService.deleteLearningMaterialService(materialId); }
+    catch (error) { return false; }
+    finally { setLoading(false); }
   };
-  
   const updateLearningMaterial = async (materialId: string, data: Partial<Pick<LearningMaterial, 'title' | 'content' | 'classId' | 'materialType'>>): Promise<boolean> => {
     if (!currentUser || (currentUser.role !== 'teacher' && currentUser.role !== 'admin')) return false;
     setLoading(true);
-    try {
-      const materialRef = doc(db, "learningMaterials", materialId);
-      await updateDoc(materialRef, { ...data, updatedAt: Timestamp.now() });
-      return true;
-    } catch (error) {
-      console.error("Error updating learning material:", error);
-      return false;
-    } finally {
-      setLoading(false);
-    }
+    try { return await MaterialService.updateLearningMaterialService(materialId, data); }
+    catch (error) { return false; }
+    finally { setLoading(false); }
   };
+  
+  const getLearningMaterialsByTeacher = async (teacherId: string, classId?: string) => MaterialService.getLearningMaterialsByTeacherService(teacherId, classId);
+  const getLearningMaterialsBySchool = async (schoolId: string) => MaterialService.getLearningMaterialsBySchoolService(schoolId, UserService.getUserProfileService, ClassService.getClassDetailsService);
+  const getLearningMaterialsByClass = async (classId: string) => MaterialService.getLearningMaterialsByClassService(classId);
+  const getLearningMaterialById = async (materialId: string) => MaterialService.getLearningMaterialByIdService(materialId);
 
-  const getLearningMaterialById = async (materialId: string): Promise<LearningMaterial | null> => {
-    try {
-      const materialRef = doc(db, "learningMaterials", materialId);
-      const materialSnap = await getDoc(materialRef);
-      if (materialSnap.exists()) {
-        return { id: materialSnap.id, ...materialSnap.data() } as LearningMaterial;
-      }
-      return null;
-    } catch (error) {
-      console.error("Error fetching learning material by ID:", error);
-      return null;
-    }
-  };
 
+  // --- Assignment Management ---
   const createAssignment = async (assignmentData: Omit<Assignment, 'id' | 'createdAt' | 'updatedAt' | 'totalSubmissions'>): Promise<string | null> => {
     if (!currentUser || currentUser.role !== 'teacher' || !currentUser.schoolId) return null;
     setLoading(true);
-    try {
-      const dataWithTimestamps: Omit<Assignment, 'id' | 'totalSubmissions'> = {
-        ...assignmentData,
-        teacherId: currentUser.uid,
-        schoolId: currentUser.schoolId,
-        createdAt: Timestamp.now(),
-        updatedAt: Timestamp.now(),
-      };
-      const docRef = await addDoc(collection(db, "assignments"), dataWithTimestamps);
-      await updateDoc(doc(db, "assignments", docRef.id), { id: docRef.id, totalSubmissions: 0 });
-      return docRef.id;
-    } catch (error) {
-      console.error("Error creating assignment:", error);
-      return null;
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const getAssignmentsByTeacher = async (teacherId: string, classId?: string): Promise<AssignmentWithClassInfo[]> => {
-    if (!teacherId) return [];
-    try {
-      const assignmentsRef = collection(db, "assignments");
-      let q;
-      if (classId) {
-        q = query(assignmentsRef, where("teacherId", "==", teacherId), where("classId", "==", classId), orderBy("deadline", "asc"));
-      } else {
-        q = query(assignmentsRef, where("teacherId", "==", teacherId), orderBy("deadline", "asc"));
-      }
-      const querySnapshot = await getDocs(q);
-      
-      const assignmentsPromises = querySnapshot.docs.map(async (docSnapshot) => {
-        const assignment = { id: docSnapshot.id, ...docSnapshot.data() } as Assignment;
-        let className = 'N/A';
-        if(assignment.classId) {
-          const classInfo = await getClassDetails(assignment.classId);
-          className = classInfo?.name || 'Unknown Class';
-        }
-        return { ...assignment, className, totalSubmissions: assignment.totalSubmissions || 0 };
-      });
-      return Promise.all(assignmentsPromises);
-
-    } catch (error) {
-      console.error("Error fetching assignments by teacher:", error);
-      return [];
-    }
-  };
-  
-  const getAssignmentsByClass = async (classId: string): Promise<Assignment[]> => {
-     if (!classId) return [];
-    try {
-      const assignmentsRef = collection(db, "assignments");
-      const q = query(assignmentsRef, where("classId", "==", classId), orderBy("deadline", "asc"));
-      const querySnapshot = await getDocs(q);
-      return querySnapshot.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data(), totalSubmissions: docSnap.data().totalSubmissions || 0 } as Assignment));
-    } catch (error) {
-      console.error("Error fetching assignments by class:", error);
-      return [];
-    }
+    try { return await AssignmentService.createAssignmentService({ ...assignmentData, teacherId: currentUser.uid, schoolId: currentUser.schoolId });}
+    catch (error) { return null; }
+    finally { setLoading(false); }
   };
 
   const getAssignmentById = async (assignmentId: string, studentId?: string): Promise<AssignmentWithClassAndSubmissionInfo | null> => {
-    try {
-      const assignmentRef = doc(db, "assignments", assignmentId);
-      const assignmentSnap = await getDoc(assignmentRef);
-      if (assignmentSnap.exists()) {
-        const assignmentData = assignmentSnap.data() as Assignment;
-        let className = 'N/A';
-        if(assignmentData.classId) {
-          const classInfo = await getClassDetails(assignmentData.classId);
-          className = classInfo?.name || 'Unknown Class';
-        }
-        
-        let assignmentWithInfo: AssignmentWithClassAndSubmissionInfo = { ...assignmentData, className, totalSubmissions: assignmentData.totalSubmissions || 0 };
-
-        if (studentId) {
-          const submission = await getSubmissionByStudentForAssignment(assignmentId, studentId);
-          if (submission) {
-            assignmentWithInfo.submissionStatus = submission.status;
-            assignmentWithInfo.submissionGrade = submission.grade;
-          } else if (currentUser?.studentAssignments?.[assignmentId]) { 
-            assignmentWithInfo.submissionStatus = currentUser.studentAssignments[assignmentId].status;
-            assignmentWithInfo.submissionGrade = currentUser.studentAssignments[assignmentId].grade;
-          }
-           else {
-            assignmentWithInfo.submissionStatus = 'missing';
-          }
-        }
-        return assignmentWithInfo;
-      }
-      return null;
-    } catch (error) {
-      console.error("Error fetching assignment by ID:", error);
-      return null;
-    }
-  };
-
-  const updateAssignment = async (assignmentId: string, data: Partial<Omit<Assignment, 'id' | 'createdAt' | 'updatedAt' | 'teacherId' | 'totalSubmissions'>>): Promise<boolean> => {
-     if (!currentUser || currentUser.role !== 'teacher') return false;
     setLoading(true);
     try {
-      const assignmentRef = doc(db, "assignments", assignmentId);
-      await updateDoc(assignmentRef, { ...data, updatedAt: Timestamp.now() });
-      return true;
-    } catch (error) {
-      console.error("Error updating assignment:", error);
-      return false;
-    } finally {
-      setLoading(false);
-    }
+      const assignment = await AssignmentService.getAssignmentByIdService(assignmentId, ClassService.getClassDetailsService);
+      if (!assignment) return null;
+
+      if (studentId) {
+        const submission = await SubmissionService.getSubmissionByStudentForAssignmentService(assignmentId, studentId);
+        if (submission) {
+          assignment.submissionStatus = submission.status;
+          assignment.submissionGrade = submission.grade;
+        } else if (currentUser?.studentAssignments?.[assignmentId]) { 
+          assignment.submissionStatus = currentUser.studentAssignments[assignmentId].status;
+          assignment.submissionGrade = currentUser.studentAssignments[assignmentId].grade;
+        } else {
+          assignment.submissionStatus = 'missing';
+        }
+      }
+      return assignment;
+    } catch (error) { return null; }
+    finally { setLoading(false); }
   };
 
   const deleteAssignment = async (assignmentId: string): Promise<boolean> => {
-    if (!currentUser || (currentUser.role !== 'teacher' && currentUser.role !== 'admin')) return false; 
+    if (!currentUser || (currentUser.role !== 'teacher' && currentUser.role !== 'admin')) return false;
     setLoading(true);
     try {
-      const assignmentDoc = await getAssignmentById(assignmentId);
-      if(!assignmentDoc || (currentUser.role === 'teacher' && assignmentDoc.teacherId !== currentUser.uid) ) {
-        console.error("Unauthorized to delete assignment or assignment not found.");
+      const assignmentDoc = await AssignmentService.getAssignmentByIdService(assignmentId, ClassService.getClassDetailsService);
+      if (!assignmentDoc || (currentUser.role === 'teacher' && assignmentDoc.teacherId !== currentUser.uid)) {
         return false;
       }
-
-      const batch = writeBatch(db);
-      batch.delete(doc(db, "assignments", assignmentId));
-      
-      const submissionsQuery = query(collection(db, "submissions"), where("assignmentId", "==", assignmentId));
-      const submissionsSnap = await getDocs(submissionsQuery);
-      submissionsSnap.docs.forEach(d => batch.delete(d.ref));
-      
-      await batch.commit();
-      return true;
-    } catch (error) {
-      console.error("Error deleting assignment:", error);
-      return false;
-    } finally {
-      setLoading(false);
-    }
+      return await AssignmentService.deleteAssignmentService(assignmentId);
+    } catch (error) { return false; }
+    finally { setLoading(false); }
   };
 
-  const getSubmissionsForAssignment = async (assignmentId: string): Promise<SubmissionWithStudentName[]> => {
-    try {
-      const submissionsRef = collection(db, "submissions");
-      const q = query(submissionsRef, where("assignmentId", "==", assignmentId), orderBy("submittedAt", "desc"));
-      const querySnapshot = await getDocs(q);
-      
-      const submissionsPromises = querySnapshot.docs.map(async (docSnapshot) => {
-        const submission = { id: docSnapshot.id, ...docSnapshot.data() } as Submission;
-        let studentDisplayName = 'N/A';
-        let studentEmail = 'N/A';
-        if (submission.studentId) {
-          const studentProfile = await getUserProfile(submission.studentId);
-          studentDisplayName = studentProfile?.displayName || 'N/A';
-          studentEmail = studentProfile?.email || 'N/A';
-        }
-        return { ...submission, studentDisplayName, studentEmail };
-      });
-      return Promise.all(submissionsPromises);
+  const getAssignmentsByTeacher = async (teacherId: string, classId?: string) => AssignmentService.getAssignmentsByTeacherService(teacherId, ClassService.getClassDetailsService, classId);
+  const getAssignmentsByClass = async (classId: string) => AssignmentService.getAssignmentsByClassService(classId);
+  const updateAssignment = async (assignmentId: string, data: Partial<Omit<Assignment, 'id' | 'createdAt' | 'updatedAt' | 'teacherId' | 'totalSubmissions'>>) => AssignmentService.updateAssignmentService(assignmentId, data);
 
-    } catch (error) {
-      console.error("Error fetching submissions:", error);
-      return [];
-    }
+
+  // --- Submission Management ---
+  const addSubmission = async (submissionData: Omit<Submission, 'id' | 'submittedAt' | 'grade' | 'feedback' | 'status'>): Promise<string | null> => {
+    if (!currentUser || currentUser.role !== 'student') return null;
+    setLoading(true);
+    try {
+      const assignment = await AssignmentService.getAssignmentByIdService(submissionData.assignmentId, ClassService.getClassDetailsService); // Fetch assignment for deadline
+      if (!assignment) throw new Error("Assignment not found");
+
+      const result = await SubmissionService.addSubmissionService(submissionData, currentUser.uid, assignment.deadline);
+      if (result && result.submissionId && currentUser) {
+         setCurrentUser(prev => prev ? { ...prev, studentAssignments: { ...prev.studentAssignments, [submissionData.assignmentId]: { status: result.newStatus, grade: result.existingGrade }} } : null);
+      }
+      return result?.submissionId || null;
+    } catch (error) { return null; }
+    finally { setLoading(false); }
   };
 
   const gradeSubmission = async (submissionId: string, grade: string | number, feedback?: string): Promise<boolean> => {
     if (!currentUser || currentUser.role !== 'teacher') return false;
     setLoading(true);
     try {
-      const submissionRef = doc(db, "submissions", submissionId);
-      const submissionSnap = await getDoc(submissionRef);
-      if (!submissionSnap.exists()) return false;
-
-      const submissionData = submissionSnap.data() as Submission;
-
-      const batch = writeBatch(db);
-      batch.update(submissionRef, { grade, feedback, status: 'graded', updatedAt: Timestamp.now() });
-      
-      const studentRef = doc(db, "users", submissionData.studentId);
-      const studentAssignmentField = `studentAssignments.${submissionData.assignmentId}`;
-      batch.update(studentRef, {
-        [studentAssignmentField]: {
-          status: 'graded',
-          grade: grade,
+      const success = await SubmissionService.gradeSubmissionService(submissionId, grade, feedback);
+      if (success && currentUser) { // Update studentAssignments in currentUser if current user is the student being graded
+        const submission = await SubmissionService.getSubmissionByIdService(submissionId); // Re-fetch to get studentId
+        if (submission && currentUser.uid === submission.studentId) {
+            setCurrentUser(prev => prev ? {
+                ...prev,
+                studentAssignments: {
+                    ...prev.studentAssignments,
+                    [submission.assignmentId]: { status: 'graded', grade }
+                }
+            } : null);
         }
-      });
-
-      await batch.commit();
-
-      if (currentUser.uid === submissionData.studentId) {
-        setCurrentUser(prev => prev ? {
-          ...prev,
-          studentAssignments: {
-            ...prev.studentAssignments,
-            [submissionData.assignmentId]: { status: 'graded', grade }
-          }
-        } : null);
       }
-
-      return true;
-    } catch (error) {
-      console.error("Error grading submission:", error);
-      return false;
-    } finally {
-      setLoading(false);
-    }
+      return success;
+    } catch (error) { return false; }
+    finally { setLoading(false); }
   };
 
-  const getSubmissionByStudentForAssignment = async (assignmentId: string, studentId: string): Promise<Submission | null> => {
-    try {
-      const q = query(collection(db, 'submissions'), where('assignmentId', '==', assignmentId), where('studentId', '==', studentId));
-      const querySnapshot = await getDocs(q);
-      if (!querySnapshot.empty) {
-        const submissionDoc = querySnapshot.docs[0];
-        return { id: submissionDoc.id, ...submissionDoc.data() } as Submission;
-      }
-      return null;
-    } catch (error) {
-      console.error('Error fetching submission by student and assignment:', error);
-      return null;
-    }
-  };
-
-  const addSubmission = async (submissionData: Omit<Submission, 'id' | 'submittedAt' | 'grade' | 'feedback' | 'status'>): Promise<string | null> => {
-    if (!currentUser || currentUser.role !== 'student') return null;
+  const getAssignmentsForStudentByClass = async (classId: string, studentId: string): Promise<AssignmentWithClassAndSubmissionInfo[]> => {
+    if (!currentUser || (currentUser.role !== 'student' && currentUser.role !== 'teacher' && currentUser.role !== 'admin')) return [];
+    if (currentUser.role === 'student' && currentUser.uid !== studentId) return [];
     setLoading(true);
     try {
-      const assignment = await getAssignmentById(submissionData.assignmentId);
-      if (!assignment) throw new Error("Assignment not found");
-
-      const existingSubmission = await getSubmissionByStudentForAssignment(submissionData.assignmentId, currentUser.uid);
-      
-      const studentRef = doc(db, "users", currentUser.uid);
-      const studentAssignmentField = `studentAssignments.${submissionData.assignmentId}`;
-      const isLate = Timestamp.now() > assignment.deadline;
-      const newStatus = isLate ? 'late' : 'submitted';
-
-      if (existingSubmission) {
-        const submissionRef = doc(db, "submissions", existingSubmission.id);
-        const statusUpdate = existingSubmission.status === 'graded' 
-          ? 'graded' 
-          : newStatus;
-
-        await updateDoc(submissionRef, {
-          content: submissionData.content,
-          submissionType: submissionData.submissionType,
-          submittedAt: Timestamp.now(),
-          status: statusUpdate,
-          updatedAt: Timestamp.now()
-        });
-        await updateDoc(studentRef, {
-          [studentAssignmentField]: { status: statusUpdate, grade: existingSubmission.grade } 
-        });
-        setCurrentUser(prev => prev ? { ...prev, studentAssignments: { ...prev.studentAssignments, [submissionData.assignmentId]: { status: statusUpdate, grade: existingSubmission.grade }} } : null);
-        return existingSubmission.id;
-
-      } else {
-        const dataToSave: Omit<Submission, 'id'> = {
-          ...submissionData,
-          studentId: currentUser.uid,
-          submittedAt: Timestamp.now(),
-          status: newStatus,
-        };
-        const docRef = await addDoc(collection(db, "submissions"), dataToSave);
-        await updateDoc(doc(db, "submissions", docRef.id), { id: docRef.id });
-
-        const assignmentRef = doc(db, "assignments", submissionData.assignmentId);
-        const assignmentSnap = await getDoc(assignmentRef);
-        if (assignmentSnap.exists()) {
-            const currentSubmissions = assignmentSnap.data().totalSubmissions || 0;
-            await updateDoc(assignmentRef, { totalSubmissions: currentSubmissions + 1 });
-        }
-
-        await updateDoc(studentRef, {
-          [studentAssignmentField]: { status: dataToSave.status }
-        });
-        setCurrentUser(prev => prev ? { ...prev, studentAssignments: { ...prev.studentAssignments, [submissionData.assignmentId]: {status: dataToSave.status }} } : null);
-
-        return docRef.id;
-      }
-
-    } catch (error) {
-      console.error("Error adding/updating submission:", error);
-      return null;
-    } finally {
-      setLoading(false);
-    }
-  };
-
-   const getAssignmentsForStudentByClass = async (classId: string, studentId: string): Promise<AssignmentWithClassAndSubmissionInfo[]> => {
-    if (!currentUser || (currentUser.role !== 'student' && currentUser.role !== 'teacher' && currentUser.role !== 'admin') ) return [];
-    if (currentUser.role === 'student' && currentUser.uid !== studentId) return []; 
-
-    const assignments = await getAssignmentsByClass(classId);
-    const assignmentsWithStatus: AssignmentWithClassAndSubmissionInfo[] = [];
-    const studentProfile = await getUserProfile(studentId); 
-
-    for (const assignment of assignments) {
-      const submission = await getSubmissionByStudentForAssignment(assignment.id, studentId);
-      const classInfo = await getClassDetails(assignment.classId);
-      
-      let status: AssignmentWithClassAndSubmissionInfo['submissionStatus'] = 'missing';
-      let grade: AssignmentWithClassAndSubmissionInfo['submissionGrade'] = undefined;
-
-      if (submission) {
-        status = submission.status;
-        grade = submission.grade;
-      } else if (studentProfile?.studentAssignments?.[assignment.id]) { 
-        status = studentProfile.studentAssignments[assignment.id].status;
-        grade = studentProfile.studentAssignments[assignment.id].grade;
-      }
-      
-      assignmentsWithStatus.push({
-        ...assignment,
-        className: classInfo?.name || 'N/A',
-        submissionStatus: status,
-        submissionGrade: grade,
-      });
-    }
-    return assignmentsWithStatus.sort((a, b) => a.deadline.toMillis() - b.deadline.toMillis());
-  };
-
-
-  const updateUserDisplayName = async (userId: string, displayName: string): Promise<boolean> => {
-    setLoading(true);
-    try {
-      if (auth.currentUser && auth.currentUser.uid === userId) {
-        await updateFirebaseProfile(auth.currentUser, { displayName });
-      }
-      const userRef = doc(db, "users", userId);
-      await updateDoc(userRef, { displayName, updatedAt: Timestamp.now() });
-      if (currentUser && currentUser.uid === userId) {
-        setCurrentUser(prev => prev ? { ...prev, displayName } : null);
-      }
-      return true;
-    } catch (error) {
-      console.error("Error updating display name:", error);
-      return false;
-    } finally {
-      setLoading(false);
-    }
+        const studentProfile = await UserService.getUserProfileService(studentId);
+        return await AssignmentService.getAssignmentsForStudentByClassService(classId, studentId, SubmissionService.getSubmissionByStudentForAssignmentService, ClassService.getClassDetailsService, studentProfile);
+    } catch (error) { return []; }
+    finally { setLoading(false); }
   };
 
   const updateUserEmail = async (newEmail: string, currentPassword_not_used: string): Promise<boolean> => {
@@ -1392,58 +611,17 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
 
   const value = {
-    currentUser,
-    loading,
-    signUp,
-    logIn,
-    logOut,
-    createSchool,
-    joinSchoolWithInviteCode,
-    checkAdminOnboardingStatus,
-    getSchoolDetails,
-    updateSchoolDetails,
-    regenerateInviteCode,
-    getUsersBySchool,
-    getUsersBySchoolAndRole,
-    adminCreateUserInSchool,
-    updateUserRoleAndSchool,
-    getUserProfile,
-    approveUserForSchool,
-    createClassInSchool,
-    getClassesBySchool,
-    getClassesByIds,
-    getClassDetails,
-    updateClassDetails,
-    enrollStudentInClass,
-    removeStudentFromClass,
-    getStudentsInClass,
-    getStudentsNotInClass,
-    deleteClass,
-    regenerateClassInviteCode,
-    joinClassWithCode,
-    getClassesByTeacher,
-    getStudentsInMultipleClasses,
-    addLearningMaterial,
-    getLearningMaterialsByTeacher,
-    getLearningMaterialsBySchool,
-    getLearningMaterialsByClass,
-    deleteLearningMaterial,
-    updateLearningMaterial,
-    getLearningMaterialById,
-    createAssignment,
-    getAssignmentsByTeacher,
-    getAssignmentsByClass,
-    getAssignmentById,
-    updateAssignment,
-    deleteAssignment,
-    getSubmissionsForAssignment,
-    gradeSubmission,
-    getSubmissionByStudentForAssignment,
-    addSubmission,
-    getAssignmentsForStudentByClass,
-    updateUserDisplayName,
-    updateUserEmail,
-    updateUserPassword,
+    currentUser, loading, signUp, logIn, logOut,
+    createSchool, joinSchoolWithInviteCode, checkAdminOnboardingStatus, getSchoolDetails: SchoolService.getSchoolDetailsService, updateSchoolDetails: SchoolService.updateSchoolDetailsService, regenerateInviteCode: SchoolService.regenerateInviteCodeService,
+    getUsersBySchool: UserService.getUsersBySchoolService, getUsersBySchoolAndRole: UserService.getUsersBySchoolAndRoleService, adminCreateUserInSchool, updateUserRoleAndSchool, getUserProfile: UserService.getUserProfileService, approveUserForSchool,
+    createClassInSchool, getClassesBySchool, getClassDetails, updateClassDetails, enrollStudentInClass, removeStudentFromClass, getStudentsInClass, getStudentsNotInClass, deleteClass, regenerateClassInviteCode, joinClassWithCode,
+    getClassesByTeacher, getStudentsInMultipleClasses,
+    addLearningMaterial, getLearningMaterialsByTeacher, getLearningMaterialsBySchool, getLearningMaterialsByClass, deleteLearningMaterial, updateLearningMaterial, getLearningMaterialById,
+    createAssignment, getAssignmentsByTeacher, getAssignmentsByClass, getAssignmentById, updateAssignment, deleteAssignment,
+    getSubmissionsForAssignment, gradeSubmission,
+    getSubmissionByStudentForAssignment, addSubmission, getAssignmentsForStudentByClass,
+    updateUserDisplayName, updateUserEmail, updateUserPassword,
+    getClassesByIds
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

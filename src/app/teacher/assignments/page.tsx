@@ -34,7 +34,7 @@ export default function TeacherAssignmentsPage() {
     getAssignmentsByTeacher, 
     getClassesByTeacher,
     deleteAssignment,
-    getStudentsInClass, // To get total students for submission count
+    getStudentsInClass, 
     loading: authLoading 
   } = useAuth();
   const { toast } = useToast();
@@ -44,7 +44,7 @@ export default function TeacherAssignmentsPage() {
   const [teacherClasses, setTeacherClasses] = useState<ClassWithTeacherInfo[]>([]);
   const [selectedClassFilter, setSelectedClassFilter] = useState<string>('all');
   const [isLoadingPage, setIsLoadingPage] = useState(true);
-  const [isDeleting, setIsDeleting] = useState<string | null>(null); // Store ID of assignment being deleted
+  const [isDeleting, setIsDeleting] = useState<string | null>(null); 
   const [studentCounts, setStudentCounts] = useState<Record<string, number>>({});
 
 
@@ -56,7 +56,6 @@ export default function TeacherAssignmentsPage() {
         getClassesByTeacher(currentUser.uid)
       ]);
       
-      // Fetch student counts for all classes
       const counts: Record<string, number> = {};
       for (const cls of fetchedClasses) {
         const students = await getStudentsInClass(cls.id);
@@ -64,8 +63,10 @@ export default function TeacherAssignmentsPage() {
       }
       setStudentCounts(counts);
 
-      setAssignments(fetchedAssignments.sort((a, b) => b.createdAt.toMillis() - a.createdAt.toMillis()));
-      setFilteredAssignments(fetchedAssignments);
+      // Sort assignments client-side as orderBy was removed from service
+      const sortedAssignments = fetchedAssignments.sort((a, b) => b.createdAt.toMillis() - a.createdAt.toMillis());
+      setAssignments(sortedAssignments);
+      setFilteredAssignments(sortedAssignments); // Initialize filtered list
       setTeacherClasses(fetchedClasses);
       setIsLoadingPage(false);
     } else if (!authLoading) {
@@ -78,11 +79,13 @@ export default function TeacherAssignmentsPage() {
   }, [fetchAssignmentsAndClasses]);
 
   useEffect(() => {
-    if (selectedClassFilter === 'all') {
-      setFilteredAssignments(assignments);
-    } else {
-      setFilteredAssignments(assignments.filter(a => a.classId === selectedClassFilter));
+    let tempAssignments = [...assignments];
+    if (selectedClassFilter !== 'all') {
+      tempAssignments = tempAssignments.filter(a => a.classId === selectedClassFilter);
     }
+    // Already sorted by createdAt in fetch, further sorting by deadline if needed can be done here.
+    // For now, the createdAt sort is primary.
+    setFilteredAssignments(tempAssignments);
   }, [selectedClassFilter, assignments]);
 
   const handleDeleteAssignment = async (assignmentId: string, assignmentTitle: string) => {
@@ -91,7 +94,7 @@ export default function TeacherAssignmentsPage() {
     const success = await deleteAssignment(assignmentId);
     if (success) {
       toast({ title: "Assignment Deleted", description: `"${assignmentTitle}" has been removed.` });
-      fetchAssignmentsAndClasses(); // Refresh list
+      fetchAssignmentsAndClasses(); 
     } else {
       toast({ title: "Deletion Failed", description: "Could not delete the assignment.", variant: "destructive" });
     }
@@ -210,3 +213,4 @@ export default function TeacherAssignmentsPage() {
     </div>
   );
 }
+
