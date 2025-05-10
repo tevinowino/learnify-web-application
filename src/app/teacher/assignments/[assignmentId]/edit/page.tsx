@@ -30,13 +30,13 @@ import { Label } from '@/components/ui/label';
 const assignmentEditSchema = z.object({
   title: z.string().min(3, "Title must be at least 3 characters."),
   description: z.string().min(10, "Description must be at least 10 characters."),
-  classId: z.string().min(1, "Please select a class."), // Class cannot be changed after creation for simplicity
-  subjectId: z.string().optional(), // Subject is optional
+  classId: z.string().min(1, "Please select a class."), 
+  subjectId: z.string().optional(), 
   deadlineDate: z.date({ required_error: "Deadline date is required." }),
   deadlineTime: z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)$/, "Invalid time format (HH:MM)."),
-  allowedSubmissionFormats: z.array(z.enum(['text_entry', 'file_link'])).min(1, "Select at least one submission format."),
-  attachment: z.instanceof(File).optional(), // For new PDF attachment
-  existingAttachmentUrl: z.string().optional(), // To keep track of current attachment
+  allowedSubmissionFormats: z.array(z.enum(['text_entry', 'file_link', 'file_upload'])).min(1, "Select at least one submission format."),
+  attachment: z.instanceof(File).optional().nullable(), 
+  existingAttachmentUrl: z.string().optional().nullable(), 
 });
 
 type AssignmentEditFormValues = z.infer<typeof assignmentEditSchema>;
@@ -44,6 +44,7 @@ type AssignmentEditFormValues = z.infer<typeof assignmentEditSchema>;
 const availableSubmissionFormats: { id: SubmissionFormat; label: string }[] = [
   { id: 'text_entry', label: 'Text Entry' },
   { id: 'file_link', label: 'File Link (e.g., Google Drive, Dropbox)' },
+  { id: 'file_upload', label: 'File Upload (PDF, DOCX, etc.)' },
 ];
 
 export default function EditAssignmentPage() {
@@ -55,7 +56,7 @@ export default function EditAssignmentPage() {
   const { toast } = useToast();
   
   const [teacherClasses, setTeacherClasses] = useState<ClassWithTeacherInfo[]>([]);
-  const [schoolSubjects, setSchoolSubjects] = useState<Subject[]>([]); // Added
+  const [schoolSubjects, setSchoolSubjects] = useState<Subject[]>([]); 
   const [currentAssignment, setCurrentAssignment] = useState<Assignment | null>(null);
   const [isLoadingPage, setIsLoadingPage] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -66,26 +67,26 @@ export default function EditAssignmentPage() {
       title: '',
       description: '',
       classId: '',
-      subjectId: undefined, // Added
+      subjectId: undefined, 
       deadlineDate: undefined,
       deadlineTime: '23:59',
       allowedSubmissionFormats: ['text_entry'],
-      attachment: undefined, // Added
-      existingAttachmentUrl: undefined, // Added
+      attachment: null, 
+      existingAttachmentUrl: null, 
     },
   });
 
-  const fetchAssignmentAndRelatedData = useCallback(async () => { // Renamed
+  const fetchAssignmentAndRelatedData = useCallback(async () => { 
     if (!currentUser?.uid || !assignmentId) {
         setIsLoadingPage(false);
         return;
     }
     setIsLoadingPage(true);
     try {
-      const [fetchedAssignment, fetchedClasses, fetchedSubjects] = await Promise.all([ // Added subjects
+      const [fetchedAssignment, fetchedClasses, fetchedSubjects] = await Promise.all([ 
         getAssignmentById(assignmentId),
         getClassesByTeacher(currentUser.uid),
-        getSubjectsBySchool(currentUser.schoolId || '') // Added
+        getSubjectsBySchool(currentUser.schoolId || '') 
       ]);
       
       if (fetchedAssignment) {
@@ -100,26 +101,26 @@ export default function EditAssignmentPage() {
           title: fetchedAssignment.title,
           description: fetchedAssignment.description,
           classId: fetchedAssignment.classId,
-          subjectId: fetchedAssignment.subjectId || undefined, // Added
+          subjectId: fetchedAssignment.subjectId || undefined, 
           deadlineDate: deadlineDate,
           deadlineTime: format(deadlineDate, "HH:mm"),
           allowedSubmissionFormats: fetchedAssignment.allowedSubmissionFormats,
-          attachment: undefined, // Reset file input on load
-          existingAttachmentUrl: fetchedAssignment.attachmentUrl || undefined, // Added
+          attachment: null, 
+          existingAttachmentUrl: fetchedAssignment.attachmentUrl || null, 
         });
       } else {
         toast({ title: "Not Found", description: "Assignment not found.", variant: "destructive" });
         router.push('/teacher/assignments');
       }
       setTeacherClasses(fetchedClasses);
-      setSchoolSubjects(fetchedSubjects); // Set subjects
+      setSchoolSubjects(fetchedSubjects); 
 
     } catch (error) {
         toast({ title: "Error", description: "Failed to load assignment data.", variant: "destructive" });
     } finally {
         setIsLoadingPage(false);
     }
-  }, [currentUser, assignmentId, getAssignmentById, getClassesByTeacher, getSubjectsBySchool, form, router, toast]); // Added getSubjectsBySchool
+  }, [currentUser, assignmentId, getAssignmentById, getClassesByTeacher, getSubjectsBySchool, form, router, toast]); 
 
   useEffect(() => {
     fetchAssignmentAndRelatedData();
@@ -133,25 +134,16 @@ export default function EditAssignmentPage() {
     const deadline = new Date(values.deadlineDate);
     deadline.setHours(hours, minutes, 0, 0);
 
-    let attachmentUrlToSave = values.existingAttachmentUrl;
-    if (values.attachment) {
-      // Placeholder for actual file upload logic
-      // attachmentUrlToSave = await uploadFileToStorage(values.attachment, `assignments/...`);
-      attachmentUrlToSave = `[Uploaded File: ${values.attachment.name}]`; // Placeholder
-      toast({ title: "Attachment (Placeholder)", description: "Attachment upload updated (placeholder).", variant: "default" });
-    }
-
-
-    const updatedData = {
+    const updatedData: Partial<Omit<Assignment, 'id' | 'createdAt' | 'updatedAt' | 'teacherId' | 'totalSubmissions'>> = {
       title: values.title,
       description: values.description,
       deadline: deadline,
       allowedSubmissionFormats: values.allowedSubmissionFormats,
-      subjectId: values.subjectId, // Added
-      attachmentUrl: attachmentUrlToSave, // Added
+      subjectId: values.subjectId === NO_SUBJECT_VALUE ? null : values.subjectId,
+      attachmentUrl: values.existingAttachmentUrl, // Default to existing, will be overridden by AuthContext if new file
     };
 
-    const success = await updateAssignment(currentAssignment.id, currentAssignment.title, updatedData); // Pass old title for activity log
+    const success = await updateAssignment(currentAssignment.id, currentAssignment.title, updatedData, values.attachment || undefined);
     setIsSubmitting(false);
 
     if (success) {
@@ -212,12 +204,12 @@ export default function EditAssignmentPage() {
                   control={form.control}
                   name="subjectId"
                   render={({ field }) => (
-                    <Select onValueChange={field.onChange} value={field.value ?? ""}>
+                    <Select onValueChange={field.onChange} value={field.value ?? NO_SUBJECT_VALUE}>
                       <SelectTrigger id="subjectIdEdit">
                         <SelectValue placeholder="Select a subject" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="">No Subject / General</SelectItem>
+                        <SelectItem value={NO_SUBJECT_VALUE}>No Subject / General</SelectItem>
                         {schoolSubjects.map(sub => (
                           <SelectItem key={sub.id} value={sub.id}>{sub.name}</SelectItem>
                         ))}
@@ -301,20 +293,21 @@ export default function EditAssignmentPage() {
             </div>
 
             <div>
-              <Label htmlFor="attachmentEdit">Attach PDF (Optional)</Label>
+              <Label htmlFor="attachmentEdit">Attach/Replace File (Optional)</Label>
               {form.getValues("existingAttachmentUrl") && (
-                <p className="text-xs text-muted-foreground mt-1">Current attachment: <a href={form.getValues("existingAttachmentUrl")} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">{form.getValues("existingAttachmentUrl")}</a> (Uploading a new file will replace this)</p>
+                 <p className="text-xs text-muted-foreground mt-1">
+                    Current attachment: <a href={form.getValues("existingAttachmentUrl")!} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">{form.getValues("existingAttachmentUrl")!.startsWith('https://firebasestorage.googleapis.com/') ? currentAssignment?.attachmentUrl?.split('%2F').pop()?.split('?')[0].substring(37) || "View File" : currentAssignment?.attachmentUrl}</a>
+                 </p>
               )}
               <div className="flex items-center space-x-2 mt-1">
                 <UploadCloud className="h-5 w-5 text-muted-foreground" />
                 <Controller
                   control={form.control}
                   name="attachment"
-                  render={({ field: { onChange, value, ...restField } }) => (
+                   render={({ field: { onChange, value, ...restField } }) => (
                     <Input 
                       id="attachmentEdit" 
                       type="file" 
-                      accept=".pdf"
                       onChange={(e) => onChange(e.target.files ? e.target.files[0] : null)}
                       className="flex-grow"
                       {...restField}
@@ -337,4 +330,3 @@ export default function EditAssignmentPage() {
     </div>
   );
 }
-

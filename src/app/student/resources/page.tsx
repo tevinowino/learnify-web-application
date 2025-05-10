@@ -4,7 +4,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Loader2, BookOpen, Search, Link as LinkIcon, FileTextIcon, VideoIcon, Filter } from 'lucide-react';
+import { Loader2, BookOpen, Search, Link as LinkIcon, FileTextIcon, VideoIcon, Filter, Download } from 'lucide-react';
 import type { LearningMaterial, LearningMaterialWithTeacherInfo, LearningMaterialType, Subject } from '@/types';
 import { formatDistanceToNow } from 'date-fns';
 import { Input } from '@/components/ui/input'; 
@@ -24,7 +24,7 @@ const materialTypeIcons: Record<LearningMaterialType, React.ReactNode> = {
   link: <LinkIcon className="h-4 w-4" />,
   pdf_link: <FileTextIcon className="h-4 w-4 text-red-500" />, 
   video_link: <VideoIcon className="h-4 w-4 text-blue-500" />,
-  pdf_upload: <FileTextIcon className="h-4 w-4 text-orange-500" />,
+  pdf_upload: <Download className="h-4 w-4 text-orange-500" />, // Changed to Download
 };
 
 export default function StudentResourcesPage() {
@@ -33,18 +33,17 @@ export default function StudentResourcesPage() {
   const [filteredMaterials, setFilteredMaterials] = useState<LearningMaterialWithTeacherInfo[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
-  const [schoolSubjects, setSchoolSubjects] = useState<Subject[]>([]); // Added
-  const [selectedSubjectFilter, setSelectedSubjectFilter] = useState<string>('all'); // Added
+  const [schoolSubjects, setSchoolSubjects] = useState<Subject[]>([]); 
+  const [selectedSubjectFilter, setSelectedSubjectFilter] = useState<string>('all'); 
 
-  const fetchMaterialsAndSubjects = useCallback(async () => { // Renamed
+  const fetchMaterialsAndSubjects = useCallback(async () => { 
     if (currentUser?.schoolId) {
       setIsLoading(true);
-      const [schoolMaterials, subjects] = await Promise.all([ // Fetch subjects
+      const [schoolMaterials, subjects] = await Promise.all([ 
         getLearningMaterialsBySchool(currentUser.schoolId),
         getSubjectsBySchool(currentUser.schoolId)
       ]);
       
-      // Enrich materials with subjectName client-side if needed
       const enrichedMaterials = await Promise.all(schoolMaterials.map(async (material) => {
         let subjectName = 'N/A';
         if (material.subjectId && getSubjectById) {
@@ -57,12 +56,12 @@ export default function StudentResourcesPage() {
       const sortedMaterials = enrichedMaterials.sort((a, b) => b.createdAt.toMillis() - a.createdAt.toMillis());
       setMaterials(sortedMaterials);
       setFilteredMaterials(sortedMaterials);
-      setSchoolSubjects(subjects); // Set subjects
+      setSchoolSubjects(subjects); 
       setIsLoading(false);
     } else if (!authLoading) {
       setIsLoading(false);
     }
-  }, [currentUser, getLearningMaterialsBySchool, getSubjectsBySchool, getSubjectById, authLoading]); // Added getSubjectsBySchool
+  }, [currentUser, getLearningMaterialsBySchool, getSubjectsBySchool, getSubjectById, authLoading]); 
 
   useEffect(() => {
     if (currentUser) {
@@ -75,10 +74,11 @@ export default function StudentResourcesPage() {
       material.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
       (material.className && material.className.toLowerCase().includes(searchTerm.toLowerCase())) ||
       (material.teacherDisplayName && material.teacherDisplayName.toLowerCase().includes(searchTerm.toLowerCase())) ||
-      (material.subjectName && material.subjectName.toLowerCase().includes(searchTerm.toLowerCase())) || // Added subjectName search
-      material.content.toLowerCase().includes(searchTerm.toLowerCase())
+      (material.subjectName && material.subjectName.toLowerCase().includes(searchTerm.toLowerCase())) || 
+      (material.materialType !== 'pdf_upload' && material.content.toLowerCase().includes(searchTerm.toLowerCase())) || // Search content only if not pdf_upload
+      (material.materialType === 'pdf_upload' && material.content.replace("[Uploaded File: ", "").replace("]", "").toLowerCase().includes(searchTerm.toLowerCase())) // Search filename for pdf_upload
     );
-    if (selectedSubjectFilter !== 'all') { // Added subject filter logic
+    if (selectedSubjectFilter !== 'all') { 
       results = results.filter(material => material.subjectId === selectedSubjectFilter);
     }
     setFilteredMaterials(results);
@@ -157,27 +157,30 @@ export default function StudentResourcesPage() {
                 </CardTitle>
                 <CardDescription>
                   Class: {material.className || 'General'} | Teacher: {material.teacherDisplayName || 'N/A'} <br/>
-                  Subject: {material.subjectName || 'N/A'} <br/> {/* Display subject */}
+                  Subject: {material.subjectName || 'N/A'} <br/> 
                   Uploaded {material.createdAt ? formatDistanceToNow(material.createdAt.toDate(), { addSuffix: true }) : 'recently'}
                 </CardDescription>
               </CardHeader>
               <CardContent className="flex-grow">
                 {material.materialType === 'text' ? (
                     <p className="text-sm text-muted-foreground line-clamp-4">{material.content}</p>
-                ) : material.materialType === 'pdf_upload' ? (
-                  <p className="text-sm text-primary hover:underline break-all line-clamp-3">
-                    <FileTextIcon className="inline h-4 w-4 mr-1 text-orange-500"/> 
-                    {/* Assuming content is placeholder for uploaded PDF, actual link/download would be here */}
-                    {material.content} (View PDF)
-                  </p>
-                ) : (
+                ) : material.materialType === 'pdf_upload' && material.attachmentUrl ? (
+                  <Button variant="link" asChild className="p-0 h-auto text-sm">
+                    <a href={material.attachmentUrl} target="_blank" rel="noopener noreferrer" download={material.content.replace("[Uploaded File: ", "").replace("]", "")}>
+                       <Download className="inline h-4 w-4 mr-1 text-orange-500"/> 
+                       {material.content.replace("[Uploaded File: ", "").replace("]", "")}
+                    </a>
+                  </Button>
+                ) : (material.content && material.materialType !== 'pdf_upload') ? ( // For link, pdf_link, video_link
                     <Link href={material.content} target="_blank" rel="noopener noreferrer" className="text-sm text-primary hover:underline break-all line-clamp-3">
                         {material.content}
                     </Link>
+                ): (
+                   <p className="text-sm text-muted-foreground italic">No direct content or link to display.</p>
                 )}
               </CardContent>
               <CardContent className="pt-0">
-                 {material.materialType !== 'text' && material.materialType !== 'pdf_upload' && (
+                 {material.materialType !== 'text' && material.materialType !== 'pdf_upload' && material.content && (
                      <Button variant="outline" size="sm" asChild className="w-full button-shadow">
                         <Link href={material.content} target="_blank" rel="noopener noreferrer">
                             Open Link <LinkIcon className="ml-2 h-4 w-4"/>
@@ -189,9 +192,11 @@ export default function StudentResourcesPage() {
                         View Full Text
                      </Button>
                  )}
-                  {material.materialType === 'pdf_upload' && (
-                     <Button variant="outline" size="sm" className="w-full button-shadow" onClick={() => alert("PDF download/view coming soon for: " + material.content)}>
-                        View PDF
+                  {material.materialType === 'pdf_upload' && material.attachmentUrl && (
+                     <Button variant="outline" size="sm" asChild className="w-full button-shadow">
+                       <a href={material.attachmentUrl} target="_blank" rel="noopener noreferrer" download={material.content.replace("[Uploaded File: ", "").replace("]", "")}>
+                          Download PDF <Download className="ml-2 h-4 w-4"/>
+                       </a>
                      </Button>
                  )}
               </CardContent>
@@ -202,4 +207,3 @@ export default function StudentResourcesPage() {
     </div>
   );
 }
-

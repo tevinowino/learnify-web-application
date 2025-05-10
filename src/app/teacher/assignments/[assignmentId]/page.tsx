@@ -6,7 +6,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
-import { Loader2, Edit3, Users, CalendarDays, CheckCircle, XCircle, Clock, ArrowLeft, MessageSquare, Save, Link as LinkIcon, Download } from 'lucide-react';
+import { Loader2, Edit3, Users, CalendarDays, CheckCircle, XCircle, Clock, ArrowLeft, MessageSquare, Save, Link as LinkIcon, Download, FileUp } from 'lucide-react';
 import type { AssignmentWithClassInfo, SubmissionWithStudentName, SubmissionFormat } from '@/types';
 import Link from 'next/link';
 import { format } from 'date-fns';
@@ -45,7 +45,7 @@ export default function TeacherAssignmentDetailPage() {
     getAssignmentById, 
     getSubmissionsForAssignment,
     gradeSubmission,
-    getSubjectById, // Added
+    getSubjectById, 
     loading: authLoading 
   } = useAuth();
 
@@ -53,7 +53,7 @@ export default function TeacherAssignmentDetailPage() {
   const [submissions, setSubmissions] = useState<SubmissionWithStudentName[]>([]);
   const [isLoadingPage, setIsLoadingPage] = useState(true);
   const [isGrading, setIsGrading] = useState<string | null>(null); 
-  const [subjectName, setSubjectName] = useState<string | undefined>(undefined); // Added
+  const [subjectName, setSubjectName] = useState<string | undefined>(undefined); 
   
   const [gradeInput, setGradeInput] = useState<string>('');
   const [feedbackInput, setFeedbackInput] = useState<string>('');
@@ -81,7 +81,7 @@ export default function TeacherAssignmentDetailPage() {
       setAssignment(fetchedAssignment);
       setSubmissions(fetchedSubmissions.sort((a,b) => (a.studentDisplayName || "").localeCompare(b.studentDisplayName || "")));
 
-      if (fetchedAssignment?.subjectId && getSubjectById) { // Fetch subject name
+      if (fetchedAssignment?.subjectId && getSubjectById) { 
         const subject = await getSubjectById(fetchedAssignment.subjectId);
         setSubjectName(subject?.name);
       }
@@ -92,7 +92,7 @@ export default function TeacherAssignmentDetailPage() {
     } finally {
       setIsLoadingPage(false);
     }
-  }, [assignmentId, currentUser, getAssignmentById, getSubmissionsForAssignment, getSubjectById, router, toast]); // Added getSubjectById
+  }, [assignmentId, currentUser, getAssignmentById, getSubmissionsForAssignment, getSubjectById, router, toast]); 
 
   useEffect(() => {
     fetchData();
@@ -154,7 +154,7 @@ export default function TeacherAssignmentDetailPage() {
         case 'graded': return <Badge variant="default" className="bg-green-500 hover:bg-green-600"><CheckCircle className="mr-1 h-3 w-3"/>Graded</Badge>;
         case 'submitted': return <Badge variant="secondary"><Clock className="mr-1 h-3 w-3"/>Submitted</Badge>;
         case 'late': return <Badge variant="destructive"><Clock className="mr-1 h-3 w-3"/>Late</Badge>;
-        default: return <Badge variant="outline">{status}</Badge>;
+        default: return <Badge variant="outline">{status || 'Pending'}</Badge>;
     }
   };
 
@@ -186,8 +186,8 @@ export default function TeacherAssignmentDetailPage() {
              <div className="mt-3">
                 <Label className="font-medium">Attachment:</Label>
                 <Button variant="link" asChild className="p-0 h-auto ml-2">
-                    <a href={assignment.attachmentUrl} target="_blank" rel="noopener noreferrer" download={assignment.attachmentUrl.startsWith("[Uploaded File:") ? assignment.attachmentUrl.substring(17, assignment.attachmentUrl.length -1) : undefined}>
-                         {assignment.attachmentUrl.startsWith("[Uploaded File:") ? assignment.attachmentUrl.substring(17, assignment.attachmentUrl.length -1) : "View Attachment"}
+                    <a href={assignment.attachmentUrl} target="_blank" rel="noopener noreferrer" download={assignment.attachmentUrl.startsWith('https://firebasestorage.googleapis.com/') ? assignment.attachmentUrl.split('%2F').pop()?.split('?')[0].substring(37) : undefined}>
+                         {assignment.attachmentUrl.startsWith('https://firebasestorage.googleapis.com/') ? assignment.attachmentUrl.split('%2F').pop()?.split('?')[0].substring(37) || "View File" : "View Attachment"}
                         <Download className="inline h-4 w-4 ml-1"/>
                     </a>
                 </Button>
@@ -198,7 +198,7 @@ export default function TeacherAssignmentDetailPage() {
             Deadline: {format(assignment.deadline.toDate(), 'PPpp')}
           </div>
           <div className="mt-2 text-sm text-muted-foreground">
-            Allowed formats: {assignment.allowedSubmissionFormats.map(f => f === 'text_entry' ? 'Text Entry' : 'File Link').join(', ')}
+            Allowed formats: {assignment.allowedSubmissionFormats.map(f => f === 'text_entry' ? 'Text Entry' : f === 'file_link' ? 'File Link' : 'File Upload').join(', ')}
           </div>
         </CardContent>
       </Card>
@@ -254,18 +254,24 @@ export default function TeacherAssignmentDetailPage() {
             </DialogHeader>
             <div className="py-4 space-y-4 max-h-[60vh] overflow-y-auto pr-2">
               <div>
-                <h4 className="font-semibold mb-1">Submission Content ({selectedSubmissionForGrading.submissionType === 'text_entry' ? 'Text' : 'Link'}):</h4>
+                <h4 className="font-semibold mb-1">Submission Content ({selectedSubmissionForGrading.submissionType === 'text_entry' ? 'Text' : selectedSubmissionForGrading.submissionType === 'file_link' ? 'Link' : 'File'}):</h4>
                 {selectedSubmissionForGrading.submissionType === 'text_entry' ? (
                   <Card className="p-3 bg-muted/50 max-h-60 overflow-y-auto">
                     <p className="text-sm whitespace-pre-wrap">{selectedSubmissionForGrading.content}</p>
                   </Card>
-                ) : (
+                ) : selectedSubmissionForGrading.submissionType === 'file_link' ? (
                   <Button variant="link" asChild className="p-0 h-auto">
                     <a href={selectedSubmissionForGrading.content} target="_blank" rel="noopener noreferrer" className="break-all">
                       {selectedSubmissionForGrading.content} <LinkIcon className="inline h-4 w-4 ml-1"/>
                     </a>
                   </Button>
-                )}
+                ) : selectedSubmissionForGrading.submissionType === 'file_upload' && selectedSubmissionForGrading.content ? (
+                  <Button variant="link" asChild className="p-0 h-auto">
+                    <a href={selectedSubmissionForGrading.content} target="_blank" rel="noopener noreferrer" download={selectedSubmissionForGrading.originalFileName || undefined}>
+                      <Download className="mr-1 h-4 w-4"/> Download File: {selectedSubmissionForGrading.originalFileName || selectedSubmissionForGrading.content.split('%2F').pop()?.split('?')[0].substring(37)}
+                    </a>
+                  </Button>
+                ) : <p className="text-sm text-muted-foreground italic">No content to display for this submission type.</p>}
               </div>
               <div className="space-y-2">
                 <Label htmlFor="grade">Grade</Label>
@@ -300,4 +306,3 @@ export default function TeacherAssignmentDetailPage() {
     </div>
   );
 }
-

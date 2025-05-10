@@ -7,7 +7,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Loader2, FolderOpen, Library, Edit3, ArrowLeft, Link as LinkIcon, FileTextIcon, VideoIcon, CheckSquare, Clock, AlertTriangle, Download } from 'lucide-react';
-import type { ClassWithTeacherInfo, LearningMaterial, AssignmentWithClassAndSubmissionInfo, LearningMaterialType, UserProfileWithId, Subject } from '@/types';
+import type { ClassWithTeacherInfo, LearningMaterial, AssignmentWithClassAndSubmissionInfo, LearningMaterialType, UserProfileWithId, Subject, LearningMaterialWithTeacherInfo as EnrichedMaterial } from '@/types';
 import Link from 'next/link';
 import { format, formatDistanceToNow } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
@@ -18,7 +18,7 @@ const materialTypeIcons: Record<LearningMaterialType, React.ReactNode> = {
   link: <LinkIcon className="h-4 w-4 mr-2" />,
   pdf_link: <FileTextIcon className="h-4 w-4 mr-2 text-red-500" />,
   video_link: <VideoIcon className="h-4 w-4 mr-2 text-blue-500" />,
-  pdf_upload: <FileTextIcon className="h-4 w-4 mr-2 text-orange-500" />,
+  pdf_upload: <Download className="h-4 w-4 mr-2 text-orange-500" />,
 };
 
 export default function StudentClassDetailPage() {
@@ -32,13 +32,14 @@ export default function StudentClassDetailPage() {
     getClassDetails, 
     getLearningMaterialsByClass, 
     getAssignmentsForStudentByClass,
-    getSubjectById, // Added
+    getSubjectById, 
     loading: authLoading 
   } = useAuth();
 
   const [classDetails, setClassDetails] = useState<ClassWithTeacherInfo | null>(null);
-  const [materials, setMaterials] = useState<LearningMaterial[]>([]); // Should become LearningMaterialWithSubjectInfo
+  const [materials, setMaterials] = useState<EnrichedMaterial[]>([]); 
   const [assignments, setAssignments] = useState<AssignmentWithClassAndSubmissionInfo[]>([]);
+  const [students, setStudents] = useState<UserProfileWithId[]>([]);
   const [isLoadingPage, setIsLoadingPage] = useState(true);
 
   const fetchData = useCallback(async () => {
@@ -88,7 +89,7 @@ export default function StudentClassDetailPage() {
     } finally {
       setIsLoadingPage(false);
     }
-  }, [classId, currentUser, getClassDetails, getLearningMaterialsByClass, getAssignmentsForStudentByClass, getSubjectById, router, toast]); // Added getSubjectById
+  }, [classId, currentUser, getClassDetails, getLearningMaterialsByClass, getAssignmentsForStudentByClass, getSubjectById, router, toast]); 
 
   useEffect(() => {
     fetchData();
@@ -155,24 +156,25 @@ export default function StudentClassDetailPage() {
                 <Card key={material.id} className="p-4 hover:bg-muted/50">
                   <h4 className="font-semibold flex items-center">{materialTypeIcons[material.materialType]} {material.title}</h4>
                   <p className="text-xs text-muted-foreground">
-                    Subject: {(material as LearningMaterialWithTeacherInfo).subjectName || 'N/A'} | 
+                    Subject: {material.subjectName || 'N/A'} | 
                     Uploaded {material.createdAt ? formatDistanceToNow(material.createdAt.toDate(), { addSuffix: true }) : 'recently'}
                   </p>
                    {material.materialType === 'text' ? (
                       <p className="text-sm text-muted-foreground line-clamp-3 mt-1">{material.content}</p>
-                    ) : material.materialType === 'pdf_upload' ? (
-                        <p className="text-sm text-primary hover:underline break-all mt-1">
-                            <FileTextIcon className="inline h-4 w-4 mr-1 text-orange-500"/> 
-                            {/* Placeholder - actual link or download functionality would go here */}
-                            {material.content} (View PDF)
-                        </p>
-                    ) : (
-                      <Button variant="link" asChild className="px-0 h-auto mt-1">
+                    ) : material.materialType === 'pdf_upload' && material.attachmentUrl ? (
+                        <Button variant="link" asChild className="p-0 h-auto mt-1 text-sm">
+                            <a href={material.attachmentUrl} target="_blank" rel="noopener noreferrer" download={material.content.replace("[Uploaded File: ", "").replace("]", "")}>
+                                <Download className="inline h-4 w-4 mr-1 text-orange-500"/> 
+                                {material.content.replace("[Uploaded File: ", "").replace("]", "")}
+                            </a>
+                        </Button>
+                    ) : (material.content) ? ( // For link, pdf_link, video_link
+                      <Button variant="link" asChild className="p-0 h-auto mt-1">
                         <a href={material.content} target="_blank" rel="noopener noreferrer" className="text-sm text-primary hover:underline break-all">
                           {material.content} <LinkIcon className="inline h-3 w-3 ml-1"/>
                         </a>
                       </Button>
-                    )}
+                    ) : <p className="text-sm text-muted-foreground italic mt-1">No content or link provided.</p>}
                 </Card>
               ))}
             </div>
@@ -188,41 +190,34 @@ export default function StudentClassDetailPage() {
           {assignments.length === 0 ? (
             <p className="text-muted-foreground">No assignments for this class yet.</p>
           ) : (
-            <div className="space-y-3">
-              {assignments.map(assignment => (
-                <Card key={assignment.id} className="p-4 hover:bg-muted/50">
-                    <div className="flex justify-between items-start">
-                        <div>
-                            <Link href={`/student/assignments/${assignment.id}`} className="hover:underline">
-                                <h4 className="font-semibold text-lg">{assignment.title}</h4>
-                            </Link>
-                            <p className="text-xs text-muted-foreground">
-                                Subject: {assignment.subjectName || 'N/A'} <br />
-                                Due: {format(assignment.deadline.toDate(), 'PPp')}
-                            </p>
-                        </div>
-                        {getStatusBadge(assignment.submissionStatus)}
-                    </div>
-                     <p className="text-sm text-muted-foreground mt-1 line-clamp-2">{assignment.description}</p>
-                     {assignment.attachmentUrl && (
-                        <div className="mt-1">
-                           <Button variant="link" asChild className="p-0 h-auto text-xs">
-                               <a href={assignment.attachmentUrl} target="_blank" rel="noopener noreferrer" download={assignment.attachmentUrl.startsWith("[Uploaded File:") ? assignment.attachmentUrl.substring(17, assignment.attachmentUrl.length -1) : undefined}>
-                                {assignment.attachmentUrl.startsWith("[Uploaded File:") ? assignment.attachmentUrl.substring(17, assignment.attachmentUrl.length -1) : "View Attachment"}
-                                <Download className="inline h-3 w-3 ml-1"/>
-                               </a>
-                           </Button>
-                        </div>
-                     )}
-                    {assignment.submissionGrade && <p className="text-sm mt-1">Grade: <span className="font-semibold">{assignment.submissionGrade}</span></p>}
-                     <Button variant="outline" size="sm" asChild className="mt-2">
-                        <Link href={`/student/assignments/${assignment.id}`}>
-                            {assignment.submissionStatus === 'missing' ? 'Submit' : 'View Details'}
-                        </Link>
-                     </Button>
-                </Card>
-              ))}
-            </div>
+             <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Title</TableHead>
+                  <TableHead>Subject</TableHead>
+                  <TableHead>Deadline</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {assignments.map(assignment => (
+                  <TableRow key={assignment.id}>
+                    <TableCell className="font-medium">{assignment.title}</TableCell>
+                    <TableCell>{assignment.subjectName || 'N/A'}</TableCell>
+                    <TableCell>{format(assignment.deadline.toDate(), 'PPp')}</TableCell>
+                    <TableCell>{getStatusBadge(assignment.submissionStatus)}</TableCell>
+                    <TableCell className="text-right">
+                       <Button variant="outline" size="sm" asChild className="button-shadow">
+                          <Link href={`/student/assignments/${assignment.id}`}>
+                             {assignment.submissionStatus === 'missing' ? 'Submit / View' : 'View Details'}
+                          </Link>
+                       </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
           )}
         </CardContent>
       </Card>
@@ -230,3 +225,8 @@ export default function StudentClassDetailPage() {
   );
 }
 
+import { useToast as useOriginalToast } from '@/hooks/use-toast';
+function toast(options: { title: string, description?: string, variant?: 'default' | 'destructive' }) {
+    const { toast: showToast } = useOriginalToast();
+    showToast(options);
+}

@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
-import { Loader2, ArrowLeft, CheckCircle, Clock, AlertTriangle, UploadCloud, Link as LinkIcon, FileTextIcon, VideoIcon, Download } from 'lucide-react';
+import { Loader2, ArrowLeft, CheckCircle, Clock, AlertTriangle, UploadCloud, Link as LinkIcon, FileTextIcon, VideoIcon, Download, FileUp } from 'lucide-react';
 import type { AssignmentWithClassAndSubmissionInfo, Submission, SubmissionFormat } from '@/types';
 import { format, formatDistanceToNow } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
@@ -26,7 +26,7 @@ export default function StudentAssignmentDetailPage() {
     getAssignmentById, 
     getSubmissionByStudentForAssignment,
     addSubmission,
-    getSubjectById, // Added
+    getSubjectById,
     loading: authLoading 
   } = useAuth();
 
@@ -34,9 +34,10 @@ export default function StudentAssignmentDetailPage() {
   const [submission, setSubmission] = useState<Submission | null>(null);
   const [isLoadingPage, setIsLoadingPage] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [subjectName, setSubjectName] = useState<string | undefined>(undefined); // Added
+  const [subjectName, setSubjectName] = useState<string | undefined>(undefined);
   
-  const [submissionContent, setSubmissionContent] = useState('');
+  const [submissionContent, setSubmissionContent] = useState(''); // For text or link
+  const [submissionFile, setSubmissionFile] = useState<File | null>(null); // For file upload
   const [submissionType, setSubmissionType] = useState<SubmissionFormat>('text_entry'); 
 
   const fetchData = useCallback(async () => {
@@ -59,7 +60,7 @@ export default function StudentAssignmentDetailPage() {
       }
       setAssignment(fetchedAssignment);
 
-      if (fetchedAssignment.subjectId && getSubjectById) { // Fetch subject name
+      if (fetchedAssignment.subjectId && getSubjectById) {
         const subject = await getSubjectById(fetchedAssignment.subjectId);
         setSubjectName(subject?.name);
       }
@@ -67,7 +68,7 @@ export default function StudentAssignmentDetailPage() {
       const fetchedSubmission = await getSubmissionByStudentForAssignment(assignmentId, currentUser.uid);
       setSubmission(fetchedSubmission);
       if (fetchedSubmission) {
-        setSubmissionContent(fetchedSubmission.content);
+        setSubmissionContent(fetchedSubmission.submissionType !== 'file_upload' ? fetchedSubmission.content : '');
         setSubmissionType(fetchedSubmission.submissionType);
       } else if (fetchedAssignment.allowedSubmissionFormats.length > 0) {
         setSubmissionType(fetchedAssignment.allowedSubmissionFormats[0]); 
@@ -79,7 +80,7 @@ export default function StudentAssignmentDetailPage() {
     } finally {
       setIsLoadingPage(false);
     }
-  }, [assignmentId, currentUser, getAssignmentById, getSubmissionByStudentForAssignment, getSubjectById, router, toast]); // Added getSubjectById
+  }, [assignmentId, currentUser, getAssignmentById, getSubmissionByStudentForAssignment, getSubjectById, router, toast]);
 
   useEffect(() => {
     fetchData();
@@ -87,22 +88,37 @@ export default function StudentAssignmentDetailPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!assignment || !currentUser?.uid || !submissionContent.trim()) {
-      toast({title: "Missing Content", description: "Please enter your submission.", variant: "destructive"});
+    if (!assignment || !currentUser?.uid) return;
+
+    if (submissionType === 'file_upload' && !submissionFile) {
+      toast({ title: "Missing File", description: "Please select a file to upload.", variant: "destructive" });
       return;
     }
+    if (submissionType !== 'file_upload' && !submissionContent.trim()) {
+      toast({ title: "Missing Content", description: "Please enter your submission content or link.", variant: "destructive" });
+      return;
+    }
+
     setIsSubmitting(true);
-    const submissionData: Omit<Submission, 'id' | 'submittedAt' | 'grade' | 'feedback' | 'status'> = {
+    const submissionData: Omit<Submission, 'id' | 'submittedAt' | 'grade' | 'feedback' | 'status' | 'originalFileName'> = {
       assignmentId: assignment.id,
       classId: assignment.classId,
       studentId: currentUser.uid,
-      content: submissionContent,
+      content: submissionType === 'file_upload' ? '' : submissionContent, // Content is URL for file_upload, empty for now
       submissionType: submissionType,
     };
-    const submissionId = await addSubmission(submissionData);
+    
+    // Pass file if it's a file_upload, otherwise pass undefined/null
+    const fileToUpload = submissionType === 'file_upload' ? submissionFile : null;
+
+    const submissionResult = await addSubmission(submissionData, fileToUpload);
     setIsSubmitting(false);
-    if (submissionId) {
+
+    if (submissionResult) {
       toast({title: "Submission Successful!", description: "Your work has been submitted."});
+      setSubmissionFile(null); // Reset file input
+      const fileInput = document.getElementById('submissionFile') as HTMLInputElement;
+      if (fileInput) fileInput.value = '';
       fetchData(); 
     } else {
       toast({title: "Submission Failed", description: "Could not submit your work. Please try again.", variant:"destructive"});
@@ -158,7 +174,7 @@ export default function StudentAssignmentDetailPage() {
               <CardTitle className="text-3xl">{assignment.title}</CardTitle>
               <CardDescription>
                 Class: {assignment.className || 'N/A'} <br />
-                Subject: {subjectName || assignment.subjectName || 'N/A'} <br /> {/* Display subject */}
+                Subject: {subjectName || assignment.subjectName || 'N/A'} <br /> 
                 Due: {format(assignment.deadline.toDate(), 'PPPP pppp')} ({formatDistanceToNow(assignment.deadline.toDate(), { addSuffix: true })})
               </CardDescription>
             </div>
@@ -173,17 +189,16 @@ export default function StudentAssignmentDetailPage() {
            {assignment.attachmentUrl && (
              <div className="mt-3">
                 <Label className="font-medium">Attachment:</Label>
-                {/* This assumes attachmentUrl is a direct download link or a placeholder for future download functionality */}
                 <Button variant="link" asChild className="p-0 h-auto ml-2">
-                    <a href={assignment.attachmentUrl} target="_blank" rel="noopener noreferrer" download={assignment.attachmentUrl.startsWith("[Uploaded File:") ? assignment.attachmentUrl.substring(17, assignment.attachmentUrl.length -1) : undefined}>
-                        {assignment.attachmentUrl.startsWith("[Uploaded File:") ? assignment.attachmentUrl.substring(17, assignment.attachmentUrl.length -1) : "View Attachment"}
+                    <a href={assignment.attachmentUrl} target="_blank" rel="noopener noreferrer" download={assignment.attachmentUrl.startsWith('https://firebasestorage.googleapis.com/') ? assignment.attachmentUrl.split('%2F').pop()?.split('?')[0].substring(37) : undefined}>
+                        {assignment.attachmentUrl.startsWith('https://firebasestorage.googleapis.com/') ? assignment.attachmentUrl.split('%2F').pop()?.split('?')[0].substring(37) || "View File" : "View Attachment"}
                         <Download className="inline h-4 w-4 ml-1"/>
                     </a>
                 </Button>
              </div>
            )}
            <div className="mt-3">
-            <p className="text-sm font-medium">Allowed Submission Formats: <Badge variant="secondary">{assignment.allowedSubmissionFormats.map(f => f === 'text_entry' ? 'Text Entry' : 'File Link').join(', ')}</Badge></p>
+            <p className="text-sm font-medium">Allowed Submission Formats: <Badge variant="secondary">{assignment.allowedSubmissionFormats.map(f => f === 'text_entry' ? 'Text Entry' : f === 'file_link' ? 'File Link' : 'File Upload').join(', ')}</Badge></p>
           </div>
         </CardContent>
       </Card>
@@ -199,13 +214,19 @@ export default function StudentAssignmentDetailPage() {
                 <div className="p-3 bg-muted/50 rounded-md max-h-60 overflow-y-auto">
                     <p className="text-sm whitespace-pre-wrap">{submission.content}</p>
                 </div>
-            ) : (
+            ) : submission.submissionType === 'file_link' ? (
                  <Button variant="link" asChild className="p-0 h-auto">
                     <a href={submission.content} target="_blank" rel="noopener noreferrer" className="break-all">
                       {submission.content} <LinkIcon className="inline h-4 w-4 ml-1"/>
                     </a>
                   </Button>
-            )}
+            ) : submission.submissionType === 'file_upload' && submission.content ? ( // content here is the download URL
+                 <Button variant="link" asChild className="p-0 h-auto">
+                    <a href={submission.content} target="_blank" rel="noopener noreferrer" download={submission.originalFileName || undefined}>
+                      <Download className="mr-1 h-4 w-4"/> Download Submitted File: {submission.originalFileName || submission.content.split('%2F').pop()?.split('?')[0].substring(37)}
+                    </a>
+                  </Button>
+            ) : null}
             {submission.grade && <p className="mt-3 font-semibold">Grade: {submission.grade}</p>}
             {submission.feedback && (
               <div className="mt-3">
@@ -234,38 +255,49 @@ export default function StudentAssignmentDetailPage() {
                         key={formatType} 
                         type="button" 
                         variant={submissionType === formatType ? "default" : "outline"}
-                        onClick={() => setSubmissionType(formatType)}
+                        onClick={() => { setSubmissionType(formatType); setSubmissionContent(''); setSubmissionFile(null); }}
                       >
-                        {formatType === 'text_entry' ? <FileTextIcon className="mr-2"/> : <LinkIcon className="mr-2"/>}
-                        {formatType === 'text_entry' ? 'Text Entry' : 'File Link'}
+                        {formatType === 'text_entry' ? <FileTextIcon className="mr-2"/> : formatType === 'file_link' ? <LinkIcon className="mr-2"/> : <FileUp className="mr-2"/>}
+                        {formatType === 'text_entry' ? 'Text Entry' : formatType === 'file_link' ? 'File Link' : 'File Upload'}
                       </Button>
                     ))}
                   </div>
                 </div>
               )}
               <div>
-                <Label htmlFor="submissionContent">{submissionType === 'text_entry' ? 'Your Text Submission' : 'Link to Your File (e.g., Google Doc, PDF on Drive)'}</Label>
+                 <Label htmlFor="submissionInput">
+                  {submissionType === 'text_entry' ? 'Your Text Submission' : 
+                   submissionType === 'file_link' ? 'Link to Your File (e.g., Google Doc, PDF on Drive)' : 
+                   'Upload Your File'}
+                </Label>
                 {submissionType === 'text_entry' ? (
                   <Textarea 
-                    id="submissionContent" 
+                    id="submissionInput" 
                     value={submissionContent}
                     onChange={(e) => setSubmissionContent(e.target.value)}
                     rows={10}
                     placeholder="Type your submission here..."
                     required
                   />
-                ) : (
+                ) : submissionType === 'file_link' ? (
                   <Input 
-                    id="submissionContent"
+                    id="submissionInput"
                     type="url"
                     value={submissionContent}
                     onChange={(e) => setSubmissionContent(e.target.value)}
                     placeholder="https://docs.google.com/document/d/..."
                     required
                   />
+                ) : ( // file_upload
+                  <Input
+                    id="submissionFile" // Ensure ID matches for label
+                    type="file"
+                    onChange={(e) => setSubmissionFile(e.target.files ? e.target.files[0] : null)}
+                    required
+                  />
                 )}
               </div>
-              <Button type="submit" disabled={isSubmitting || !submissionContent.trim()} className="button-shadow">
+              <Button type="submit" disabled={isSubmitting || (submissionType !== 'file_upload' && !submissionContent.trim()) || (submissionType === 'file_upload' && !submissionFile && !submission?.content) } className="button-shadow">
                 {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 {submission ? 'Update Submission' : 'Submit Assignment'}
               </Button>
@@ -287,4 +319,3 @@ export default function StudentAssignmentDetailPage() {
     </div>
   );
 }
-

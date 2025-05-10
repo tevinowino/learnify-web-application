@@ -32,11 +32,11 @@ const assignmentSchema = z.object({
   title: z.string().min(3, "Title must be at least 3 characters."),
   description: z.string().min(10, "Description must be at least 10 characters."),
   classId: z.string().min(1, "Please select a class."),
-  subjectId: z.string().optional(), // Subject is optional
+  subjectId: z.string().optional(), 
   deadlineDate: z.date({ required_error: "Deadline date is required." }),
   deadlineTime: z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)$/, "Invalid time format (HH:MM)."),
-  allowedSubmissionFormats: z.array(z.enum(['text_entry', 'file_link'])).min(1, "Select at least one submission format."),
-  attachment: z.instanceof(File).optional(), // For PDF attachment
+  allowedSubmissionFormats: z.array(z.enum(['text_entry', 'file_link', 'file_upload'])).min(1, "Select at least one submission format."),
+  attachment: z.instanceof(File).optional().nullable(), 
 });
 
 type AssignmentFormValues = z.infer<typeof assignmentSchema>;
@@ -44,6 +44,7 @@ type AssignmentFormValues = z.infer<typeof assignmentSchema>;
 const availableSubmissionFormats: { id: SubmissionFormat; label: string }[] = [
   { id: 'text_entry', label: 'Text Entry' },
   { id: 'file_link', label: 'File Link (e.g., Google Drive, Dropbox)' },
+  { id: 'file_upload', label: 'File Upload (PDF, DOCX, etc.)' },
 ];
 
 export default function CreateAssignmentPage() {
@@ -55,7 +56,7 @@ export default function CreateAssignmentPage() {
   const { toast } = useToast();
   
   const [teacherClasses, setTeacherClasses] = useState<ClassWithTeacherInfo[]>([]);
-  const [schoolSubjects, setSchoolSubjects] = useState<Subject[]>([]); // Added
+  const [schoolSubjects, setSchoolSubjects] = useState<Subject[]>([]); 
   const [isLoadingPage, setIsLoadingPage] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -65,23 +66,23 @@ export default function CreateAssignmentPage() {
       title: '',
       description: '',
       classId: preselectedClassId || '',
-      subjectId: undefined, // Added
+      subjectId: undefined, 
       deadlineDate: undefined,
       deadlineTime: '23:59',
       allowedSubmissionFormats: ['text_entry'],
-      attachment: undefined, // Added
+      attachment: null, 
     },
   });
 
-  const fetchTeacherData = useCallback(async () => { // Renamed function
+  const fetchTeacherData = useCallback(async () => { 
     if (currentUser?.uid && currentUser.schoolId) {
       setIsLoadingPage(true);
-      const [classes, subjects] = await Promise.all([ // Added subjects fetch
+      const [classes, subjects] = await Promise.all([ 
         getClassesByTeacher(currentUser.uid),
         getSubjectsBySchool(currentUser.schoolId)
       ]);
       setTeacherClasses(classes);
-      setSchoolSubjects(subjects); // Set subjects
+      setSchoolSubjects(subjects); 
       if (preselectedClassId && classes.find(c => c.id === preselectedClassId)) {
         form.setValue('classId', preselectedClassId);
       }
@@ -89,7 +90,7 @@ export default function CreateAssignmentPage() {
     } else if (!authLoading) {
       setIsLoadingPage(false);
     }
-  }, [currentUser, getClassesByTeacher, getSubjectsBySchool, authLoading, preselectedClassId, form]); // Added getSubjectsBySchool
+  }, [currentUser, getClassesByTeacher, getSubjectsBySchool, authLoading, preselectedClassId, form]); 
 
   useEffect(() => {
     fetchTeacherData();
@@ -105,16 +106,7 @@ export default function CreateAssignmentPage() {
     const [hours, minutes] = values.deadlineTime.split(':').map(Number);
     const deadline = new Date(values.deadlineDate);
     deadline.setHours(hours, minutes, 0, 0);
-
-    let attachmentUrlPlaceholder: string | undefined = undefined;
-    if (values.attachment) {
-      // Placeholder for actual file upload logic
-      // In a real app: attachmentUrlPlaceholder = await uploadFileToStorage(values.attachment, `assignments/${currentUser.schoolId}/${values.classId}/${values.attachment.name}`);
-      // if (!attachmentUrlPlaceholder) { toast({ ... }); setIsSubmitting(false); return; }
-      attachmentUrlPlaceholder = `[Uploaded File: ${values.attachment.name}]`; // Placeholder
-      toast({ title: "Attachment (Placeholder)", description: "Attachment upload functionality is not yet implemented. Storing filename.", variant: "default" });
-    }
-
+    
     const assignmentData = {
       title: values.title,
       description: values.description,
@@ -123,11 +115,11 @@ export default function CreateAssignmentPage() {
       schoolId: currentUser.schoolId,
       deadline: deadline, 
       allowedSubmissionFormats: values.allowedSubmissionFormats,
-      subjectId: values.subjectId, // Added
-      attachmentUrl: attachmentUrlPlaceholder, // Added
+      subjectId: values.subjectId, 
+      attachmentUrl: null, // Will be set by AuthContext if file exists
     };
 
-    const assignmentId = await createAssignment(assignmentData);
+    const assignmentId = await createAssignment(assignmentData, values.attachment || undefined); // Pass file to AuthContext
     setIsSubmitting(false);
 
     if (assignmentId) {
@@ -200,12 +192,12 @@ export default function CreateAssignmentPage() {
                   control={form.control}
                   name="subjectId"
                   render={({ field }) => (
-                    <Select onValueChange={field.onChange} value={field.value ?? ""}>
+                    <Select onValueChange={field.onChange} value={field.value ?? NO_SUBJECT_VALUE}>
                       <SelectTrigger id="subjectId">
                         <SelectValue placeholder="Select a subject" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="">No Subject / General</SelectItem>
+                        <SelectItem value={NO_SUBJECT_VALUE}>No Subject / General</SelectItem>
                         {schoolSubjects.map(sub => (
                           <SelectItem key={sub.id} value={sub.id}>{sub.name}</SelectItem>
                         ))}
@@ -289,20 +281,19 @@ export default function CreateAssignmentPage() {
             </div>
 
             <div>
-              <Label htmlFor="attachment">Attach PDF (Optional)</Label>
+              <Label htmlFor="attachment">Attach File (Optional)</Label>
               <div className="flex items-center space-x-2 mt-1">
                 <UploadCloud className="h-5 w-5 text-muted-foreground" />
                 <Controller
                   control={form.control}
                   name="attachment"
-                  render={({ field: { onChange, value, ...restField } }) => (
+                  render={({ field: { onChange, value, ...restField } }) => ( // `value` is managed by RHF, don't pass it to input type="file"
                     <Input 
                       id="attachment" 
                       type="file" 
-                      accept=".pdf"
                       onChange={(e) => onChange(e.target.files ? e.target.files[0] : null)}
                       className="flex-grow"
-                      {...restField}
+                      {...restField} // Pass name, onBlur, ref
                     />
                   )}
                 />
@@ -322,4 +313,3 @@ export default function CreateAssignmentPage() {
     </div>
   );
 }
-

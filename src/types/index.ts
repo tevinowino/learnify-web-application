@@ -48,8 +48,9 @@ export interface LearningMaterial {
   materialType: LearningMaterialType;
   schoolId: string;
   teacherId: string; 
-  classId?: string; 
-  subjectId?: string;
+  classId?: string | null; // Allow null for general material
+  subjectId?: string | null; // Allow null for no specific subject
+  attachmentUrl?: string | null; // URL to an uploaded file, e.g., for 'pdf_upload'
   createdAt: Timestamp;
   updatedAt?: Timestamp;
 }
@@ -78,7 +79,7 @@ export interface ClassWithTeacherInfo extends Class {
   totalAssignmentsCount?: number;     
 }
 
-export type SubmissionFormat = 'text_entry' | 'file_link';
+export type SubmissionFormat = 'text_entry' | 'file_link' | 'file_upload';
 
 export interface Assignment {
   id: string;
@@ -89,8 +90,8 @@ export interface Assignment {
   description: string;
   deadline: Timestamp;
   allowedSubmissionFormats: SubmissionFormat[];
-  subjectId?: string;
-  attachmentUrl?: string; // URL to an uploaded PDF or other file for the assignment description/task
+  subjectId?: string | null;
+  attachmentUrl?: string | null; // URL to an uploaded PDF or other file for the assignment description/task
   createdAt: Timestamp;
   updatedAt?: Timestamp;
   totalSubmissions?: number; 
@@ -114,8 +115,9 @@ export interface Submission {
   classId: string;
   studentId: string;
   submittedAt: Timestamp;
-  content: string; 
+  content: string; // For text_entry, file_link (URL), or file_upload (download URL)
   submissionType: SubmissionFormat;
+  originalFileName?: string; // For file_upload to store the original name
   grade?: string | number;
   feedback?: string;
   status: 'submitted' | 'graded' | 'late'; 
