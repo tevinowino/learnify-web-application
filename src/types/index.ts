@@ -174,20 +174,37 @@ export interface Activity {
   classId?: string; 
   actorId?: string; 
   actorName?: string; 
+  targetUserId?: string; // Optional: for user-specific actions like role change
+  targetUserName?: string; // Optional
   type:
     | 'assignment_created'
+    | 'assignment_updated'
+    | 'assignment_deleted'
     | 'material_uploaded'
+    | 'material_updated'
+    | 'material_deleted'
     | 'submission_received'
     | 'submission_graded'
     | 'student_joined_class'
+    | 'student_removed_from_class'
+    | 'student_onboarded'
     | 'class_created'
+    | 'class_updated'
+    | 'class_deleted'
     | 'subject_created'
-    | 'user_registered'
+    | 'subject_updated'
+    | 'subject_deleted'
+    | 'user_registered' // Could be self-signup or admin-created
     | 'user_approved'
-    | 'attendance_marked'
+    | 'user_rejected'
+    | 'user_profile_updated' // for role changes, name changes
+    | 'attendance_marked' // Placeholder for future
     | 'exam_period_created'
+    | 'exam_period_updated' // e.g., status change
+    | 'exam_period_finalized'
     | 'exam_results_entered'
-    | 'exam_period_finalized'; // New type
+    | 'school_settings_updated'
+    | 'invite_code_regenerated';
   message: string; 
   link?: string; 
   timestamp: Timestamp;

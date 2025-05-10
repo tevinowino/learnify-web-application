@@ -15,7 +15,7 @@ import {
 } from 'firebase/auth';
 import { doc, getDoc, setDoc, Timestamp, updateDoc } from 'firebase/firestore'; 
 import { auth, db } from '@/lib/firebase';
-import type { UserProfile, UserRole, School, LearningMaterial, UserProfileWithId, Class, ClassWithTeacherInfo, LearningMaterialWithTeacherInfo, Assignment, Submission, SubmissionFormat, LearningMaterialType, AssignmentWithClassInfo, SubmissionWithStudentName, AssignmentWithClassAndSubmissionInfo, UserStatus, Activity } from '@/types';
+import type { UserProfile, UserRole, School, LearningMaterial, UserProfileWithId, Class, ClassWithTeacherInfo, LearningMaterialWithTeacherInfo, Assignment, Submission, SubmissionFormat, LearningMaterialType, AssignmentWithClassInfo, SubmissionWithStudentName, AssignmentWithClassAndSubmissionInfo, UserStatus, Activity, Subject } from '@/types';
 import { useRouter } from 'next/navigation';
 
 import * as SchoolService from '@/services/schoolService';
@@ -25,7 +25,7 @@ import * as MaterialService from '@/services/learningMaterialService';
 import * as AssignmentService from '@/services/assignmentService';
 import * as SubmissionService from '@/services/submissionService';
 import * as SubjectService from '@/services/subjectService';
-import { addActivityService, getActivitiesService } from '@/services/activityService';
+import * as ActivityService from '@/services/activityService';
 
 
 interface AuthContextType {
@@ -40,7 +40,7 @@ interface AuthContextType {
   joinSchoolWithInviteCode: (inviteCode: string, userId: string) => Promise<boolean>;
   checkAdminOnboardingStatus: () => Promise<{ isOnboarded: boolean; schoolId?: string }>;
   getSchoolDetails: (schoolId: string) => Promise<School | null>;
-  updateSchoolDetails: (schoolId: string, data: Partial<Pick<School, 'name'>>) => Promise<boolean>;
+  updateSchoolDetails: (schoolId: string, data: Partial<Pick<School, 'name' | 'isExamModeActive'>>) => Promise<boolean>;
   regenerateInviteCode: (schoolId: string) => Promise<string | null>;
 
   // Admin User Management
@@ -72,7 +72,7 @@ interface AuthContextType {
   getLearningMaterialsByTeacher: (teacherId: string, classId?: string) => Promise<LearningMaterial[]>;
   getLearningMaterialsBySchool: (schoolId: string) => Promise<LearningMaterialWithTeacherInfo[]>; 
   getLearningMaterialsByClass: (classId: string) => Promise<LearningMaterial[]>;
-  deleteLearningMaterial: (materialId: string) => Promise<boolean>;
+  deleteLearningMaterial: (materialId: string, materialTitle: string) => Promise<boolean>;
   updateLearningMaterial: (materialId: string, data: Partial<Pick<LearningMaterial, 'title' | 'content' | 'classId' | 'materialType'>>) => Promise<boolean>;
   getLearningMaterialById: (materialId: string) => Promise<LearningMaterial | null>;
 
@@ -81,8 +81,8 @@ interface AuthContextType {
   getAssignmentsByTeacher: (teacherId: string, classId?: string) => Promise<AssignmentWithClassInfo[]>;
   getAssignmentsByClass: (classId: string) => Promise<Assignment[]>;
   getAssignmentById: (assignmentId: string, studentId?: string) => Promise<AssignmentWithClassAndSubmissionInfo | null>;
-  updateAssignment: (assignmentId: string, data: Partial<Omit<Assignment, 'id' | 'createdAt' | 'updatedAt' | 'teacherId' | 'totalSubmissions'>>) => Promise<boolean>;
-  deleteAssignment: (assignmentId: string) => Promise<boolean>;
+  updateAssignment: (assignmentId: string, assignmentTitle: string, data: Partial<Omit<Assignment, 'id' | 'createdAt' | 'updatedAt' | 'teacherId' | 'totalSubmissions'>>) => Promise<boolean>;
+  deleteAssignment: (assignmentId: string, assignmentTitle: string) => Promise<boolean>;
 
   // Teacher Submission Management
   getSubmissionsForAssignment: (assignmentId: string) => Promise<SubmissionWithStudentName[]>;
@@ -103,12 +103,25 @@ interface AuthContextType {
 
   // Subject Management
   createSubject: (schoolId: string, subjectName: string) => Promise<string | null>;
-  getSubjectsBySchool: (schoolId: string) => Promise<LearningMaterial[]>; // Note: Re-using LearningMaterial for Subject type for now as they are similar enough
-  updateSubject: (subjectId: string, newName: string) => Promise<boolean>;
-  deleteSubject: (subjectId: string) => Promise<boolean>;
+  getSubjectsBySchool: (schoolId: string) => Promise<Subject[]>; 
+  updateSubject: (subjectId: string, oldName: string, newName: string) => Promise<boolean>;
+  deleteSubject: (subjectId: string, subjectName: string) => Promise<boolean>;
+  getSubjectById: (subjectId: string) => Promise<Subject | null>;
+
+  // Exam Management
+  createExamPeriod: (examPeriodData: Omit<ExamPeriod, 'id' | 'createdAt' | 'updatedAt' | 'status'>) => Promise<string | null>;
+  getExamPeriodsBySchool: (schoolId: string, getClassDetailsFn: typeof ClassService.getClassDetailsService) => Promise<ExamPeriodWithClassNames[]>;
+  getExamPeriodById: (examPeriodId: string, getClassDetailsFn?: typeof ClassService.getClassDetailsService) => Promise<ExamPeriodWithClassNames | null>;
+  updateExamPeriod: (examPeriodId: string, data: Partial<ExamPeriod>) => Promise<boolean>;
+  addOrUpdateExamResult: (resultData: Omit<ExamResult, 'id' | 'createdAt' | 'updatedAt'>) => Promise<string | null>;
+  getExamResultsForTeacher: (examPeriodId: string, classId: string, subjectId: string, schoolId: string) => Promise<ExamResultWithStudentInfo[]>;
+  getExamResultsForStudent: (studentId: string, schoolId: string, getSubjectByIdFn?: typeof SubjectService.getSubjectByIdService, getExamPeriodByIdFn?: (examPeriodId: string, getClassDetailsFn: typeof ClassService.getClassDetailsService) => Promise<ExamPeriodWithClassNames | null>) => Promise<ExamResultWithStudentInfo[]>;
+  getExamResultsByPeriodAndClass: (examPeriodId: string, classId: string, schoolId: string, subjectId: string) => Promise<ExamResult[]>;
+
 
   // Activity Log
   getActivities: (schoolId: string, filters?: {classId?: string, userId?: string, type?: Activity['type']}, limitCount?: number) => Promise<Activity[]>;
+  addActivity: (activityData: Omit<Activity, 'id' | 'timestamp'>) => Promise<string | null>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -149,6 +162,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             classIds: userData.classIds || [],
             subjects: userData.subjects || [],
             studentAssignments: userData.studentAssignments || {},
+            childStudentId: userData.childStudentId
           });
         } else {
           console.warn(`User ${user.uid} exists in Firebase Auth but not in Firestore. This might be an incomplete signup or an admin-created user pending Firestore record.`);
@@ -168,6 +182,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     return () => unsubscribe();
   }, []);
 
+  const addActivity = async (activityData: Omit<Activity, 'id' | 'timestamp'>) => {
+    return ActivityService.addActivityService(activityData);
+  };
+
   // --- Core Authentication ---
   const signUp = async (email: string, pass: string, role: UserRole, displayName: string, schoolIdToJoin?: string, schoolName?: string): Promise<UserProfile | null> => {
     setLoading(true);
@@ -179,7 +197,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       await updateFirebaseProfile(firebaseUser, { displayName });
       const profile = await UserService.createUserProfileInFirestore(firebaseUser, role, displayName, schoolIdToJoin, schoolName);
       if (profile && profile.schoolId && profile.displayName && profile.schoolName) {
-         await addActivityService({
+         await addActivity({
             schoolId: profile.schoolId,
             actorId: profile.uid,
             actorName: profile.displayName,
@@ -187,10 +205,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             message: `${profile.displayName} (${profile.role}) registered for ${profile.schoolName}.`,
          });
          if (profile.status === 'pending_verification') {
-             await addActivityService({
+             await addActivity({
                 schoolId: profile.schoolId,
-                type: 'user_approved', // This is misleading, it should be user_pending_approval
+                type: 'user_profile_updated', // generic, but implies pending
                 message: `New user ${profile.displayName} (${profile.role}) is awaiting approval for ${profile.schoolName}.`,
+                targetUserId: profile.uid,
+                targetUserName: profile.displayName,
                 link: '/admin/users'
             });
          }
@@ -323,6 +343,51 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     if (!currentUser || currentUser.role !== 'admin') return { isOnboarded: false };
     return { isOnboarded: !!currentUser.schoolId, schoolId: currentUser.schoolId };
   };
+  
+  const updateSchoolDetails = async (schoolId: string, data: Partial<Pick<School, 'name' | 'isExamModeActive'>>): Promise<boolean> => {
+    if (!currentUser || currentUser.role !== 'admin' || currentUser.schoolId !== schoolId) return false;
+    setLoading(true);
+    try {
+        const success = await SchoolService.updateSchoolDetailsService(schoolId, data);
+        if (success && currentUser?.schoolId && currentUser.displayName) {
+            let message = "Admin updated school settings.";
+            if (data.name && school?.name !== data.name) message = `Admin updated school name to "${data.name}".`;
+            if (data.isExamModeActive !== undefined && school?.isExamModeActive !== data.isExamModeActive) {
+                 message = `Admin ${data.isExamModeActive ? 'activated' : 'deactivated'} exam mode for the school.`
+            }
+            await addActivity({
+                schoolId: currentUser.schoolId,
+                actorId: currentUser.uid,
+                actorName: currentUser.displayName,
+                type: 'school_settings_updated',
+                message: message,
+                link: '/admin/settings'
+            });
+        }
+        return success;
+    } catch(error) { return false; }
+    finally { setLoading(false); }
+  };
+
+  const regenerateInviteCode = async (schoolId: string): Promise<string | null> => {
+    if (!currentUser || currentUser.role !== 'admin' || currentUser.schoolId !== schoolId) return null;
+    setLoading(true);
+    try {
+        const newCode = await SchoolService.regenerateInviteCodeService(schoolId);
+        if (newCode && currentUser?.schoolId && currentUser.displayName) {
+            await addActivity({
+                schoolId: currentUser.schoolId,
+                actorId: currentUser.uid,
+                actorName: currentUser.displayName,
+                type: 'invite_code_regenerated',
+                message: `Admin regenerated the school invite code.`,
+                link: '/admin/settings'
+            });
+        }
+        return newCode;
+    } catch(error) { return null; }
+    finally { setLoading(false); }
+  };
 
   // --- User Management ---
   const adminCreateUserInSchool = async (email: string, pass: string, displayName: string, role: UserRole, schoolId: string): Promise<UserProfileWithId | null> => {
@@ -330,12 +395,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     try {
        const newUser = await UserService.adminCreateUserService(auth, email, pass, displayName, role, schoolId, currentUser?.schoolName);
        if (newUser && currentUser?.schoolId && currentUser.displayName && currentUser.schoolName) {
-            await addActivityService({
+            await addActivity({
                 schoolId: currentUser.schoolId,
                 actorId: currentUser.uid,
                 actorName: currentUser.displayName,
-                type: 'user_registered', // or 'user_created_by_admin'
+                type: 'user_registered',
                 message: `${currentUser.displayName} created account for ${displayName} (${role}) in ${currentUser.schoolName}.`,
+                targetUserId: newUser.id,
+                targetUserName: displayName,
                 link: `/admin/users/${newUser.id}/edit`
             });
         }
@@ -356,12 +423,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         if (success && currentUser?.schoolId && currentUser.displayName) {
             const approvedUser = await UserService.getUserProfileService(userId);
             if (approvedUser) {
-                 await addActivityService({
+                 await addActivity({
                     schoolId: currentUser.schoolId,
                     actorId: currentUser.uid,
                     actorName: currentUser.displayName,
                     type: 'user_approved',
                     message: `${currentUser.displayName} approved ${approvedUser.displayName} (${approvedUser.role}) for the school.`,
+                    targetUserId: approvedUser.id,
+                    targetUserName: approvedUser.displayName,
                     link: `/admin/users`
                 });
             }
@@ -375,7 +444,31 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const updateUserRoleAndSchool = async (userId: string, data: { role?: UserRole; schoolId?: string, classIds?: string[], status?: UserStatus }): Promise<boolean> => {
      if (!currentUser || currentUser.role !== 'admin') return false;
     setLoading(true);
-    try { return await UserService.updateUserRoleAndSchoolService(userId, data); }
+    try { 
+        const success = await UserService.updateUserRoleAndSchoolService(userId, data); 
+        if (success && currentUser?.schoolId && currentUser.displayName) {
+            const targetUser = await UserService.getUserProfileService(userId);
+            if (targetUser) {
+                let message = `${currentUser.displayName} updated profile for ${targetUser.displayName}.`;
+                if (data.status === 'rejected') {
+                    message = `${currentUser.displayName} rejected user request for ${targetUser.displayName}.`;
+                } else if (data.role) {
+                    message = `${currentUser.displayName} updated ${targetUser.displayName}'s role to ${data.role}.`;
+                }
+                await addActivity({
+                    schoolId: currentUser.schoolId,
+                    actorId: currentUser.uid,
+                    actorName: currentUser.displayName,
+                    type: 'user_profile_updated',
+                    message: message,
+                    targetUserId: targetUser.id,
+                    targetUserName: targetUser.displayName,
+                    link: `/admin/users/${targetUser.id}/edit`
+                });
+            }
+        }
+        return success;
+    }
     catch (error) { return false; }
     finally { setLoading(false); }
   };
@@ -383,12 +476,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   // --- Class Management ---
   const createClassInSchool = async (className: string, schoolId: string, teacherId?: string): Promise<string | null> => {
-    if (!currentUser || (currentUser.role !== 'admin' && currentUser.role !== 'teacher')) return null; // Teachers might not create classes for now, only admin
+    if (!currentUser || (currentUser.role !== 'admin')) return null;
     setLoading(true);
     try { 
       const newClassId = await ClassService.createClassService(className, schoolId, teacherId || ''); 
       if (newClassId && currentUser?.schoolId && currentUser.displayName && currentUser.schoolName) {
-        await addActivityService({
+        await addActivity({
           schoolId: currentUser.schoolId,
           actorId: currentUser.uid,
           actorName: currentUser.displayName,
@@ -406,7 +499,27 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const enrollStudentInClass = async (classId: string, studentId: string): Promise<boolean> => {
     if (!currentUser || (currentUser.role !== 'admin' && currentUser.role !== 'teacher')) return false;
     setLoading(true);
-    try { return await ClassService.enrollStudentInClassService(classId, studentId); }
+    try { 
+      const success = await ClassService.enrollStudentInClassService(classId, studentId); 
+      if (success && currentUser?.schoolId && currentUser.displayName) {
+        const student = await UserService.getUserProfileService(studentId);
+        const cls = await ClassService.getClassDetailsService(classId, UserService.getUserProfileService);
+        if (student && cls) {
+             await addActivity({
+                schoolId: currentUser.schoolId,
+                actorId: currentUser.uid,
+                actorName: currentUser.displayName,
+                classId: classId,
+                targetUserId: studentId,
+                targetUserName: student.displayName,
+                type: 'student_joined_class',
+                message: `${currentUser.displayName} enrolled ${student.displayName} in class "${cls.name}".`,
+                link: `/admin/classes`
+            });
+        }
+      }
+      return success;
+    }
     catch (error) { return false; }
     finally { setLoading(false); }
   };
@@ -414,7 +527,27 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const removeStudentFromClass = async (classId: string, studentId: string): Promise<boolean> => {
     if (!currentUser || (currentUser.role !== 'admin' && currentUser.role !== 'teacher')) return false;
     setLoading(true);
-    try { return await ClassService.removeStudentFromClassService(classId, studentId); }
+    try { 
+        const success = await ClassService.removeStudentFromClassService(classId, studentId); 
+        if (success && currentUser?.schoolId && currentUser.displayName) {
+            const student = await UserService.getUserProfileService(studentId);
+            const cls = await ClassService.getClassDetailsService(classId, UserService.getUserProfileService);
+            if (student && cls) {
+                await addActivity({
+                    schoolId: currentUser.schoolId,
+                    actorId: currentUser.uid,
+                    actorName: currentUser.displayName,
+                    classId: classId,
+                    targetUserId: studentId,
+                    targetUserName: student.displayName,
+                    type: 'student_removed_from_class',
+                    message: `${currentUser.displayName} removed ${student.displayName} from class "${cls.name}".`,
+                    link: `/admin/classes`
+                });
+            }
+        }
+        return success;
+    }
     catch (error) { return false; }
     finally { setLoading(false); }
   };
@@ -422,7 +555,22 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const deleteClass = async (classId: string): Promise<boolean> => {
     if (!currentUser || currentUser.role !== 'admin') return false;
     setLoading(true);
-    try { return await ClassService.deleteClassService(classId); }
+    try { 
+        const cls = await ClassService.getClassDetailsService(classId, UserService.getUserProfileService);
+        const success = await ClassService.deleteClassService(classId); 
+        if (success && cls && currentUser?.schoolId && currentUser.displayName) {
+             await addActivity({
+                schoolId: currentUser.schoolId,
+                actorId: currentUser.uid,
+                actorName: currentUser.displayName,
+                classId: classId,
+                type: 'class_deleted',
+                message: `${currentUser.displayName} deleted class "${cls.name}".`,
+                link: `/admin/classes`
+            });
+        }
+        return success;
+    }
     catch (error) { return false; }
     finally { setLoading(false); }
   };
@@ -430,7 +578,24 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const regenerateClassInviteCode = async (classId: string): Promise<string | null> => {
     if (!currentUser || (currentUser.role !== 'admin' && currentUser.role !== 'teacher')) return null;
     setLoading(true);
-    try { return await ClassService.regenerateClassInviteCodeService(classId); }
+    try { 
+        const newCode = await ClassService.regenerateClassInviteCodeService(classId); 
+        if (newCode && currentUser?.schoolId && currentUser.displayName) {
+            const cls = await ClassService.getClassDetailsService(classId, UserService.getUserProfileService);
+            if (cls) {
+                 await addActivity({
+                    schoolId: currentUser.schoolId,
+                    actorId: currentUser.uid,
+                    actorName: currentUser.displayName,
+                    classId: classId,
+                    type: 'invite_code_regenerated',
+                    message: `${currentUser.displayName} regenerated invite code for class "${cls.name}".`,
+                    link: `/admin/classes` // Or teacher view if applicable
+                });
+            }
+        }
+        return newCode;
+    }
     catch (error) { return null; }
     finally { setLoading(false); }
   };
@@ -445,7 +610,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         if (classDetails) {
           setCurrentUser(prev => prev ? ({ ...prev, classIds: Array.from(new Set([...(prev.classIds || []), classDetails.id])) }) : null);
           if (currentUser.schoolId && currentUser.displayName && classDetails.name) {
-            await addActivityService({
+            await addActivity({
               schoolId: currentUser.schoolId,
               actorId: currentUser.uid,
               actorName: currentUser.displayName,
@@ -462,10 +627,33 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     finally { setLoading(false); }
   };
   
+  const updateClassDetails = async (classId: string, data: Partial<Pick<Class, 'name' | 'teacherId' | 'classInviteCode'>>): Promise<boolean> => {
+    if (!currentUser || currentUser.role !== 'admin') return false;
+    setLoading(true);
+    try {
+        const success = await ClassService.updateClassDetailsService(classId, data);
+        if (success && currentUser?.schoolId && currentUser.displayName) {
+             const cls = await ClassService.getClassDetailsService(classId, UserService.getUserProfileService);
+             if (cls) {
+                await addActivity({
+                    schoolId: currentUser.schoolId,
+                    actorId: currentUser.uid,
+                    actorName: currentUser.displayName,
+                    classId: classId,
+                    type: 'class_updated',
+                    message: `${currentUser.displayName} updated details for class "${cls.name}".`,
+                    link: `/admin/classes`
+                });
+             }
+        }
+        return success;
+    } catch(error) { return false; }
+    finally { setLoading(false); }
+  };
+  
   const getClassesBySchool = async (schoolId: string) => ClassService.getClassesBySchoolService(schoolId, UserService.getUserProfileService);
   const getClassesByIds = async (classIds: string[]) => ClassService.getClassesByIdsService(classIds, UserService.getUserProfileService, AssignmentService.getAssignmentsByClassService);
   const getClassDetails = async (classId: string) => ClassService.getClassDetailsService(classId, UserService.getUserProfileService);
-  const updateClassDetails = async (classId: string, data: Partial<Pick<Class, 'name' | 'teacherId' | 'classInviteCode'>>) => ClassService.updateClassDetailsService(classId, data);
   const getStudentsInClass = async (classId: string) => ClassService.getStudentsInClassService(classId, UserService.getUserProfileService);
   const getStudentsNotInClass = async (schoolId: string, classId: string) => ClassService.getStudentsNotInClassService(schoolId, classId, UserService.getUsersBySchoolAndRoleService, ClassService.getStudentsInClassService, UserService.getUserProfileService);
   const getClassesByTeacher = async (teacherId: string) => ClassService.getClassesByTeacherService(teacherId);
@@ -481,7 +669,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
        if (newMaterialId && currentUser?.schoolId && currentUser.displayName) {
             const classInfo = materialData.classId ? await ClassService.getClassDetailsService(materialData.classId, UserService.getUserProfileService) : null;
             const className = classInfo ? ` in class "${classInfo.name}"` : " (general material)";
-            await addActivityService({
+            await addActivity({
                 schoolId: currentUser.schoolId,
                 actorId: currentUser.uid,
                 actorName: currentUser.displayName,
@@ -497,17 +685,43 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     finally { setLoading(false); }
   };
   
-  const deleteLearningMaterial = async (materialId: string): Promise<boolean> => {
+  const deleteLearningMaterial = async (materialId: string, materialTitle: string): Promise<boolean> => {
     if (!currentUser || (currentUser.role !== 'teacher' && currentUser.role !== 'admin')) return false;
     setLoading(true);
-    try { return await MaterialService.deleteLearningMaterialService(materialId); }
+    try { 
+        const success = await MaterialService.deleteLearningMaterialService(materialId); 
+        if (success && currentUser?.schoolId && currentUser.displayName) {
+             await addActivity({
+                schoolId: currentUser.schoolId,
+                actorId: currentUser.uid,
+                actorName: currentUser.displayName,
+                type: 'material_deleted',
+                message: `${currentUser.displayName} deleted material "${materialTitle}".`,
+                link: `/teacher/materials`
+            });
+        }
+        return success;
+    }
     catch (error) { return false; }
     finally { setLoading(false); }
   };
   const updateLearningMaterial = async (materialId: string, data: Partial<Pick<LearningMaterial, 'title' | 'content' | 'classId' | 'materialType'>>): Promise<boolean> => {
     if (!currentUser || (currentUser.role !== 'teacher' && currentUser.role !== 'admin')) return false;
     setLoading(true);
-    try { return await MaterialService.updateLearningMaterialService(materialId, data); }
+    try { 
+        const success = await MaterialService.updateLearningMaterialService(materialId, data); 
+        if (success && currentUser?.schoolId && currentUser.displayName && data.title) {
+             await addActivity({
+                schoolId: currentUser.schoolId,
+                actorId: currentUser.uid,
+                actorName: currentUser.displayName,
+                type: 'material_updated',
+                message: `${currentUser.displayName} updated material "${data.title}".`,
+                link: `/teacher/materials`
+            });
+        }
+        return success;
+    }
     catch (error) { return false; }
     finally { setLoading(false); }
   };
@@ -527,7 +741,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         if (newAssignmentId && currentUser?.schoolId && currentUser.displayName) {
             const classInfo = await ClassService.getClassDetailsService(assignmentData.classId, UserService.getUserProfileService);
             const className = classInfo ? classInfo.name : 'Unknown Class';
-            await addActivityService({
+            await addActivity({
                 schoolId: currentUser.schoolId,
                 actorId: currentUser.uid,
                 actorName: currentUser.displayName,
@@ -566,7 +780,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     finally { setLoading(false); }
   };
 
-  const deleteAssignment = async (assignmentId: string): Promise<boolean> => {
+  const deleteAssignment = async (assignmentId: string, assignmentTitle: string): Promise<boolean> => {
     if (!currentUser || (currentUser.role !== 'teacher' && currentUser.role !== 'admin')) return false;
     setLoading(true);
     try {
@@ -574,14 +788,49 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       if (!assignmentDoc || (currentUser.role === 'teacher' && assignmentDoc.teacherId !== currentUser.uid)) {
         return false;
       }
-      return await AssignmentService.deleteAssignmentService(assignmentId);
+      const success = await AssignmentService.deleteAssignmentService(assignmentId);
+      if (success && currentUser?.schoolId && currentUser.displayName) {
+         await addActivity({
+            schoolId: currentUser.schoolId,
+            actorId: currentUser.uid,
+            actorName: currentUser.displayName,
+            classId: assignmentDoc.classId,
+            type: 'assignment_deleted',
+            message: `${currentUser.displayName} deleted assignment "${assignmentTitle}".`,
+            link: `/teacher/assignments`
+        });
+      }
+      return success;
+    } catch (error) { return false; }
+    finally { setLoading(false); }
+  };
+
+  const updateAssignment = async (assignmentId: string, assignmentTitle: string, data: Partial<Omit<Assignment, 'id' | 'createdAt' | 'updatedAt' | 'teacherId' | 'totalSubmissions'>>): Promise<boolean> => {
+    if (!currentUser || (currentUser.role !== 'teacher' && currentUser.role !== 'admin')) return false;
+    setLoading(true);
+    try {
+        const success = await AssignmentService.updateAssignmentService(assignmentId, data);
+        if (success && currentUser?.schoolId && currentUser.displayName) {
+            const assignmentDoc = await AssignmentService.getAssignmentByIdService(assignmentId, ClassService.getClassDetailsService);
+            if (assignmentDoc) {
+                 await addActivity({
+                    schoolId: currentUser.schoolId,
+                    actorId: currentUser.uid,
+                    actorName: currentUser.displayName,
+                    classId: assignmentDoc.classId,
+                    type: 'assignment_updated',
+                    message: `${currentUser.displayName} updated assignment "${data.title || assignmentTitle}".`,
+                    link: `/teacher/assignments/${assignmentId}`
+                });
+            }
+        }
+        return success;
     } catch (error) { return false; }
     finally { setLoading(false); }
   };
 
   const getAssignmentsByTeacher = async (teacherId: string, classId?: string) => AssignmentService.getAssignmentsByTeacherService(teacherId, ClassService.getClassDetailsService, classId);
   const getAssignmentsByClass = async (classId: string) => AssignmentService.getAssignmentsByClassService(classId);
-  const updateAssignment = async (assignmentId: string, data: Partial<Omit<Assignment, 'id' | 'createdAt' | 'updatedAt' | 'teacherId' | 'totalSubmissions'>>) => AssignmentService.updateAssignmentService(assignmentId, data);
 
 
   // --- Submission Management ---
@@ -596,14 +845,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       if (result && result.submissionId && currentUser && currentUser.schoolId && currentUser.displayName) {
          setCurrentUser(prev => prev ? { ...prev, studentAssignments: { ...prev.studentAssignments, [submissionData.assignmentId]: { status: result.newStatus, grade: result.existingGrade }} } : null);
          const classInfo = assignment.className || 'the class';
-         await addActivityService({
+         await addActivity({
             schoolId: currentUser.schoolId,
             actorId: currentUser.uid,
             actorName: currentUser.displayName,
             classId: submissionData.classId,
             type: 'submission_received',
             message: `${currentUser.displayName} submitted assignment "${assignment.title}" for ${classInfo}.`,
-            link: `/teacher/assignments/${submissionData.assignmentId}` // Link for teacher to view
+            link: `/teacher/assignments/${submissionData.assignmentId}` 
          });
       }
       return result?.submissionId || null;
@@ -622,18 +871,18 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             const assignment = await AssignmentService.getAssignmentByIdService(submission.assignmentId, ClassService.getClassDetailsService);
             const student = await UserService.getUserProfileService(submission.studentId);
             if (assignment && student) {
-                 await addActivityService({
+                 await addActivity({
                     schoolId: currentUser.schoolId,
                     actorId: currentUser.uid,
                     actorName: currentUser.displayName,
                     classId: submission.classId,
+                    targetUserId: student.id,
+                    targetUserName: student.displayName,
                     type: 'submission_graded',
                     message: `${currentUser.displayName} graded ${student.displayName}'s submission for "${assignment.title}". Grade: ${grade}.`,
-                    link: `/student/assignments/${submission.assignmentId}` // Link for student to view
+                    link: `/student/assignments/${submission.assignmentId}`
                 });
             }
-
-            // Update student's local profile if it's the current user (though unlikely for teacher grading)
             if (currentUser.uid === submission.studentId) {
                  setCurrentUser(prev => prev ? {
                     ...prev,
@@ -666,9 +915,18 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setLoading(true);
     try {
       const success = await UserService.completeStudentOnboardingService(userId, classId, subjectIds);
-      if (success && currentUser) {
-        // Update local currentUser state to reflect onboarding
+      if (success && currentUser?.schoolId && currentUser.displayName) {
         setCurrentUser(prev => prev ? { ...prev, classIds: [classId], subjects: subjectIds } : null);
+         const cls = await ClassService.getClassDetailsService(classId, UserService.getUserProfileService);
+         await addActivity({
+            schoolId: currentUser.schoolId,
+            actorId: currentUser.uid,
+            actorName: currentUser.displayName,
+            classId: classId,
+            type: 'student_onboarded',
+            message: `${currentUser.displayName} completed onboarding and joined class "${cls?.name || 'N/A'}".`,
+            link: `/student/dashboard`
+        });
       }
       return success;
     } catch (error) {
@@ -686,7 +944,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     try { 
       const newSubjectId = await SubjectService.createSubjectService(schoolId, subjectName); 
       if (newSubjectId && currentUser?.schoolId && currentUser.displayName && currentUser.schoolName) {
-        await addActivityService({
+        await addActivity({
           schoolId: currentUser.schoolId,
           actorId: currentUser.uid,
           actorName: currentUser.displayName,
@@ -700,10 +958,53 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     catch (error) { return null; }
     finally { setLoading(false); }
   };
+  
+  const updateSubject = async (subjectId: string, oldName: string, newName: string): Promise<boolean> => {
+    if (!currentUser || currentUser.role !== 'admin') return false;
+    setLoading(true);
+    try {
+        const success = await SubjectService.updateSubjectService(subjectId, newName);
+        if (success && currentUser?.schoolId && currentUser.displayName) {
+            await addActivity({
+                schoolId: currentUser.schoolId,
+                actorId: currentUser.uid,
+                actorName: currentUser.displayName,
+                type: 'subject_updated',
+                message: `${currentUser.displayName} updated subject "${oldName}" to "${newName}".`,
+                link: `/admin/school-settings/subjects`
+            });
+        }
+        return success;
+    } catch (error) { return false; }
+    finally { setLoading(false); }
+  };
+
+  const deleteSubject = async (subjectId: string, subjectName: string): Promise<boolean> => {
+     if (!currentUser || currentUser.role !== 'admin') return false;
+    setLoading(true);
+    try {
+        const success = await SubjectService.deleteSubjectService(subjectId);
+        if (success && currentUser?.schoolId && currentUser.displayName) {
+            await addActivity({
+                schoolId: currentUser.schoolId,
+                actorId: currentUser.uid,
+                actorName: currentUser.displayName,
+                type: 'subject_deleted',
+                message: `${currentUser.displayName} deleted subject "${subjectName}".`,
+                link: `/admin/school-settings/subjects`
+            });
+        }
+        return success;
+    } catch (error) { return false; }
+    finally { setLoading(false); }
+  };
+
+  // --- Exam Management (moved from examService to AuthContext for easier activity logging) ---
+  const { createExamPeriodService, getExamPeriodsBySchoolService, getExamPeriodByIdService, updateExamPeriodService, addOrUpdateExamResultService, getExamResultsForTeacherService, getExamResultsByStudentService, getExamResultsByPeriodAndClassService } = SchoolService; // Note: Exam services were in SchoolService.ts based on previous structure. If they move, update path.
 
   const value = {
     currentUser, loading, signUp, logIn, logOut,
-    createSchool, joinSchoolWithInviteCode, checkAdminOnboardingStatus, getSchoolDetails: SchoolService.getSchoolDetailsService, updateSchoolDetails: SchoolService.updateSchoolDetailsService, regenerateInviteCode: SchoolService.regenerateInviteCodeService,
+    createSchool, joinSchoolWithInviteCode, checkAdminOnboardingStatus, getSchoolDetails: SchoolService.getSchoolDetailsService, updateSchoolDetails, regenerateInviteCode,
     getUsersBySchool: UserService.getUsersBySchoolService, getUsersBySchoolAndRole: UserService.getUsersBySchoolAndRoleService, adminCreateUserInSchool, updateUserRoleAndSchool, getUserProfile: UserService.getUserProfileService, approveUserForSchool,
     createClassInSchool, getClassesBySchool, getClassDetails, updateClassDetails, enrollStudentInClass, removeStudentFromClass, getStudentsInClass, getStudentsNotInClass, deleteClass, regenerateClassInviteCode, joinClassWithCode,
     getClassesByTeacher, getStudentsInMultipleClasses,
@@ -715,8 +1016,18 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     completeStudentOnboarding,
     updateUserDisplayName, updateUserEmail, updateUserPassword,
     getClassesByIds,
-    createSubject, getSubjectsBySchool: SubjectService.getSubjectsBySchoolService, updateSubject: SubjectService.updateSubjectService, deleteSubject: SubjectService.deleteSubjectService,
-    getActivities: getActivitiesService,
+    createSubject, getSubjectsBySchool: SubjectService.getSubjectsBySchoolService, updateSubject, deleteSubject, getSubjectById: SubjectService.getSubjectByIdService,
+    // Exam Functions (from SchoolService, to be potentially moved to examService.ts later if desired)
+    createExamPeriod: SchoolService.createExamPeriodService, // Assuming these exist or will be created in SchoolService or a new examService
+    getExamPeriodsBySchool: SchoolService.getExamPeriodsBySchoolService,
+    getExamPeriodById: SchoolService.getExamPeriodByIdService,
+    updateExamPeriod: SchoolService.updateExamPeriodService,
+    addOrUpdateExamResult: SchoolService.addOrUpdateExamResultService,
+    getExamResultsForTeacher: (examPeriodId: string, classId: string, subjectId: string, schoolId: string) => SchoolService.getExamResultsForTeacherService(examPeriodId, classId, subjectId, schoolId, UserService.getUserProfileService),
+    getExamResultsForStudent: (studentId: string, schoolId: string, getSubjectByIdFn?: typeof SubjectService.getSubjectByIdService, getExamPeriodByIdFn?: (examPeriodId: string, getClassDetailsFn: typeof ClassService.getClassDetailsService) => Promise<ExamPeriodWithClassNames | null>) => SchoolService.getExamResultsByStudentService(studentId, schoolId, getSubjectByIdFn, getExamPeriodByIdFn),
+    getExamResultsByPeriodAndClass: (examPeriodId: string, classId: string, schoolId: string, subjectId: string) => SchoolService.getExamResultsByPeriodAndClassService(examPeriodId, classId, schoolId, subjectId, SubjectService.getSubjectByIdService),
+    // Activity Log
+    getActivities: ActivityService.getActivitiesService, addActivity
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
@@ -729,4 +1040,3 @@ export const useAuth = () => {
   }
   return context;
 };
-
