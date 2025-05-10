@@ -51,7 +51,7 @@ export default function TeacherAssignmentDetailPage() {
   const [assignment, setAssignment] = useState<AssignmentWithClassInfo | null>(null);
   const [submissions, setSubmissions] = useState<SubmissionWithStudentName[]>([]);
   const [isLoadingPage, setIsLoadingPage] = useState(true);
-  const [isGrading, setIsGrading] = useState<string | null>(null); // submissionId being graded
+  const [isGrading, setIsGrading] = useState<string | null>(null); 
   
   const [gradeInput, setGradeInput] = useState<string>('');
   const [feedbackInput, setFeedbackInput] = useState<string>('');
@@ -77,6 +77,7 @@ export default function TeacherAssignmentDetailPage() {
       }
       
       setAssignment(fetchedAssignment);
+      // Sort submissions client-side as orderBy was removed from service
       setSubmissions(fetchedSubmissions.sort((a,b) => (a.studentDisplayName || "").localeCompare(b.studentDisplayName || "")));
 
     } catch (error) {
@@ -106,8 +107,8 @@ export default function TeacherAssignmentDetailPage() {
     const success = await gradeSubmission(selectedSubmissionForGrading.id, gradeInput, feedbackInput);
     if (success) {
       toast({title: "Submission Graded!", description: "The grade and feedback have been saved."});
-      setSelectedSubmissionForGrading(null); // Close dialog
-      fetchData(); // Refresh data
+      setSelectedSubmissionForGrading(null); 
+      fetchData(); 
     } else {
       toast({title: "Grading Failed", description: "Could not save the grade. Please try again.", variant: "destructive"});
     }
@@ -221,7 +222,6 @@ export default function TeacherAssignmentDetailPage() {
         </CardContent>
       </Card>
 
-      {/* Grading Dialog */}
       {selectedSubmissionForGrading && (
         <Dialog open={!!selectedSubmissionForGrading} onOpenChange={(isOpen) => !isOpen && setSelectedSubmissionForGrading(null)}>
           <DialogContent className="sm:max-w-lg">
@@ -280,3 +280,4 @@ export default function TeacherAssignmentDetailPage() {
     </div>
   );
 }
+

@@ -26,7 +26,6 @@ export const addSubmissionService = async (
         status: statusUpdate,
         updatedAt: Timestamp.now()
       });
-      // Student's summary in their user doc is updated by AuthContext
       return { submissionId: existingSubmission.id, newStatus: statusUpdate, existingGrade: existingSubmission.grade };
     } else {
       const dataToSave: Omit<Submission, 'id'> = {
@@ -38,14 +37,12 @@ export const addSubmissionService = async (
       const docRef = await addDoc(collection(db, "submissions"), dataToSave);
       await updateDoc(doc(db, "submissions", docRef.id), { id: docRef.id });
 
-      // Increment totalSubmissions on assignment
       const assignmentRef = doc(db, "assignments", submissionData.assignmentId);
       const assignmentSnap = await getDoc(assignmentRef);
       if (assignmentSnap.exists()) {
           const currentSubmissions = assignmentSnap.data().totalSubmissions || 0;
           await updateDoc(assignmentRef, { totalSubmissions: currentSubmissions + 1 });
       }
-      // Student's summary in their user doc is updated by AuthContext
       return { submissionId: docRef.id, newStatus };
     }
   } catch (error) {
@@ -60,7 +57,9 @@ export const getSubmissionsForAssignmentService = async (
 ): Promise<SubmissionWithStudentName[]> => {
   try {
     const submissionsRef = collection(db, "submissions");
-    const q = query(submissionsRef, where("assignmentId", "==", assignmentId), orderBy("submittedAt", "desc"));
+    // Removed orderBy("submittedAt", "desc") to avoid needing composite index with where clause.
+    // Sorting should be handled client-side.
+    const q = query(submissionsRef, where("assignmentId", "==", assignmentId));
     const querySnapshot = await getDocs(q);
     const submissionsPromises = querySnapshot.docs.map(async (docSnapshot) => {
       const submission = { id: docSnapshot.id, ...docSnapshot.data() } as Submission;
@@ -104,6 +103,7 @@ export const gradeSubmissionService = async (submissionId: string, grade: string
 
 export const getSubmissionByStudentForAssignmentService = async (assignmentId: string, studentId: string): Promise<Submission | null> => {
   try {
+    // This query with two equality clauses should be fine without a custom composite index.
     const q = query(collection(db, 'submissions'), where('assignmentId', '==', assignmentId), where('studentId', '==', studentId));
     const querySnapshot = await getDocs(q);
     if (!querySnapshot.empty) {
@@ -130,3 +130,4 @@ export const getSubmissionByIdService = async (submissionId: string): Promise<Su
         return null;
     }
 };
+

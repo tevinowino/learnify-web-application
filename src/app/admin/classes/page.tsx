@@ -45,7 +45,8 @@ export default function ManageClassesPage() {
         getClassesBySchool(currentUser.schoolId),
         getUsersBySchoolAndRole(currentUser.schoolId, 'teacher')
       ]);
-      setClasses(schoolClasses);
+      // Sort classes client-side as orderBy was removed from service
+      setClasses(schoolClasses.sort((a, b) => a.name.localeCompare(b.name)));
       setTeachers(schoolTeachers);
       setIsLoadingPage(false);
     } else if (!authLoading) {
@@ -178,3 +179,4 @@ export default function ManageClassesPage() {
     </div>
   );
 }
+

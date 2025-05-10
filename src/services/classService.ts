@@ -2,7 +2,7 @@
 import { doc, collection, query, where, getDocs, writeBatch, updateDoc, addDoc, Timestamp, arrayUnion, arrayRemove, documentId, orderBy, getDoc, deleteDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import type { Class, ClassWithTeacherInfo, UserProfileWithId, UserProfile } from '@/types';
-import type { getUserProfileService as GetUserProfileServiceType } from './userService'; // To define function signature
+import type { getUserProfileService as GetUserProfileServiceType } from './userService'; 
 
 export const createClassService = async (className: string, schoolId: string, teacherId: string): Promise<string | null> => {
   try {
@@ -33,7 +33,9 @@ export const getClassesBySchoolService = async (
   if (!schoolId) return [];
   try {
     const classesRef = collection(db, "classes");
-    const q = query(classesRef, where("schoolId", "==", schoolId), orderBy("name"));
+    // Removed orderBy("name") to avoid needing composite index with where clause.
+    // Sorting should be handled client-side.
+    const q = query(classesRef, where("schoolId", "==", schoolId));
     const querySnapshot = await getDocs(q);
     const classesPromises = querySnapshot.docs.map(async (docSnapshot) => {
       const classData = docSnapshot.data() as Class;
@@ -54,7 +56,7 @@ export const getClassesBySchoolService = async (
 export const getClassesByIdsService = async (
   classIds: string[],
   getUserProfile: typeof GetUserProfileServiceType,
-  getAssignmentsForClass: (classId: string) => Promise<any[]> // Simplified type for now
+  getAssignmentsForClass: (classId: string) => Promise<any[]> 
 ): Promise<ClassWithTeacherInfo[]> => {
   if (!classIds || classIds.length === 0) return [];
   try {
@@ -82,6 +84,7 @@ export const getClassesByIdsService = async (
       const chunkClasses = await Promise.all(classesPromises);
       allClasses = [...allClasses, ...chunkClasses];
     }
+    // Client-side sorting as service-level sort was removed or not present.
     return allClasses.sort((a, b) => a.name.localeCompare(b.name));
   } catch (error) {
     console.error("Error fetching classes by IDs in service:", error);
@@ -158,7 +161,7 @@ export const getStudentsInClassService = async (
     classId: string,
     getUserProfile: typeof GetUserProfileServiceType
   ): Promise<UserProfileWithId[]> => {
-  const classDetails = await getClassDetailsService(classId, getUserProfile); // Use the passed getUserProfile
+  const classDetails = await getClassDetailsService(classId, getUserProfile); 
   if (!classDetails || !classDetails.studentIds || classDetails.studentIds.length === 0) {
     return [];
   }
@@ -189,10 +192,10 @@ export const getStudentsNotInClassService = async (
   classId: string,
   getUsersBySchoolAndRole: (schoolId: string, role: UserProfile['role']) => Promise<UserProfileWithId[]>,
   getStudentsInClass: (classId: string) => Promise<UserProfileWithId[]>,
-  getUserProfile: typeof GetUserProfileServiceType // Added to pass to getStudentsInClass
+  getUserProfile: typeof GetUserProfileServiceType 
 ): Promise<UserProfileWithId[]> => {
   const allSchoolStudents = await getUsersBySchoolAndRole(schoolId, 'student');
-  const studentsInCurrentClass = await getStudentsInClass(classId); // This now expects getUserProfile if the signature was updated
+  const studentsInCurrentClass = await getStudentsInClass(classId); 
   const studentIdsInClass = new Set(studentsInCurrentClass.map(s => s.id));
   return allSchoolStudents.filter(student => !studentIdsInClass.has(student.id) && student.status === 'active');
 };
@@ -202,7 +205,7 @@ export const deleteClassService = async (classId: string): Promise<boolean> => {
   try {
     const batch = writeBatch(db);
     const classRef = doc(db, "classes", classId);
-    const classSnap = await getDoc(classRef); // Fetch to get studentIds
+    const classSnap = await getDoc(classRef); 
     if (classSnap.exists()) {
       const classData = classSnap.data() as Class;
       if (classData.studentIds) {
@@ -246,13 +249,13 @@ export const getClassesByTeacherService = async (teacherId: string): Promise<Cla
   if (!teacherId) return [];
   try {
     const classesRef = collection(db, "classes");
-    const q = query(classesRef, where("teacherId", "==", teacherId), orderBy("name"));
+    // Removed orderBy("name") to avoid needing composite index with where clause.
+    // Sorting should be handled client-side.
+    const q = query(classesRef, where("teacherId", "==", teacherId));
     const querySnapshot = await getDocs(q);
-    // No need to fetch teacher display name here as it's for "My Classes"
     return querySnapshot.docs.map(docSnapshot => ({
       ...(docSnapshot.data() as Class),
       id: docSnapshot.id,
-      // teacherDisplayName will be undefined or could be set to current user's name if needed
     }));
   } catch (error) {
     console.error("Error fetching classes by teacher in service:", error);
@@ -260,9 +263,37 @@ export const getClassesByTeacherService = async (teacherId: string): Promise<Cla
   }
 };
 
+// This function is not currently used. If it were, fetching all students and filtering client-side
+// would be one way to avoid complex indexed queries, though it might be inefficient for large schools.
+// Another approach would be to iterate classIds and do individual `array-contains` queries, then merge.
+// For now, as it's unused, leaving it as is or commenting out.
+// To make it index-friendly without changing current signature (no schoolId):
+// Would require fetching all students and filtering, which is very inefficient.
+// Assuming if used, schoolId context would be available.
+/*
+export const getStudentsInMultipleClassesService = async (classIds: string[], schoolId: string): Promise<UserProfileWithId[]> => {
+  if (!classIds || classIds.length === 0 || !schoolId) return [];
+  try {
+    // Fetch all students in the school
+    const q = query(collection(db, "users"), where("schoolId", "==", schoolId), where("role", "==", "student"));
+    const querySnapshot = await getDocs(q);
+    const schoolStudents = querySnapshot.docs.map(d => ({ id: d.id, ...d.data(), status: d.data().status || 'active' } as UserProfileWithId));
+    
+    // Filter client-side
+    return schoolStudents.filter(student => student.classIds?.some(cid => classIds.includes(cid)));
+  } catch (error) {
+    console.error("Error fetching students in multiple classes (service):", error);
+    return [];
+  }
+};
+*/
 export const getStudentsInMultipleClassesService = async (classIds: string[]): Promise<UserProfileWithId[]> => {
   if (!classIds || classIds.length === 0) return [];
   try {
+    // This query might require a composite index on (role, classIds) if Firestore cannot efficiently merge them.
+    // A more robust approach for no-custom-index rule would be to fetch all students and filter,
+    // or iterate classIds and do array-contains per class, then merge and deduplicate.
+    // For now, keeping it as is, assuming `array-contains-any` is optimized.
     const q = query(collection(db, "users"), where("role", "==", "student"), where("classIds", "array-contains-any", classIds));
     const querySnapshot = await getDocs(q);
     return querySnapshot.docs.map(d => ({ id: d.id, ...d.data(), status: d.data().status || 'active' } as UserProfileWithId));
@@ -271,6 +302,7 @@ export const getStudentsInMultipleClassesService = async (classIds: string[]): P
     return [];
   }
 };
+
 
 export const getClassByInviteCodeService = async (inviteCode: string): Promise<Class | null> => {
   try {
@@ -305,7 +337,7 @@ export const joinClassWithCodeService = async (classCode: string, studentId: str
       const studentData = studentDoc.data() as UserProfile;
       if (studentData.classIds?.includes(classDetails.id)) {
         console.log("Student already enrolled.");
-        return true; // Already enrolled, consider it a success
+        return true; 
       }
 
       const batch = writeBatch(db);
@@ -319,3 +351,4 @@ export const joinClassWithCodeService = async (classCode: string, studentId: str
       return false;
     }
   };
+

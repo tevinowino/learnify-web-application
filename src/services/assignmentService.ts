@@ -31,17 +31,18 @@ export const getAssignmentsByTeacherService = async (
     const assignmentsRef = collection(db, "assignments");
     let q;
     if (classId) {
-      q = query(assignmentsRef, where("teacherId", "==", teacherId), where("classId", "==", classId), orderBy("deadline", "asc"));
+      q = query(assignmentsRef, where("teacherId", "==", teacherId), where("classId", "==", classId));
     } else {
-      q = query(assignmentsRef, where("teacherId", "==", teacherId), orderBy("deadline", "asc"));
+      q = query(assignmentsRef, where("teacherId", "==", teacherId));
     }
+    // Removed orderBy("deadline", "asc") to avoid needing composite index with where clauses.
+    // Sorting should be handled client-side if specific order is crucial.
     const querySnapshot = await getDocs(q);
     const assignmentsPromises = querySnapshot.docs.map(async (docSnapshot) => {
       const assignment = { id: docSnapshot.id, ...docSnapshot.data() } as Assignment;
       let className = 'N/A';
       if(assignment.classId) {
-        // Assuming getClassDetails doesn't need getUserProfile for this context or it's implicitly handled/passed
-        const classInfo = await getClassDetails(assignment.classId, async () => null); // Dummy getUserProfile if not needed
+        const classInfo = await getClassDetails(assignment.classId, async () => null); 
         className = classInfo?.name || 'Unknown Class';
       }
       return { ...assignment, className, totalSubmissions: assignment.totalSubmissions || 0 };
@@ -57,7 +58,9 @@ export const getAssignmentsByClassService = async (classId: string): Promise<Ass
    if (!classId) return [];
   try {
     const assignmentsRef = collection(db, "assignments");
-    const q = query(assignmentsRef, where("classId", "==", classId), orderBy("deadline", "asc"));
+    // Removed orderBy("deadline", "asc") to avoid needing composite index with where clause.
+    // Sorting should be handled client-side.
+    const q = query(assignmentsRef, where("classId", "==", classId));
     const querySnapshot = await getDocs(q);
     return querySnapshot.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data(), totalSubmissions: docSnap.data().totalSubmissions || 0 } as Assignment));
   } catch (error) {
@@ -77,8 +80,7 @@ export const getAssignmentByIdService = async (
       const assignmentData = assignmentSnap.data() as Assignment;
       let className = 'N/A';
       if(assignmentData.classId) {
-        // Assuming getClassDetails doesn't need getUserProfile for this context or it's implicitly handled/passed
-        const classInfo = await getClassDetails(assignmentData.classId, async () => null); // Dummy getUserProfile if not needed
+        const classInfo = await getClassDetails(assignmentData.classId, async () => null); 
         className = classInfo?.name || 'Unknown Class';
       }
       return { ...assignmentData, className, totalSubmissions: assignmentData.totalSubmissions || 0 };
@@ -123,12 +125,13 @@ export const getAssignmentsForStudentByClassService = async (
     getClassDetails: GetClassDetailsServiceType,
     studentProfile: UserProfile | null
   ): Promise<AssignmentWithClassAndSubmissionInfo[]> => {
+    // getAssignmentsByClassService no longer sorts by deadline.
     const assignments = await getAssignmentsByClassService(classId);
     const assignmentsWithStatus: AssignmentWithClassAndSubmissionInfo[] = [];
 
     for (const assignment of assignments) {
       const submission = await getSubmission(assignment.id, studentId);
-      const classInfo = await getClassDetails(assignment.classId, async () => null); // Dummy getUserProfile
+      const classInfo = await getClassDetails(assignment.classId, async () => null); 
       
       let status: AssignmentWithClassAndSubmissionInfo['submissionStatus'] = 'missing';
       let grade: AssignmentWithClassAndSubmissionInfo['submissionGrade'] = undefined;
@@ -148,5 +151,7 @@ export const getAssignmentsForStudentByClassService = async (
         submissionGrade: grade,
       });
     }
+    // Sort client-side as service-level sort was removed.
     return assignmentsWithStatus.sort((a, b) => a.deadline.toMillis() - b.deadline.toMillis());
   };
+

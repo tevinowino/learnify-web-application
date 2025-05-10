@@ -28,10 +28,13 @@ export const getLearningMaterialsByTeacherService = async (teacherId: string, cl
     const materialsRef = collection(db, "learningMaterials");
     let q;
     if (classId) {
-      q = query(materialsRef, where("teacherId", "==", teacherId), where("classId", "==", classId), orderBy("createdAt", "desc"));
+      // Querying by teacherId and classId together. orderBy on 'createdAt' would need a composite index.
+      q = query(materialsRef, where("teacherId", "==", teacherId), where("classId", "==", classId));
     } else {
-      q = query(materialsRef, where("teacherId", "==", teacherId), orderBy("createdAt", "desc"));
+      // Querying by teacherId only. orderBy on 'createdAt' would need a composite index.
+      q = query(materialsRef, where("teacherId", "==", teacherId));
     }
+    // Removed orderBy("createdAt", "desc"). Client-side sorting needed.
     const querySnapshot = await getDocs(q);
     return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as LearningMaterial));
   } catch (error) {
@@ -44,7 +47,9 @@ export const getLearningMaterialsByClassService = async (classId: string): Promi
   if (!classId) return [];
   try {
       const materialsRef = collection(db, "learningMaterials");
-      const q = query(materialsRef, where("classId", "==", classId), orderBy("createdAt", "desc"));
+      // Querying by classId only. orderBy on 'createdAt' would need a composite index.
+      const q = query(materialsRef, where("classId", "==", classId));
+      // Removed orderBy("createdAt", "desc"). Client-side sorting needed.
       const querySnapshot = await getDocs(q);
       return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as LearningMaterial));
   } catch (error) {
@@ -61,7 +66,9 @@ export const getLearningMaterialsBySchoolService = async (
   if (!schoolId) return [];
   try {
     const materialsRef = collection(db, "learningMaterials");
-    const q = query(materialsRef, where("schoolId", "==", schoolId), orderBy("createdAt", "desc"));
+    // Querying by schoolId only. orderBy on 'createdAt' would need a composite index.
+    const q = query(materialsRef, where("schoolId", "==", schoolId));
+    // Removed orderBy("createdAt", "desc"). Client-side sorting needed.
     const querySnapshot = await getDocs(q);
     
     const materialsPromises = querySnapshot.docs.map(async (docSnapshot) => {
@@ -73,7 +80,7 @@ export const getLearningMaterialsBySchoolService = async (
         teacherDisplayName = teacherProfile?.displayName || 'N/A';
       }
       if (material.classId) {
-          const classInfo = await getClassDetails(material.classId, getUserProfile); // Pass getUserProfile
+          const classInfo = await getClassDetails(material.classId, getUserProfile); 
           className = classInfo?.name || 'Unknown Class';
       }
       return { ...material, teacherDisplayName, className };
@@ -116,3 +123,4 @@ export const getLearningMaterialByIdService = async (materialId: string): Promis
     return null;
   }
 };
+

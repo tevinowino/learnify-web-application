@@ -1,3 +1,4 @@
+
 "use client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -31,10 +32,10 @@ export default function StudentDashboardPage() {
     try {
       const [classesDetails, schoolMaterials] = await Promise.all([
         getClassesByIds(currentUser.classIds),
-        getLearningMaterialsBySchool(currentUser.schoolId) // For general recent materials
+        getLearningMaterialsBySchool(currentUser.schoolId) 
       ]);
       setEnrolledClasses(classesDetails);
-      setResourceCount(schoolMaterials.length); // Total school resources
+      setResourceCount(schoolMaterials.length); 
 
       let allAssignments: AssignmentWithClassAndSubmissionInfo[] = [];
       for (const cls of classesDetails) {
@@ -44,17 +45,17 @@ export default function StudentDashboardPage() {
       
       const now = new Date();
       const upcoming = allAssignments
-        .filter(a => a.deadline.toDate() >= now && a.submissionStatus !== 'graded' && a.submissionStatus !== 'submitted') // Show non-submitted/graded upcoming
+        .filter(a => a.deadline.toDate() >= now && a.submissionStatus !== 'graded' && a.submissionStatus !== 'submitted') 
         .sort((a, b) => a.deadline.toDate().getTime() - b.deadline.toDate().getTime())
         .slice(0, 3);
       setUpcomingAssignments(upcoming);
 
-      // Recent materials from enrolled classes or general school materials
       const studentClassIdsSet = new Set(currentUser.classIds);
       const relevantMaterials = schoolMaterials.filter(material => 
         !material.classId || studentClassIdsSet.has(material.classId)
       );
-      setRecentMaterials(relevantMaterials.slice(0,3));
+      // Sort recent materials client-side
+      setRecentMaterials(relevantMaterials.sort((a,b) => b.createdAt.toMillis() - a.createdAt.toMillis()).slice(0,3));
 
     } catch (error) {
       console.error("Failed to fetch dashboard data", error);
@@ -84,8 +85,6 @@ export default function StudentDashboardPage() {
         ? Object.entries(currentUser.studentAssignments).map(([key, val]) => `Assignment ${key}: ${val.status} (Grade: ${val.grade || 'N/A'})`).join(', ')
         : "No performance data yet.";
       
-      // For teacher content, we'd ideally get content from classes the student is in.
-      // This is a simplification.
       const teacherContent = `Student is enrolled in ${enrolledClasses.map(c => c.name).join(', ')}. Teacher uploaded various materials.`;
 
       const input: GenerateLearningPathInput = {
@@ -231,7 +230,6 @@ export default function StudentDashboardPage() {
               <ul className="space-y-3">
                 {recentMaterials.map(material => (
                   <li key={material.id} className="p-3 border rounded-md hover:bg-muted/50">
-                    {/* TODO: Link to specific material view page if created */}
                     <h4 className="font-semibold">{material.title}</h4>
                     <p className="text-xs text-muted-foreground">
                       Type: {material.materialType} | Class: {material.className || 'General'}
@@ -254,3 +252,4 @@ export default function StudentDashboardPage() {
     </div>
   );
 }
+
