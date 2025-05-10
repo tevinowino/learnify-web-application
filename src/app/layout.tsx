@@ -5,7 +5,7 @@ import { Toaster } from '@/components/ui/toaster';
 import { AuthProvider } from '@/contexts/AuthContext';
 import Navbar from '@/components/shared/Navbar';
 import { siteConfig } from '@/config/site';
-import { ThemeProvider } from "@/components/theme-provider"; // Assuming ThemeProvider component
+import { ThemeProvider } from "@/components/theme-provider"; 
 
 const inter = Inter({
   subsets: ['latin'],
@@ -20,8 +20,12 @@ export const metadata: Metadata = {
   description: siteConfig.description,
   icons: [ 
     {
-      url: "/logo.svg", 
-      href: "/logo.svg", 
+      rel: 'icon',
+      url: '/favicon.ico', // Standard path for favicon
+    },
+    {
+      rel: 'apple-touch-icon', // For Apple devices
+      url: '/logo.svg', // Assuming logo.svg can serve as an apple-touch-icon
     },
   ],
 };
