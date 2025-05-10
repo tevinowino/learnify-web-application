@@ -15,7 +15,7 @@ import {
 } from 'firebase/auth';
 import { doc, getDoc, setDoc, Timestamp, updateDoc } from 'firebase/firestore'; 
 import { auth, db } from '@/lib/firebase';
-import type { UserProfile, UserRole, School, LearningMaterial, UserProfileWithId, Class, ClassWithTeacherInfo, LearningMaterialWithTeacherInfo, Assignment, Submission, SubmissionFormat, LearningMaterialType, AssignmentWithClassInfo, SubmissionWithStudentName, AssignmentWithClassAndSubmissionInfo, UserStatus, Activity, Subject } from '@/types';
+import type { UserProfile, UserRole, School, LearningMaterial, UserProfileWithId, Class, ClassWithTeacherInfo, LearningMaterialWithTeacherInfo, Assignment, Submission, SubmissionFormat, LearningMaterialType, AssignmentWithClassInfo, SubmissionWithStudentName, AssignmentWithClassAndSubmissionInfo, UserStatus, Activity, Subject, ExamPeriod, ExamPeriodWithClassNames, ExamResult, ExamResultWithStudentInfo } from '@/types';
 import { useRouter } from 'next/navigation';
 
 import * as SchoolService from '@/services/schoolService';
@@ -26,6 +26,7 @@ import * as AssignmentService from '@/services/assignmentService';
 import * as SubmissionService from '@/services/submissionService';
 import * as SubjectService from '@/services/subjectService';
 import * as ActivityService from '@/services/activityService';
+import * as ExamService from '@/services/examService';
 
 
 interface AuthContextType {
@@ -348,11 +349,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     if (!currentUser || currentUser.role !== 'admin' || currentUser.schoolId !== schoolId) return false;
     setLoading(true);
     try {
+        const school = await SchoolService.getSchoolDetailsService(schoolId); // Get current details for comparison
         const success = await SchoolService.updateSchoolDetailsService(schoolId, data);
-        if (success && currentUser?.schoolId && currentUser.displayName) {
+        if (success && currentUser?.schoolId && currentUser.displayName && school) {
             let message = "Admin updated school settings.";
-            if (data.name && school?.name !== data.name) message = `Admin updated school name to "${data.name}".`;
-            if (data.isExamModeActive !== undefined && school?.isExamModeActive !== data.isExamModeActive) {
+            if (data.name && school.name !== data.name) message = `Admin updated school name to "${data.name}".`;
+            if (data.isExamModeActive !== undefined && school.isExamModeActive !== data.isExamModeActive) {
                  message = `Admin ${data.isExamModeActive ? 'activated' : 'deactivated'} exam mode for the school.`
             }
             await addActivity({
@@ -883,15 +885,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
                     link: `/student/assignments/${submission.assignmentId}`
                 });
             }
-            if (currentUser.uid === submission.studentId) {
-                 setCurrentUser(prev => prev ? {
-                    ...prev,
-                    studentAssignments: {
-                        ...prev.studentAssignments,
-                        [submission.assignmentId]: { status: 'graded', grade }
-                    }
-                } : null);
-            }
+            // No need to update current user's studentAssignments here, as teacher is grading.
         }
       }
       return success;
@@ -999,8 +993,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     finally { setLoading(false); }
   };
 
-  // --- Exam Management (moved from examService to AuthContext for easier activity logging) ---
-  const { createExamPeriodService, getExamPeriodsBySchoolService, getExamPeriodByIdService, updateExamPeriodService, addOrUpdateExamResultService, getExamResultsForTeacherService, getExamResultsByStudentService, getExamResultsByPeriodAndClassService } = SchoolService; // Note: Exam services were in SchoolService.ts based on previous structure. If they move, update path.
 
   const value = {
     currentUser, loading, signUp, logIn, logOut,
@@ -1017,15 +1009,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     updateUserDisplayName, updateUserEmail, updateUserPassword,
     getClassesByIds,
     createSubject, getSubjectsBySchool: SubjectService.getSubjectsBySchoolService, updateSubject, deleteSubject, getSubjectById: SubjectService.getSubjectByIdService,
-    // Exam Functions (from SchoolService, to be potentially moved to examService.ts later if desired)
-    createExamPeriod: SchoolService.createExamPeriodService, // Assuming these exist or will be created in SchoolService or a new examService
-    getExamPeriodsBySchool: SchoolService.getExamPeriodsBySchoolService,
-    getExamPeriodById: SchoolService.getExamPeriodByIdService,
-    updateExamPeriod: SchoolService.updateExamPeriodService,
-    addOrUpdateExamResult: SchoolService.addOrUpdateExamResultService,
-    getExamResultsForTeacher: (examPeriodId: string, classId: string, subjectId: string, schoolId: string) => SchoolService.getExamResultsForTeacherService(examPeriodId, classId, subjectId, schoolId, UserService.getUserProfileService),
-    getExamResultsForStudent: (studentId: string, schoolId: string, getSubjectByIdFn?: typeof SubjectService.getSubjectByIdService, getExamPeriodByIdFn?: (examPeriodId: string, getClassDetailsFn: typeof ClassService.getClassDetailsService) => Promise<ExamPeriodWithClassNames | null>) => SchoolService.getExamResultsByStudentService(studentId, schoolId, getSubjectByIdFn, getExamPeriodByIdFn),
-    getExamResultsByPeriodAndClass: (examPeriodId: string, classId: string, schoolId: string, subjectId: string) => SchoolService.getExamResultsByPeriodAndClassService(examPeriodId, classId, schoolId, subjectId, SubjectService.getSubjectByIdService),
+    // Exam Functions (from ExamService)
+    createExamPeriod: ExamService.createExamPeriodService, 
+    getExamPeriodsBySchool: (schoolId: string) => ExamService.getExamPeriodsBySchoolService(schoolId, ClassService.getClassDetailsService),
+    getExamPeriodById: (examPeriodId: string) => ExamService.getExamPeriodByIdService(examPeriodId, ClassService.getClassDetailsService),
+    updateExamPeriod: ExamService.updateExamPeriodService,
+    addOrUpdateExamResult: ExamService.addOrUpdateExamResultService,
+    getExamResultsForTeacher: (examPeriodId: string, classId: string, subjectId: string, schoolId: string) => ExamService.getExamResultsForTeacherService(examPeriodId, classId, subjectId, schoolId, UserService.getUserProfileService),
+    getExamResultsForStudent: (studentId: string, schoolId: string) => ExamService.getExamResultsByStudentService(studentId, schoolId, SubjectService.getSubjectByIdService, (examPeriodId) => ExamService.getExamPeriodByIdService(examPeriodId, ClassService.getClassDetailsService)),
+    getExamResultsByPeriodAndClass: (examPeriodId: string, classId: string, schoolId: string, subjectId: string) => ExamService.getExamResultsByPeriodAndClassService(examPeriodId, classId, schoolId, subjectId, SubjectService.getSubjectByIdService),
     // Activity Log
     getActivities: ActivityService.getActivitiesService, addActivity
   };

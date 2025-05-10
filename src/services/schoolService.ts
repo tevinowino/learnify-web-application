@@ -14,7 +14,7 @@ export const createSchoolService = async (schoolName: string, adminId: string): 
       inviteCode: inviteCode,
       createdAt: Timestamp.now(),
       updatedAt: Timestamp.now(),
-      isExamModeActive: false, // Default exam mode to false
+      isExamModeActive: false, 
     };
     
     const batch = writeBatch(db);
@@ -91,8 +91,5 @@ export const regenerateInviteCodeService = async (schoolId: string): Promise<str
   }
 };
 
-// Exam related functions will be moved to examService.ts
-// createExamPeriodService, getExamPeriodsBySchoolService, getExamPeriodByIdService,
-// updateExamPeriodService, addOrUpdateExamResultService, getExamResultsForTeacherService,
-// getExamResultsByStudentService, getExamResultsByPeriodAndClassService
-// should be removed from here if they were present.
+// Exam related functions previously here are now in examService.ts and accessed via AuthContext.
+// This file now only contains school-specific management functions.

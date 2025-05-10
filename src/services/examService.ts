@@ -4,7 +4,7 @@ import type { ExamPeriod, ExamPeriodWithClassNames, ExamResult, ExamResultWithSt
 import { collection, addDoc, getDocs, doc, getDoc, updateDoc, query, where, Timestamp, writeBatch, orderBy, documentId } from 'firebase/firestore';
 import type { getClassDetailsService as GetClassDetailsServiceType } from './classService';
 import type { getUserProfileService as GetUserProfileServiceType } from './userService';
-import type { getSubjectByIdService as GetSubjectByIdServiceType } from './subjectService'; // Assuming subject service exists
+import type { getSubjectByIdService as GetSubjectByIdServiceType } from './subjectService';
 
 export const createExamPeriodService = async (examPeriodData: Omit<ExamPeriod, 'id' | 'createdAt' | 'updatedAt' | 'status'>): Promise<string | null> => {
   try {
@@ -36,8 +36,6 @@ export const getExamPeriodsBySchoolService = async (
         const period = { id: docSnapshot.id, ...docSnapshot.data() } as ExamPeriod;
         const classNames: string[] = [];
         if (period.assignedClassIds && period.assignedClassIds.length > 0) {
-            // Firestore 'in' query supports up to 30 items in the array. If more, chunking is needed.
-            // For simplicity, assume less than 30 or handle chunking if error occurs.
             const classDocsPromises = period.assignedClassIds.map(classId => getClassDetails(classId, async () => null));
             const classDocs = await Promise.all(classDocsPromises);
             classDocs.forEach(classDoc => {
@@ -66,7 +64,7 @@ export const getExamPeriodByIdService = async (
       const period = { id: docSnap.id, ...docSnap.data() } as ExamPeriod;
       const classNames: string[] = [];
         if (period.assignedClassIds && period.assignedClassIds.length > 0) {
-            const classDocsPromises = period.assignedClassIds.map(classId => getClassDetails(classId, async () => null));
+            const classDocsPromises = period.assignedClassIds.map(classId => getClassDetails(classId, async () => null)); // Pass dummy getUserProfile
             const classDocs = await Promise.all(classDocsPromises);
             classDocs.forEach(classDoc => {
                 if (classDoc) classNames.push(classDoc.name);
@@ -95,7 +93,6 @@ export const updateExamPeriodService = async (examPeriodId: string, data: Partia
 
 export const addOrUpdateExamResultService = async (resultData: Omit<ExamResult, 'id' | 'createdAt' | 'updatedAt'>): Promise<string | null> => {
   try {
-    // Check if a result already exists for this student, exam, class, subject
     const q = query(collection(db, "examResults"), 
       where("studentId", "==", resultData.studentId),
       where("examPeriodId", "==", resultData.examPeriodId),
@@ -106,7 +103,6 @@ export const addOrUpdateExamResultService = async (resultData: Omit<ExamResult, 
     const querySnapshot = await getDocs(q);
 
     if (!querySnapshot.empty) {
-      // Update existing result
       const existingDocRef = querySnapshot.docs[0].ref;
       await updateDoc(existingDocRef, {
         ...resultData,
@@ -114,7 +110,6 @@ export const addOrUpdateExamResultService = async (resultData: Omit<ExamResult, 
       });
       return existingDocRef.id;
     } else {
-      // Add new result
       const dataWithTimestamps = {
         ...resultData,
         createdAt: Timestamp.now(),
@@ -165,8 +160,8 @@ export const getExamResultsForTeacherService = async (
 export const getExamResultsByStudentService = async (
   studentId: string, 
   schoolId: string,
-  getSubjectById?: GetSubjectByIdServiceType, // Optional: if you want to fetch subject names
-  getExamPeriodById?: (examPeriodId: string, getClassDetails: GetClassDetailsServiceType) => Promise<ExamPeriodWithClassNames | null> // Optional
+  getSubjectById?: GetSubjectByIdServiceType,
+  getExamPeriodById?: (examPeriodId: string, getClassDetails: GetClassDetailsServiceType) => Promise<ExamPeriodWithClassNames | null>
 ): Promise<ExamResultWithStudentInfo[]> => {
   if (!studentId || !schoolId) return [];
   try {
@@ -178,7 +173,7 @@ export const getExamResultsByStudentService = async (
     const querySnapshot = await getDocs(q);
     const resultsPromises = querySnapshot.docs.map(async (docSnapshot) => {
       const result = { id: docSnapshot.id, ...docSnapshot.data() } as ExamResult;
-      let subjectName = result.subjectId; // Default to ID if name not fetched
+      let subjectName = result.subjectId; 
       let examPeriodName = result.examPeriodId;
 
       if (getSubjectById && result.subjectId) {
@@ -186,15 +181,14 @@ export const getExamResultsByStudentService = async (
           subjectName = subject?.name || result.subjectId;
       }
       if (getExamPeriodById && result.examPeriodId) {
-          // For getClassDetails, we can pass a dummy function if we don't need class names here
-          const examPeriod = await getExamPeriodById(result.examPeriodId, async () => null);
+          const examPeriod = await getExamPeriodById(result.examPeriodId, async () => null); // Pass dummy getClassDetails
           examPeriodName = examPeriod?.name || result.examPeriodId;
       }
 
       return {
         ...result,
-        subjectName, // This will be ID if getSubjectById is not provided or subject not found
-        examPeriodName // This will be ID if getExamPeriodById is not provided or period not found
+        subjectName, 
+        examPeriodName 
       };
     });
     return Promise.all(resultsPromises);
@@ -208,13 +202,15 @@ export const getExamResultsByPeriodAndClassService = async (
   examPeriodId: string,
   classId: string,
   schoolId: string,
+  subjectId: string, // Added subjectId as it's specific to the results needed
   getSubjectById?: GetSubjectByIdServiceType
 ): Promise<ExamResultWithStudentInfo[]> => {
    try {
     const q = query(collection(db, "examResults"), 
       where("examPeriodId", "==", examPeriodId),
       where("classId", "==", classId),
-      where("schoolId", "==", schoolId)
+      where("schoolId", "==", schoolId),
+      where("subjectId", "==", subjectId) // Query for specific subject
     );
     const querySnapshot = await getDocs(q);
     const resultsPromises = querySnapshot.docs.map(async (docSnapshot) => {
@@ -224,19 +220,13 @@ export const getExamResultsByPeriodAndClassService = async (
           const subject = await getSubjectById(result.subjectId);
           subjectName = subject?.name || result.subjectId;
        }
+       // Student info is not directly fetched here, as it's often for aggregated views or teacher entry
+       // If student names are needed, getUserProfile should be passed and used similarly to other services.
       return { ...result, subjectName };
     });
     return Promise.all(resultsPromises);
   } catch (error) {
-    console.error("Error fetching exam results for period and class:", error);
+    console.error("Error fetching exam results for period, class, and subject:", error);
     return [];
   }
 };
-
-// You might want a function to check if all results for an exam period are submitted by an admin.
-// This would involve:
-// 1. Getting the ExamPeriod to see assignedClassIds.
-// 2. For each class, get its students.
-// 3. For each student in each class, check if results for all relevant subjects are in `examResults`.
-// This can be complex and might be better handled with aggregated data or cloud functions if performance becomes an issue.
-// For now, an admin might visually inspect or rely on teacher confirmations.

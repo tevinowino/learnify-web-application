@@ -18,6 +18,8 @@ import { format } from 'date-fns';
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Timestamp } from 'firebase/firestore';
+
 
 const examPeriodEditSchema = z.object({
   name: z.string().min(3, "Exam period name must be at least 3 characters."),
@@ -35,7 +37,7 @@ interface EditExamPeriodDialogProps {
   examPeriod: ExamPeriod | null;
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
-  onSuccess: () => void; // To refresh data on parent page
+  onSuccess: () => void; 
 }
 
 export default function EditExamPeriodDialog({ examPeriod, isOpen, onOpenChange, onSuccess }: EditExamPeriodDialogProps) {
@@ -82,7 +84,6 @@ export default function EditExamPeriodDialog({ examPeriod, isOpen, onOpenChange,
   async function onSubmit(values: ExamPeriodEditFormValues) {
     if (!examPeriod || !currentUser?.schoolId) return;
     
-    // Prevent editing if period is active or completed
     if (examPeriod.status === 'active' || examPeriod.status === 'completed') {
         toast({ title: "Cannot Edit", description: "Active or completed exam periods cannot be edited.", variant: "destructive" });
         return;
@@ -94,7 +95,6 @@ export default function EditExamPeriodDialog({ examPeriod, isOpen, onOpenChange,
       startDate: Timestamp.fromDate(values.startDate),
       endDate: Timestamp.fromDate(values.endDate),
       assignedClassIds: values.assignedClassIds,
-      // schoolId and status are not changed here, handled by finalize
     };
 
     const success = await updateExamPeriod(examPeriod.id, updatedData);
@@ -104,7 +104,16 @@ export default function EditExamPeriodDialog({ examPeriod, isOpen, onOpenChange,
       toast({ title: "Exam Period Updated!", description: `"${values.name}" has been successfully updated.` });
       onSuccess();
       onOpenChange(false);
-      // Optionally log activity for exam period update
+      if (currentUser.displayName) {
+        addActivity({
+          schoolId: currentUser.schoolId,
+          actorId: currentUser.uid,
+          actorName: currentUser.displayName,
+          type: 'exam_period_updated',
+          message: `${currentUser.displayName} updated exam period "${values.name}".`,
+          link: `/admin/exams/${examPeriod.id}`
+        });
+      }
     } else {
       toast({ title: "Update Failed", description: "Could not update exam period.", variant: "destructive" });
     }
@@ -116,7 +125,7 @@ export default function EditExamPeriodDialog({ examPeriod, isOpen, onOpenChange,
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => {
-      if (!open) form.reset(); // Reset form if dialog is closed
+      if (!open) form.reset(); 
       onOpenChange(open);
     }}>
       <DialogContent className="sm:max-w-lg">
