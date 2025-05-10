@@ -2,7 +2,7 @@
 import type { User as FirebaseUser } from 'firebase/auth';
 import type { Timestamp } from 'firebase/firestore';
 
-export type UserRole = 'admin' | 'teacher' | 'student' | null;
+export type UserRole = 'admin' | 'teacher' | 'student' | 'parent' | null;
 
 export type UserStatus = 'pending_verification' | 'active' | 'rejected' | 'disabled';
 
@@ -12,8 +12,9 @@ export interface UserProfile extends FirebaseUser {
   schoolName?: string; 
   status?: UserStatus; 
   classIds?: string[]; 
-  subjects?: string[]; // New: Student's chosen subjects
-  studentAssignments?: Record<string, { status: 'submitted' | 'graded' | 'missing'; grade?: string | number }>; 
+  subjects?: string[]; 
+  studentAssignments?: Record<string, { status: 'submitted' | 'graded' | 'missing' | 'late'; grade?: string | number }>;
+  childStudentId?: string; // For parent role to link to a student
 }
 
 export interface UserProfileWithId extends UserProfile {
@@ -27,8 +28,7 @@ export interface School {
   inviteCode: string;
   createdAt?: Timestamp;
   updatedAt?: Timestamp;
-  // Subjects might be stored as a subcollection or directly on the school doc if simple list
-  // For now, assuming a separate 'subjects' collection linked by schoolId
+  isExamMode?: boolean; // For Exam Mode feature
 }
 
 export interface Subject {
@@ -131,9 +131,9 @@ export interface ClassStudentProgress {
 export interface Activity {
   id: string;
   schoolId: string;
-  classId?: string; // Optional: if activity is class-specific
-  actorId?: string; // UID of user who performed the action
-  actorName?: string; // Display name of actor
+  classId?: string; 
+  actorId?: string; 
+  actorName?: string; 
   type:
     | 'assignment_created'
     | 'material_uploaded'
@@ -143,9 +143,50 @@ export interface Activity {
     | 'class_created'
     | 'subject_created'
     | 'user_registered'
-    | 'user_approved';
-  message: string; // e.g., "New assignment 'Math Homework 1' posted for Algebra 1 by Mr. Smith."
-  link?: string; // Optional link to the relevant item, e.g., /teacher/assignments/[assignmentId]
+    | 'user_approved'
+    | 'attendance_marked' // New
+    | 'exam_period_created' // New
+    | 'exam_results_entered'; // New
+  message: string; 
+  link?: string; 
   timestamp: Timestamp;
 }
 
+// New Types for Attendance and Exams
+export type AttendanceStatus = 'present' | 'absent' | 'late' | 'excused';
+
+export interface AttendanceRecord {
+  id: string;
+  studentId: string;
+  classId: string;
+  schoolId: string;
+  date: Timestamp; // Date of attendance
+  status: AttendanceStatus;
+  markedBy: string; // teacherId
+  createdAt: Timestamp;
+}
+
+export interface ExamPeriod {
+  id: string;
+  name: string; // e.g., "Mid-Term Exams 2024"
+  schoolId: string;
+  startDate: Timestamp;
+  endDate: Timestamp;
+  assignedClassIds: string[];
+  isCompleted: boolean; // Admin marks this true when all results are in
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+}
+
+export interface ExamResult {
+  id: string;
+  studentId: string;
+  examPeriodId: string;
+  classId: string;
+  subjectId: string;
+  marks: string | number; // Flexible for different grading systems
+  remarks?: string;
+  teacherId: string; // Who entered the result
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+}

@@ -1,4 +1,3 @@
-
 "use client";
 
 import React from 'react';
@@ -6,7 +5,7 @@ import type { UserRole } from '@/types';
 import { useAuth } from '@/hooks/useAuth';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
-import { Home, Users, Settings, LogOut as LogOutIcon, Library, FileText, UserCircle2, BookCopy, UserCog, Edit3, ListChecks, FolderOpen, BarChart2, PanelLeft, BookText as BookTextIcon } from 'lucide-react'; 
+import { Home, Users, Settings, LogOut as LogOutIcon, Library, FileText, UserCircle2, BookCopy, UserCog, Edit3, ListChecks, FolderOpen, BarChart2, PanelLeft, BookText as BookTextIcon, Shield, HeartHandshake, Users2, FilePieChart } from 'lucide-react'; 
 import Logo from '@/components/shared/Logo'; 
 import {
   SidebarProvider,
@@ -22,6 +21,7 @@ import {
 } from '@/components/ui/sidebar'; 
 import { usePathname } from 'next/navigation';
 import { ScrollArea } from '../ui/scroll-area';
+import { ThemeToggle } from '../ui/theme-toggle';
 
 
 interface DashboardLayoutProps {
@@ -34,7 +34,9 @@ const navItemsConfig = {
     { href: '/admin/dashboard', label: 'Overview', icon: <Home /> },
     { href: '/admin/users', label: 'Manage Users', icon: <Users /> },
     { href: '/admin/classes', label: 'Manage Classes', icon: <BookCopy /> },
-    { href: '/admin/school-settings/subjects', label: 'Manage Subjects', icon: <BookTextIcon /> },
+    // { href: '/admin/school-settings/subjects', label: 'Manage Subjects', icon: <BookTextIcon /> }, // Consolidated under settings
+    // { href: '/admin/attendance', label: 'Attendance Records', icon: <Users2 /> }, // Future feature
+    // { href: '/admin/exams', label: 'Exam Management', icon: <FilePieChart /> }, // Future feature
     { href: '/admin/settings', label: 'School Settings', icon: <Settings /> },
     { href: '/admin/profile', label: 'My Profile', icon: <UserCog /> },
   ],
@@ -43,17 +45,27 @@ const navItemsConfig = {
     { href: '/teacher/classes', label: 'My Classes', icon: <BookCopy /> },
     { href: '/teacher/materials', label: 'Manage Materials', icon: <Library /> },
     { href: '/teacher/assignments', label: 'Manage Assignments', icon: <Edit3 /> },
+    // { href: '/teacher/attendance', label: 'Mark Attendance', icon: <Users2 /> }, // Future feature
+    // { href: '/teacher/results', label: 'Enter Exam Results', icon: <FilePieChart /> }, // Future feature
     { href: '/teacher/progress', label: 'Student Progress', icon: <BarChart2 /> },
     { href: '/teacher/profile', label: 'My Profile', icon: <UserCircle2 /> },
-
   ],
   student: [
     { href: '/student/dashboard', label: 'My Dashboard', icon: <Home /> }, 
     { href: '/student/classes', label: 'My Classes', icon: <FolderOpen /> },
     { href: '/student/assignments', label: 'My Assignments', icon: <ListChecks /> },
     { href: '/student/resources', label: 'Learning Resources', icon: <FileText /> },
+    // { href: '/student/attendance', label: 'My Attendance', icon: <Users2 /> }, // Future feature
+    // { href: '/student/results', label: 'My Exam Results', icon: <FilePieChart /> }, // Future feature
     { href: '/student/progress', label: 'My Progress', icon: <BarChart2 /> },
     { href: '/student/profile', label: 'My Profile', icon: <UserCircle2 /> },
+  ],
+  parent: [ // New parent navigation
+    { href: '/parent/dashboard', label: 'Child Overview', icon: <Home /> },
+    // { href: '/parent/assignments', label: "Child's Assignments", icon: <ListChecks /> },
+    // { href: '/parent/attendance', label: "Child's Attendance", icon: <Users2 /> },
+    // { href: '/parent/results', label: "Child's Exam Results", icon: <FilePieChart /> },
+    { href: '/parent/profile', label: 'My Profile', icon: <UserCircle2 /> },
   ],
 };
 
@@ -66,10 +78,8 @@ export default function DashboardLayout({ children, userRole }: DashboardLayoutP
     <SidebarProvider>
       <div className="flex min-h-screen bg-secondary/30">
         <Sidebar collapsible="icon" side="left" variant="sidebar" className="hidden md:flex"> {}
-          <SidebarHeader className="p-4">
-             <Link href="/" aria-label="Learnify Home">
-                <Logo />
-            </Link>
+          <SidebarHeader className="p-4 border-b border-sidebar-border">
+            <Logo />
           </SidebarHeader>
           <ScrollArea className="flex-grow">
             <SidebarContent className="p-2">
@@ -78,7 +88,7 @@ export default function DashboardLayout({ children, userRole }: DashboardLayoutP
                   <SidebarMenuItem key={item.href}>
                     <SidebarMenuButton
                       asChild
-                      isActive={pathname === item.href || (item.href !== '/' && pathname?.startsWith(item.href))}
+                      isActive={pathname === item.href || (item.href !== '/' && pathname?.startsWith(item.href) && item.href.split('/').length === pathname.split('/').length)}
                       tooltip={item.label}
                     >
                       <Link href={item.href}>
@@ -91,10 +101,10 @@ export default function DashboardLayout({ children, userRole }: DashboardLayoutP
               </SidebarMenu>
             </SidebarContent>
           </ScrollArea>
-          <SidebarFooter className="p-2 border-t">
+          <SidebarFooter className="p-2 border-t border-sidebar-border">
             {currentUser && (
-              <div className="p-2 mb-1 text-sm text-muted-foreground">
-                <p className="font-semibold text-foreground truncate">{currentUser.displayName || "User"}</p>
+              <div className="p-2 mb-1 text-sm text-sidebar-foreground/80">
+                <p className="font-semibold text-sidebar-foreground truncate">{currentUser.displayName || "User"}</p>
                 <p className="truncate text-xs">{currentUser.email}</p>
               </div>
             )}
@@ -109,22 +119,21 @@ export default function DashboardLayout({ children, userRole }: DashboardLayoutP
           </SidebarFooter>
         </Sidebar>
 
-        <SidebarInset className="flex flex-col">
-          {}
-          <header className="sticky top-0 z-40 flex h-14 items-center gap-4 border-b bg-background/95 px-4 backdrop-blur supports-[backdrop-filter]:bg-background/60 md:hidden">
+        <SidebarInset className="flex flex-col flex-1 overflow-hidden"> {}
+          <header className="sticky top-0 z-40 flex h-16 items-center gap-4 border-b bg-background/95 px-4 backdrop-blur supports-[backdrop-filter]:bg-background/60">
             <SidebarTrigger className="md:hidden">
               <PanelLeft />
               <span className="sr-only">Toggle sidebar</span>
             </SidebarTrigger>
-            <div className="md:hidden">
-                <Link href="/" aria-label="Learnify Home">
-                  <Logo />
-                </Link>
+            <div className="md:hidden flex-1">
+                <Logo />
             </div>
-            {}
+            <div className="ml-auto">
+              <ThemeToggle />
+            </div>
           </header>
           
-          <main className="flex-1 p-4 sm:p-6 md:p-8 overflow-y-auto">
+          <main className="flex-1 overflow-y-auto p-4 sm:p-6 md:p-8">
             <div className="max-w-full mx-auto"> {}
               {children}
             </div>

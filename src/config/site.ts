@@ -9,14 +9,26 @@ export const siteConfig = {
       title: "Home",
       href: "/",
     },
+    {
+      title: "About",
+      href: "/#about", 
+    },
+    {
+      title: "Pricing",
+      href: "/#pricing",
+    },
+    {
+      title: "Contact Us",
+      href: "/#contact",
+    }
   ],
   links: {
     // Add any external links if needed, e.g., twitter: "https://twitter.com/shadcn"
   },
   footerNav: [
-    { title: "About Us", href: "#" },
-    { title: "Contact", href: "#" },
-    { title: "Privacy Policy", href: "#" },
-    { title: "Terms of Service", href: "#" },
+    { title: "About Us", href: "/#about" },
+    { title: "Contact", href: "/#contact" },
+    { title: "Privacy Policy", href: "/privacy" }, // Assuming dedicated page
+    { title: "Terms of Service", href: "/terms" }, // Assuming dedicated page
   ],
 };
