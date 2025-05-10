@@ -1,4 +1,5 @@
 import { BookHeart } from 'lucide-react';
+import Image from 'next/image';
 import Link from 'next/link';
 
 interface LogoProps {
@@ -8,8 +9,7 @@ interface LogoProps {
 const Logo: React.FC<LogoProps> = ({ className }) => {
   return (
     <Link href="/" className={`flex items-center space-x-2 text-2xl font-bold text-primary ${className}`}>
-      <BookHeart className="h-8 w-8" />
-      <span>Learnify</span>
+      <Image src="/logo-full.png" alt="Learnify Logo" width={150} height={150}></Image>
     </Link>
   );
 };

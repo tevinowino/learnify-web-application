@@ -34,9 +34,9 @@ export default function RootLayout({
     <html lang="en" suppressHydrationWarning>
       <body className={`${inter.variable} antialiased font-sans`} suppressHydrationWarning>
         <AuthProvider>
-          <div className="flex flex-col min-h-screen">
+          <div className="flex flex-col min-h-screen px-4">
             <Navbar />
-            <main className="flex-grow">{children}</main>
+            <main className="flex-grow ">{children}</main>
           </div>
           <Toaster />
         </AuthProvider>

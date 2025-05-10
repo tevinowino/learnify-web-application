@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useState } from 'react';
@@ -29,7 +28,7 @@ interface CreateClassDialogProps {
   teachers: UserProfileWithId[];
   schoolId: string;
   onCreateClass: (className: string, schoolId: string, teacherId?: string) => Promise<string | null>;
-  onSuccess: () => void; // Callback for after successful creation
+  onSuccess: () => void;
 }
 
 export default function CreateClassDialog({ teachers, schoolId, onCreateClass, onSuccess }: CreateClassDialogProps) {
@@ -41,20 +40,36 @@ export default function CreateClassDialog({ teachers, schoolId, onCreateClass, o
 
   const handleCreate = async () => {
     if (!newClassName.trim()) {
-      toast({ title: "Missing Information", description: "Please provide a class name.", variant: "destructive" });
+      toast({
+        title: "Missing Information",
+        description: "Please provide a class name.",
+        variant: "destructive"
+      });
       return;
     }
+
     setIsSubmitting(true);
-    const classId = await onCreateClass(newClassName, schoolId, selectedTeacherForNewClass);
+
+    const teacherId = selectedTeacherForNewClass === 'none' ? undefined : selectedTeacherForNewClass;
+    const classId = await onCreateClass(newClassName, schoolId, teacherId);
+
     setIsSubmitting(false);
+
     if (classId) {
-      toast({ title: "Class Created!", description: `"${newClassName}" has been successfully created.` });
+      toast({
+        title: "Class Created!",
+        description: `"${newClassName}" has been successfully created.`
+      });
       setNewClassName('');
       setSelectedTeacherForNewClass(undefined);
       setIsOpen(false);
       onSuccess();
     } else {
-      toast({ title: "Error", description: "Failed to create class. Please try again.", variant: "destructive" });
+      toast({
+        title: "Error",
+        description: "Failed to create class. Please try again.",
+        variant: "destructive"
+      });
     }
   };
 
@@ -75,31 +90,38 @@ export default function CreateClassDialog({ teachers, schoolId, onCreateClass, o
         <div className="grid gap-4 py-4">
           <div className="grid grid-cols-4 items-center gap-4">
             <label htmlFor="new-class-name" className="text-right col-span-1">Name</label>
-            <Input 
-              id="new-class-name" 
+            <Input
+              id="new-class-name"
               value={newClassName}
               onChange={(e) => setNewClassName(e.target.value)}
-              className="col-span-3" 
+              className="col-span-3"
               placeholder="e.g., Grade 10 Math"
             />
           </div>
           <div className="grid grid-cols-4 items-center gap-4">
             <label htmlFor="new-class-teacher" className="text-right col-span-1">Teacher</label>
-             <Select onValueChange={setSelectedTeacherForNewClass} value={selectedTeacherForNewClass}>
-                <SelectTrigger className="col-span-3">
-                  <SelectValue placeholder="Assign a teacher (optional)" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="">No Teacher Assigned</SelectItem>
-                  {teachers.map(teacher => (
-                    <SelectItem key={teacher.id} value={teacher.id}>{teacher.displayName}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+            <Select
+              onValueChange={setSelectedTeacherForNewClass}
+              value={selectedTeacherForNewClass}
+            >
+              <SelectTrigger className="col-span-3">
+                <SelectValue placeholder="Assign a teacher (optional)" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">No Teacher Assigned</SelectItem>
+                {teachers.map(teacher => (
+                  <SelectItem key={teacher.id} value={teacher.id}>
+                    {teacher.displayName}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
         </div>
         <DialogFooter>
-          <DialogClose asChild><Button variant="outline">Cancel</Button></DialogClose>
+          <DialogClose asChild>
+            <Button variant="outline">Cancel</Button>
+          </DialogClose>
           <Button onClick={handleCreate} disabled={isSubmitting || !newClassName.trim()}>
             {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             Create Class
