@@ -1,16 +1,15 @@
-
 "use client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { BookOpen, UploadCloud, BarChart2, Sparkles, Loader2, Edit3, BookCopy } from "lucide-react";
+import { BookOpen, UploadCloud, BarChart2, Sparkles, Loader2, Edit3, BookCopy, Clock } from "lucide-react";
 import { useEffect, useState, useCallback } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { summarizeLearningMaterial, SummarizeLearningMaterialInput } from '@/ai/flows/summarize-learning-material';
 import { useAuth } from "@/hooks/useAuth";
 import Link from "next/link";
 import type { LearningMaterial, AssignmentWithClassInfo, ClassWithTeacherInfo } from "@/types";
-import { format } from "date-fns";
+import { format, formatDistanceToNow } from 'date-fns';
 
 export default function TeacherDashboardPage() {
   const { 
@@ -49,7 +48,7 @@ export default function TeacherDashboardPage() {
         const upcoming = assignments
           .filter(a => a.deadline.toDate() >= now)
           .sort((a, b) => a.deadline.toDate().getTime() - b.deadline.toDate().getTime())
-          .slice(0, 3); // Show top 3 upcoming
+          .slice(0, 3); 
         setUpcomingAssignments(upcoming);
 
       } catch (error) {
@@ -96,8 +95,8 @@ export default function TeacherDashboardPage() {
     <div className="space-y-6">
        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-3xl font-bold">Teacher Dashboard</h1>
-          <p className="text-muted-foreground">Welcome, {currentUser?.displayName || "Teacher"}! Manage your classes and materials.</p>
+          <h1 className="text-2xl sm:text-3xl font-bold">Teacher Dashboard</h1>
+          <p className="text-muted-foreground text-sm sm:text-base">Welcome, {currentUser?.displayName || "Teacher"}! Manage your classes and materials.</p>
         </div>
         <Button asChild className="bg-primary hover:bg-primary/90 button-shadow w-full sm:w-auto">
           <Link href="/teacher/assignments/create">
@@ -106,7 +105,7 @@ export default function TeacherDashboardPage() {
         </Button>
       </div>
 
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
          <Card className="card-shadow hover:border-primary transition-colors">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">My Classes</CardTitle>
@@ -115,7 +114,7 @@ export default function TeacherDashboardPage() {
           <CardContent>
             {isLoading ? <Loader2 className="h-6 w-6 animate-spin"/> : <div className="text-2xl font-bold">{classCount}</div>}
             <p className="text-xs text-muted-foreground">Total classes assigned</p>
-            <Button variant="link" asChild className="px-0 pt-2">
+            <Button variant="link" asChild className="px-0 pt-2 text-sm">
               <Link href="/teacher/classes">View My Classes</Link>
             </Button>
           </CardContent>
@@ -128,7 +127,7 @@ export default function TeacherDashboardPage() {
           <CardContent>
             {isLoading ? <Loader2 className="h-6 w-6 animate-spin"/> : <div className="text-2xl font-bold">{materialCount}</div>}
             <p className="text-xs text-muted-foreground">Total materials available</p>
-            <Button variant="link" asChild className="px-0 pt-2">
+            <Button variant="link" asChild className="px-0 pt-2 text-sm">
               <Link href="/teacher/materials">Manage Materials</Link>
             </Button>
           </CardContent>
@@ -141,7 +140,7 @@ export default function TeacherDashboardPage() {
           <CardContent>
             {isLoading ? <Loader2 className="h-6 w-6 animate-spin"/> : <div className="text-2xl font-bold">{assignmentCount}</div>}
             <p className="text-xs text-muted-foreground">Total assignments created</p>
-            <Button variant="link" asChild className="px-0 pt-2">
+            <Button variant="link" asChild className="px-0 pt-2 text-sm">
               <Link href="/teacher/assignments">Manage Assignments</Link>
             </Button>
           </CardContent>
@@ -164,7 +163,7 @@ export default function TeacherDashboardPage() {
               rows={8}
               className="mb-4"
             />
-            <Button onClick={handleSummarize} disabled={isSummarizing || !materialToSummarize.trim()} className="bg-accent hover:bg-accent/90 text-accent-foreground button-shadow">
+            <Button onClick={handleSummarize} disabled={isSummarizing || !materialToSummarize.trim()} className="bg-accent hover:bg-accent/90 text-accent-foreground button-shadow w-full sm:w-auto">
               {isSummarizing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Summarize Material
             </Button>
@@ -179,7 +178,7 @@ export default function TeacherDashboardPage() {
 
         <Card className="card-shadow">
           <CardHeader>
-            <CardTitle className="flex items-center"><BarChart2 className="mr-2 h-5 w-5 text-primary"/>Upcoming Deadlines</CardTitle>
+            <CardTitle className="flex items-center"><Clock className="mr-2 h-5 w-5 text-primary"/>Upcoming Deadlines</CardTitle>
              <CardDescription>
               Assignments due soon.
             </CardDescription>
@@ -197,7 +196,7 @@ export default function TeacherDashboardPage() {
                       For: {assignment.className || 'N/A'}
                     </p>
                     <p className="text-xs text-muted-foreground">
-                      Due: {format(assignment.deadline.toDate(), 'PPp')}
+                      Due: {format(assignment.deadline.toDate(), 'PPp')} ({formatDistanceToNow(assignment.deadline.toDate(), { addSuffix: true })})
                     </p>
                   </li>
                 ))}
@@ -205,7 +204,7 @@ export default function TeacherDashboardPage() {
             ) : (
               <p className="text-muted-foreground">No upcoming deadlines in the near future.</p>
             )}
-            <Button variant="link" asChild className="px-0 pt-3">
+            <Button variant="link" asChild className="px-0 pt-3 text-sm">
               <Link href="/teacher/assignments">View All Assignments</Link>
             </Button>
           </CardContent>

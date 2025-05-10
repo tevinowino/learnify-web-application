@@ -31,6 +31,8 @@ interface CreateClassDialogProps {
   onSuccess: () => void;
 }
 
+const NO_TEACHER_VALUE = "__NO_TEACHER__";
+
 export default function CreateClassDialog({ teachers, schoolId, onCreateClass, onSuccess }: CreateClassDialogProps) {
   const { toast } = useToast();
   const [newClassName, setNewClassName] = useState('');
@@ -49,10 +51,8 @@ export default function CreateClassDialog({ teachers, schoolId, onCreateClass, o
     }
 
     setIsSubmitting(true);
-
-    const teacherId = selectedTeacherForNewClass === 'none' ? undefined : selectedTeacherForNewClass;
-    const classId = await onCreateClass(newClassName, schoolId, teacherId);
-
+    const teacherIdToSave = selectedTeacherForNewClass === NO_TEACHER_VALUE ? undefined : selectedTeacherForNewClass;
+    const classId = await onCreateClass(newClassName, schoolId, teacherIdToSave);
     setIsSubmitting(false);
 
     if (classId) {
@@ -100,22 +100,17 @@ export default function CreateClassDialog({ teachers, schoolId, onCreateClass, o
           </div>
           <div className="grid grid-cols-4 items-center gap-4">
             <label htmlFor="new-class-teacher" className="text-right col-span-1">Teacher</label>
-            <Select
-              onValueChange={setSelectedTeacherForNewClass}
-              value={selectedTeacherForNewClass}
-            >
-              <SelectTrigger className="col-span-3">
-                <SelectValue placeholder="Assign a teacher (optional)" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">No Teacher Assigned</SelectItem>
-                {teachers.map(teacher => (
-                  <SelectItem key={teacher.id} value={teacher.id}>
-                    {teacher.displayName}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+             <Select onValueChange={setSelectedTeacherForNewClass} value={selectedTeacherForNewClass}>
+                <SelectTrigger className="col-span-3">
+                  <SelectValue placeholder="Assign a teacher (optional)" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={NO_TEACHER_VALUE}>No Teacher Assigned</SelectItem>
+                  {teachers.map(teacher => (
+                    <SelectItem key={teacher.id} value={teacher.id}>{teacher.displayName}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
           </div>
         </div>
         <DialogFooter>
