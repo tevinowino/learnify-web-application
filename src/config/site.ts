@@ -1,3 +1,4 @@
+
 export type SiteConfig = typeof siteConfig;
 
 export const siteConfig = {
@@ -11,24 +12,20 @@ export const siteConfig = {
     },
     {
       title: "About",
-      href: "/#about", 
-    },
-    {
-      title: "Pricing",
-      href: "/#pricing",
+      href: "/about", 
     },
     {
       title: "Contact Us",
-      href: "/#contact",
+      href: "/contact",
     }
   ],
   links: {
     // Add any external links if needed, e.g., twitter: "https://twitter.com/shadcn"
   },
   footerNav: [
-    { title: "About Us", href: "/#about" },
-    { title: "Contact", href: "/#contact" },
-    { title: "Privacy Policy", href: "/privacy" }, // Assuming dedicated page
-    { title: "Terms of Service", href: "/terms" }, // Assuming dedicated page
+    { title: "About Us", href: "/about" },
+    { title: "Contact", href: "/contact" },
+    { title: "Privacy Policy", href: "/privacy" }, 
+    { title: "Terms of Service", href: "/terms" }, 
   ],
 };

@@ -14,6 +14,7 @@ export const createSchoolService = async (schoolName: string, adminId: string): 
       inviteCode: inviteCode,
       createdAt: Timestamp.now(),
       updatedAt: Timestamp.now(),
+      isExamModeActive: false, 
     };
     
     const batch = writeBatch(db);
@@ -67,11 +68,9 @@ export const getSchoolDetailsService = async (schoolId: string): Promise<School 
   }
 };
 
-export const updateSchoolDetailsService = async (schoolId: string, data: Partial<Pick<School, 'name'>>): Promise<boolean> => {
+export const updateSchoolDetailsService = async (schoolId: string, data: Partial<Pick<School, 'name' | 'isExamModeActive'>>): Promise<boolean> => {
   try {
     const schoolRef = doc(db, "schools", schoolId);
-    // Note: Authorization (e.g., checking adminId) should ideally happen before calling this service or be passed in.
-    // For now, assuming it's handled by the calling context (AuthContext).
     await updateDoc(schoolRef, { ...data, updatedAt: Timestamp.now() });
     return true;
   } catch (error) {
@@ -91,3 +90,6 @@ export const regenerateInviteCodeService = async (schoolId: string): Promise<str
     return null;
   }
 };
+
+// Exam related functions previously here are now in examService.ts and accessed via AuthContext.
+// This file now only contains school-specific management functions.

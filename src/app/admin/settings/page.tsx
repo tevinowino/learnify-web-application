@@ -6,19 +6,24 @@ import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { Loader2, SchoolIcon, Copy, Check, RefreshCw, Save } from 'lucide-react';
+import { Loader2, SchoolIcon, Copy, Check, RefreshCw, Save, Settings2, AlertTriangle } from 'lucide-react';
 import type { School } from '@/types';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
+import Link from 'next/link'; // Added import for Link
 
 export default function SchoolSettingsPage() {
   const { currentUser, getSchoolDetails, regenerateInviteCode, updateSchoolDetails, loading: authLoading } = useAuth();
   const { toast } = useToast();
   const [school, setSchool] = useState<School | null>(null);
   const [editableSchoolName, setEditableSchoolName] = useState('');
+  const [isExamMode, setIsExamMode] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isRegenerating, setIsRegenerating] = useState(false);
   const [isSavingName, setIsSavingName] = useState(false);
+  const [isSavingExamMode, setIsSavingExamMode] = useState(false);
   const [copied, setCopied] = useState(false);
 
   const isSchoolCreator = currentUser?.uid === school?.adminId;
@@ -31,6 +36,7 @@ export default function SchoolSettingsPage() {
         setSchool(schoolDetails);
         if (schoolDetails) {
           setEditableSchoolName(schoolDetails.name);
+          setIsExamMode(schoolDetails.isExamModeActive || false);
         }
         setIsLoading(false);
       } else if (!authLoading) {
@@ -79,6 +85,20 @@ export default function SchoolSettingsPage() {
     setIsSavingName(false);
   };
 
+  const handleToggleExamMode = async (checked: boolean) => {
+    if (!school?.id || !isSchoolCreator) return;
+    setIsSavingExamMode(true);
+    const success = await updateSchoolDetails(school.id, { isExamModeActive: checked });
+    if (success) {
+      setIsExamMode(checked);
+      setSchool(prev => prev ? { ...prev, isExamModeActive: checked } : null);
+      toast({ title: `Exam Mode ${checked ? 'Activated' : 'Deactivated'}`, description: `School exam mode has been ${checked ? 'enabled' : 'disabled'}.` });
+    } else {
+      toast({ title: "Error", description: "Failed to update exam mode status.", variant: "destructive" });
+    }
+    setIsSavingExamMode(false);
+  };
+
 
   if (authLoading || isLoading) {
     return (
@@ -103,7 +123,7 @@ export default function SchoolSettingsPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-3xl font-bold">School Settings</h1>
+      <h1 className="text-3xl font-bold">General School Settings</h1>
       
       <Card className="card-shadow">
         <CardHeader>
@@ -112,7 +132,7 @@ export default function SchoolSettingsPage() {
         <CardContent className="space-y-4">
           <form onSubmit={handleSaveSchoolName} className="space-y-4">
             <div>
-              <label htmlFor="schoolName" className="block text-sm font-medium text-foreground mb-1">School Name</label>
+              <Label htmlFor="schoolName" className="block text-sm font-medium text-foreground mb-1">School Name</Label>
               <div className="flex items-center gap-2">
                 <Input 
                   id="schoolName" 
@@ -132,12 +152,12 @@ export default function SchoolSettingsPage() {
             </div>
           </form>
           <div>
-            <label htmlFor="adminId" className="block text-sm font-medium text-foreground mb-1">Admin ID (Creator)</label>
+            <Label htmlFor="adminId" className="block text-sm font-medium text-foreground mb-1">Admin ID (Creator)</Label>
             <Input id="adminId" value={school.adminId} readOnly className="bg-muted/50" />
           </div>
           {school.createdAt && (
             <div>
-              <label htmlFor="createdAt" className="block text-sm font-medium text-foreground mb-1">School Created On</label>
+              <Label htmlFor="createdAt" className="block text-sm font-medium text-foreground mb-1">School Created On</Label>
               <Input id="createdAt" value={format(school.createdAt.toDate(), 'PPP')} readOnly className="bg-muted/50" />
             </div>
           )}
@@ -172,6 +192,46 @@ export default function SchoolSettingsPage() {
           </CardFooter>
         )}
       </Card>
+
+      {isSchoolCreator && (
+        <Card className="card-shadow">
+          <CardHeader>
+            <CardTitle className="flex items-center"><Settings2 className="mr-2 h-5 w-5 text-primary"/>Exam Mode</CardTitle>
+            <CardDescription>
+              Enable Exam Mode to allow teachers to enter results for designated exam periods.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center space-x-2">
+              <Switch
+                id="exam-mode-toggle"
+                checked={isExamMode}
+                onCheckedChange={handleToggleExamMode}
+                disabled={isSavingExamMode}
+                aria-label="Toggle Exam Mode"
+              />
+              <Label htmlFor="exam-mode-toggle" className="text-base">
+                {isExamMode ? "Exam Mode is ON" : "Exam Mode is OFF"}
+              </Label>
+              {isSavingExamMode && <Loader2 className="ml-2 h-4 w-4 animate-spin"/>}
+            </div>
+            {isExamMode && (
+                <div className="mt-3 p-3 bg-destructive/10 border border-destructive/30 rounded-md flex items-center">
+                    <AlertTriangle className="h-5 w-5 text-destructive mr-2"/>
+                    <p className="text-sm text-destructive-foreground">
+                        While Exam Mode is ON, certain student activities might be restricted or logged differently. Ensure exam periods are properly configured.
+                    </p>
+                </div>
+            )}
+          </CardContent>
+           <CardFooter>
+            <Button variant="outline" asChild className="button-shadow">
+              <Link href="/admin/exams">Manage Exam Periods</Link>
+            </Button>
+          </CardFooter>
+        </Card>
+      )}
     </div>
   );
 }
+

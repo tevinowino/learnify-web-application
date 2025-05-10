@@ -1,5 +1,5 @@
 
-import { doc, collection, query, where, getDocs, addDoc, Timestamp, updateDoc, deleteDoc, orderBy } from 'firebase/firestore';
+import { doc, collection, query, where, getDocs, addDoc, Timestamp, updateDoc, deleteDoc, orderBy, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import type { Subject } from '@/types';
 
@@ -34,6 +34,18 @@ export const getSubjectsBySchoolService = async (schoolId: string): Promise<Subj
   }
 };
 
+export const getSubjectByIdService = async (subjectId: string): Promise<Subject | null> => {
+  if (!subjectId) return null;
+  try {
+    const subjectRef = doc(db, "subjects", subjectId);
+    const subjectSnap = await getDoc(subjectRef);
+    return subjectSnap.exists() ? { id: subjectSnap.id, ...subjectSnap.data() } as Subject : null;
+  } catch (error) {
+    console.error("Error fetching subject by ID:", error);
+    return null;
+  }
+};
+
 export const updateSubjectService = async (subjectId: string, newName: string): Promise<boolean> => {
   if (!subjectId || !newName.trim()) return false;
   try {
@@ -58,3 +70,4 @@ export const deleteSubjectService = async (subjectId: string): Promise<boolean> 
     return false;
   }
 };
+
