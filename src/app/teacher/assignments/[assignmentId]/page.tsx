@@ -43,7 +43,7 @@ export default function TeacherAssignmentDetailPage() {
   const { 
     currentUser, 
     getAssignmentById, 
-    getSubmissionsForAssignment,
+    fetchSubmissionsForAssignment, // Renamed
     gradeSubmission,
     getSubjectById, 
     loading: authLoading 
@@ -69,7 +69,7 @@ export default function TeacherAssignmentDetailPage() {
     try {
       const [fetchedAssignment, fetchedSubmissions] = await Promise.all([
         getAssignmentById(assignmentId),
-        getSubmissionsForAssignment(assignmentId)
+        fetchSubmissionsForAssignment(assignmentId) // Renamed
       ]);
 
       if (fetchedAssignment && fetchedAssignment.teacherId !== currentUser.uid && currentUser.role !== 'admin') {
@@ -92,7 +92,7 @@ export default function TeacherAssignmentDetailPage() {
     } finally {
       setIsLoadingPage(false);
     }
-  }, [assignmentId, currentUser, getAssignmentById, getSubmissionsForAssignment, getSubjectById, router, toast]); 
+  }, [assignmentId, currentUser, getAssignmentById, fetchSubmissionsForAssignment, getSubjectById, router, toast]); // Renamed
 
   useEffect(() => {
     fetchData();

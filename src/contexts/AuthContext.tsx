@@ -87,7 +87,7 @@ interface AuthContextType {
   deleteAssignment: (assignmentId: string, assignmentTitle: string) => Promise<boolean>;
 
   // Teacher Submission Management
-  getSubmissionsForAssignment: (assignmentId: string) => Promise<SubmissionWithStudentName[]>;
+  fetchSubmissionsForAssignment: (assignmentId: string) => Promise<SubmissionWithStudentName[]>; // Renamed
   gradeSubmission: (submissionId: string, grade: string | number, feedback?: string) => Promise<boolean>;
 
   // Student specific functions
@@ -285,7 +285,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   }, [currentUser, setLoading, setCurrentUser]);
 
-  const memoizedUpdateUserEmail = useCallback(async (newEmail: string, currentPassword_not_used: string): Promise<boolean> => {
+  const updateUserEmail = useCallback(async (newEmail: string, currentPassword_not_used: string): Promise<boolean> => {
     if (!auth.currentUser) return false;
     setLoading(true);
     try {
@@ -733,10 +733,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     data: Partial<Pick<LearningMaterial, 'title' | 'content' | 'classId' | 'materialType' | 'subjectId' | 'attachmentUrl'>>, 
     file?: File | null
     ): Promise<boolean> => {
-    if (!currentUser || (currentUser.role !== 'teacher' && currentUser.role !== 'admin')) return false;
+    if (!currentUser || (currentUser.role !== 'teacher' && currentUser.role !== 'admin') || !currentUser.schoolId ) return false; // Added schoolId check for path
     setLoading(true);
     let newAttachmentUrl = data.attachmentUrl; 
     let newContent = data.content;
+    const editingMaterial = await MaterialService.getLearningMaterialByIdService(materialId); // Fetch current material to get existing classId if needed
 
     try {
       if (file && data.materialType === 'pdf_upload') {
@@ -744,7 +745,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         newAttachmentUrl = await uploadFileToStorageService(file, path);
         if (!newAttachmentUrl) throw new Error("File upload failed during update.");
         newContent = `[Uploaded File: ${file.name}]`; 
-         // TODO: Delete old file from storage if new one is uploaded and old one exists
+         // TODO: Delete old file from storage if replacing and newAttachmentUrl is different from data.attachmentUrl
       }
       
       const updatePayload = { ...data, content: newContent, attachmentUrl: newAttachmentUrl };
@@ -863,9 +864,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     data: Partial<Omit<Assignment, 'id' | 'createdAt' | 'updatedAt' | 'teacherId' | 'totalSubmissions'>>,
     file?: File | null
     ): Promise<boolean> => {
-    if (!currentUser || (currentUser.role !== 'teacher' && currentUser.role !== 'admin')) return false;
+    if (!currentUser || (currentUser.role !== 'teacher' && currentUser.role !== 'admin') || !currentUser.schoolId) return false;
     setLoading(true);
-    let newAttachmentUrl = data.attachmentUrl; // Keep existing if no new file
+    let newAttachmentUrl = data.attachmentUrl; 
     try {
       if (file) {
         const path = `schools/${currentUser.schoolId}/assignments/${data.classId || (await AssignmentService.getAssignmentByIdService(assignmentId, ClassService.getClassDetailsService))?.classId}`;
@@ -900,7 +901,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   // --- Submission Management ---
   const addSubmission = useCallback(async (submissionData: Omit<Submission, 'id' | 'submittedAt' | 'grade' | 'feedback' | 'status' | 'originalFileName'>, file?: File | null): Promise<string | null> => {
-    if (!currentUser || currentUser.role !== 'student') return null;
+    if (!currentUser || currentUser.role !== 'student' || !currentUser.schoolId) return null;
     setLoading(true);
     let contentForDB = submissionData.content;
     let originalFileName: string | undefined = undefined;
@@ -938,7 +939,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }, [currentUser, setLoading, setCurrentUser, addActivity]);
 
   const gradeSubmission = useCallback(async (submissionId: string, grade: string | number, feedback?: string): Promise<boolean> => {
-    if (!currentUser || currentUser.role !== 'teacher') return false;
+    if (!currentUser || currentUser.role !== 'teacher' || !currentUser.schoolId) return false;
     setLoading(true);
     try {
       const success = await SubmissionService.gradeSubmissionService(submissionId, grade, feedback);
@@ -1068,6 +1069,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     finally { setLoading(false); }
   }, [currentUser, setLoading, addActivity]);
 
+  const getExamPeriodsBySchool = useCallback(async (schoolId: string) => ExamService.getExamPeriodsBySchoolService(schoolId, ClassService.getClassDetailsService), []);
+  const getExamPeriodById = useCallback(async (examPeriodId: string) => ExamService.getExamPeriodByIdService(examPeriodId, ClassService.getClassDetailsService), []);
+  const getExamResultsForStudent = useCallback(async (studentId: string, schoolId: string) => ExamService.getExamResultsByStudentService(studentId, schoolId, SubjectService.getSubjectByIdService, (examPeriodId: string) => ExamService.getExamPeriodByIdService(examPeriodId, ClassService.getClassDetailsService)), []);
+  const getExamResultsForTeacher = useCallback(async (examPeriodId: string, classId: string, subjectId: string, schoolId: string) => ExamService.getExamResultsForTeacherService(examPeriodId, classId, subjectId, schoolId, UserService.getUserProfileService), []);
+  const getExamResultsByPeriodAndClass = useCallback(async (examPeriodId: string, classId: string, schoolId: string, subjectId: string) => ExamService.getExamResultsByPeriodAndClassService(examPeriodId, classId, schoolId, subjectId, SubjectService.getSubjectByIdService),[]);
+
 
   const value = useMemo(() => ({
     currentUser, loading, signUp, logIn, logOut,
@@ -1077,21 +1084,21 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     getClassesByTeacher, getStudentsInMultipleClasses,
     addLearningMaterial, getLearningMaterialsByTeacher, getLearningMaterialsBySchool, getLearningMaterialsByClass, deleteLearningMaterial, updateLearningMaterial, getLearningMaterialById,
     createAssignment, getAssignmentsByTeacher, getAssignmentsByClass, getAssignmentById, updateAssignment, deleteAssignment,
-    getSubmissionsForAssignment: (assignmentId: string) => SubmissionService.getSubmissionsForAssignmentService(assignmentId, UserService.getUserProfileService),
+    fetchSubmissionsForAssignment: (assignmentId: string) => SubmissionService.getSubmissionsForAssignmentService(assignmentId, UserService.getUserProfileService), // Renamed
     gradeSubmission,
     getSubmissionByStudentForAssignment: SubmissionService.getSubmissionByStudentForAssignmentService, addSubmission, getAssignmentsForStudentByClass,
     completeStudentOnboarding,
-    updateUserDisplayName, updateUserEmail: memoizedUpdateUserEmail, updateUserPassword,
+    updateUserDisplayName, updateUserEmail, updateUserPassword,
     getClassesByIds,
     createSubject, getSubjectsBySchool: SubjectService.getSubjectsBySchoolService, updateSubject, deleteSubject, getSubjectById: SubjectService.getSubjectByIdService,
     createExamPeriod: ExamService.createExamPeriodService, 
-    getExamPeriodsBySchool: (schoolId: string) => ExamService.getExamPeriodsBySchoolService(schoolId, ClassService.getClassDetailsService),
-    getExamPeriodById: (examPeriodId: string) => ExamService.getExamPeriodByIdService(examPeriodId, ClassService.getClassDetailsService),
+    getExamPeriodsBySchool,
+    getExamPeriodById,
     updateExamPeriod: ExamService.updateExamPeriodService,
     addOrUpdateExamResult: ExamService.addOrUpdateExamResultService,
-    getExamResultsForTeacher: (examPeriodId: string, classId: string, subjectId: string, schoolId: string) => ExamService.getExamResultsForTeacherService(examPeriodId, classId, subjectId, schoolId, UserService.getUserProfileService),
-    getExamResultsForStudent: (studentId: string, schoolId: string) => ExamService.getExamResultsByStudentService(studentId, schoolId, SubjectService.getSubjectByIdService, (examPeriodId: string) => ExamService.getExamPeriodByIdService(examPeriodId, ClassService.getClassDetailsService)),
-    getExamResultsByPeriodAndClass: (examPeriodId: string, classId: string, schoolId: string, subjectId: string) => ExamService.getExamResultsByPeriodAndClassService(examPeriodId, classId, schoolId, subjectId, SubjectService.getSubjectByIdService),
+    getExamResultsForTeacher,
+    getExamResultsForStudent,
+    getExamResultsByPeriodAndClass,
     getActivities: ActivityService.getActivitiesService, addActivity
   }), [
     currentUser, loading, signUp, logIn, logOut,
@@ -1104,9 +1111,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     gradeSubmission,
     addSubmission, getAssignmentsForStudentByClass,
     completeStudentOnboarding,
-    updateUserDisplayName, memoizedUpdateUserEmail, updateUserPassword,
+    updateUserDisplayName, updateUserEmail, updateUserPassword,
     getClassesByIds,
     createSubject, updateSubject, deleteSubject,
+    getExamPeriodsBySchool, getExamPeriodById, getExamResultsForStudent, getExamResultsForTeacher, getExamResultsByPeriodAndClass,
     addActivity
   ]);
 
@@ -1120,6 +1128,3 @@ export const useAuth = () => {
   }
   return context;
 };
-
-
-    
