@@ -5,6 +5,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Sparkles, Loader2, Clock, FolderOpen, ListChecks, BookOpen, Activity } from "lucide-react";
 import { useEffect, useState, useCallback } from "react";
 import { useToast } from "@/hooks/use-toast";
+import { DashboardLayout } from "@/components/dashboard/DashboardLayout";
 import { generateLearningPath, GenerateLearningPathInput } from '@/ai/flows/generate-learning-path';
 import { useAuth } from "@/hooks/useAuth";
 import Link from "next/link";
@@ -17,12 +18,13 @@ export default function StudentDashboardPage() {
   const [isGeneratingPath, setIsGeneratingPath] = useState(false);
   const { toast } = useToast();
   
-  const [resourceCount, setResourceCount] = useState(0);
+  const [resourceCount, setResourceCount] = useState(0); // Initial state should probably be 0
   const [enrolledClasses, setEnrolledClasses] = useState<ClassWithTeacherInfo[]>([]);
   const [upcomingAssignments, setUpcomingAssignments] = useState<AssignmentWithClassAndSubmissionInfo[]>([]);
   const [recentMaterials, setRecentMaterials] = useState<LearningMaterial[]>([]);
-  const [recentActivities, setRecentActivities] = useState<ActivityType[]>([]);
+  const [recentActivities, setRecentActivities] = useState<ActivityType[]>([]); 
   const [isLoadingStats, setIsLoadingStats] = useState(true);
+  const [isFetchingData, setIsFetchingData] = useState(false);
 
   const fetchDashboardData = useCallback(async () => {
     // Guard condition: currentUser and necessary IDs must exist.
@@ -33,6 +35,8 @@ export default function StudentDashboardPage() {
     }
 
     setIsLoadingStats(true); // Set loading true before async operations
+    console.log("Setting isFetchingData to true");
+    setIsFetchingData(true);
     try {
       const [classesDetails, schoolMaterials, activities] = await Promise.all([
         getClassesByIds(currentUser.classIds),
@@ -68,17 +72,20 @@ export default function StudentDashboardPage() {
       toast({ title: "Error", description: "Could not load dashboard data.", variant: "destructive" });
     } finally {
       setIsLoadingStats(false);
+      console.log("Setting isFetchingData to false");
+      setIsFetchingData(false);
     }
-  }, [currentUser, getAssignmentsForStudentByClass, getClassesByIds, getLearningMaterialsBySchool, getActivities, toast]); // Removed authLoading from here
+  }, [currentUser, getAssignmentsForStudentByClass, getClassesByIds, getLearningMaterialsBySchool, getActivities, toast]); 
 
   useEffect(() => {
-    // If auth is still loading, we are by definition also loading stats or waiting to load them.
-    if (authLoading) {
-      setIsLoadingStats(true); // Keep overall page in loading state
+    console.log(`useEffect running. authLoading: ${authLoading}, currentUser: ${!!currentUser}, isFetchingData: ${isFetchingData}`);
+    // Only proceed if authentication is not loading and a currentUser object is available.
+    // The authLoading check is still necessary here to prevent fetching before auth is complete.
+    // Also, check if a fetch is not already in progress.
+    if (authLoading || isFetchingData) {
+      console.log("useEffect returning early due to authLoading or isFetchingData");
       return;
     }
-
-    // Auth is done loading. Now, check currentUser.
     if (currentUser) {
       if (currentUser.classIds && currentUser.classIds.length > 0) {
         // User is logged in and has classes, fetch dashboard data.
@@ -92,8 +99,8 @@ export default function StudentDashboardPage() {
       // No current user after auth is done.
       // ProtectedRoute should handle this. No dashboard data to fetch.
       setIsLoadingStats(false);
-    }
-  }, [currentUser, authLoading, fetchDashboardData]);
+    } 
+  }, [currentUser, authLoading, fetchDashboardData, isFetchingData]); // Added isFetchingData here to react when it becomes false
 
 
   const handleGeneratePath = async () => {

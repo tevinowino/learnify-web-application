@@ -1,4 +1,4 @@
-import { Agent } from 'genkit';
+import { Agent } from '@genkit-ai/core';
 
 export const akili: Agent = {
   name: 'akili',

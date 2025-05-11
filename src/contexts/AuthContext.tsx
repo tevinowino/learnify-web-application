@@ -2,7 +2,7 @@
 "use client";
 
 import type { ReactNode }from 'react';
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useState, useCallback, useMemo } from 'react';
 import { 
   User as FirebaseUser, 
   onAuthStateChanged, 
@@ -27,6 +27,7 @@ import * as SubmissionService from '@/services/submissionService';
 import * as SubjectService from '@/services/subjectService';
 import * as ActivityService from '@/services/activityService';
 import * as ExamService from '@/services/examService';
+import { uploadFileToStorageService } from '@/services/fileUploadService';
 
 
 interface AuthContextType {
@@ -69,20 +70,20 @@ interface AuthContextType {
   getStudentsInMultipleClasses: (classIds: string[]) => Promise<UserProfileWithId[]>;
 
   // Teacher Material Management
-  addLearningMaterial: (material: Omit<LearningMaterial, 'id' | 'createdAt' | 'updatedAt'>) => Promise<string | null>;
+  addLearningMaterial: (material: Omit<LearningMaterial, 'id' | 'createdAt' | 'updatedAt'>, file?: File | null) => Promise<string | null>;
   getLearningMaterialsByTeacher: (teacherId: string, classId?: string) => Promise<LearningMaterial[]>;
   getLearningMaterialsBySchool: (schoolId: string) => Promise<LearningMaterialWithTeacherInfo[]>; 
   getLearningMaterialsByClass: (classId: string) => Promise<LearningMaterial[]>;
   deleteLearningMaterial: (materialId: string, materialTitle: string) => Promise<boolean>;
-  updateLearningMaterial: (materialId: string, data: Partial<Pick<LearningMaterial, 'title' | 'content' | 'classId' | 'materialType'>>) => Promise<boolean>;
+  updateLearningMaterial: (materialId: string, data: Partial<Pick<LearningMaterial, 'title' | 'content' | 'classId' | 'materialType' | 'subjectId' | 'attachmentUrl'>>, file?: File | null) => Promise<boolean>;
   getLearningMaterialById: (materialId: string) => Promise<LearningMaterial | null>;
 
   // Teacher Assignment Management
-  createAssignment: (assignmentData: Omit<Assignment, 'id' | 'createdAt' | 'updatedAt' | 'totalSubmissions'>) => Promise<string | null>;
+  createAssignment: (assignmentData: Omit<Assignment, 'id' | 'createdAt' | 'updatedAt' | 'totalSubmissions'>, file?: File | null) => Promise<string | null>;
   getAssignmentsByTeacher: (teacherId: string, classId?: string) => Promise<AssignmentWithClassInfo[]>;
   getAssignmentsByClass: (classId: string) => Promise<Assignment[]>;
   getAssignmentById: (assignmentId: string, studentId?: string) => Promise<AssignmentWithClassAndSubmissionInfo | null>;
-  updateAssignment: (assignmentId: string, assignmentTitle: string, data: Partial<Omit<Assignment, 'id' | 'createdAt' | 'updatedAt' | 'teacherId' | 'totalSubmissions'>>) => Promise<boolean>;
+  updateAssignment: (assignmentId: string, assignmentTitle: string, data: Partial<Omit<Assignment, 'id' | 'createdAt' | 'updatedAt' | 'teacherId' | 'totalSubmissions'>>, file?: File | null) => Promise<boolean>;
   deleteAssignment: (assignmentId: string, assignmentTitle: string) => Promise<boolean>;
 
   // Teacher Submission Management
@@ -91,7 +92,7 @@ interface AuthContextType {
 
   // Student specific functions
   getSubmissionByStudentForAssignment: (assignmentId: string, studentId: string) => Promise<Submission | null>;
-  addSubmission: (submissionData: Omit<Submission, 'id' | 'submittedAt' | 'grade' | 'feedback' | 'status'>) => Promise<string | null>;
+  addSubmission: (submissionData: Omit<Submission, 'id' | 'submittedAt' | 'grade' | 'feedback' | 'status' | 'originalFileName'>, file?: File | null) => Promise<string | null>;
   getAssignmentsForStudentByClass: (classId: string, studentId: string) => Promise<AssignmentWithClassAndSubmissionInfo[]>;
   getClassesByIds: (classIds: string[]) => Promise<ClassWithTeacherInfo[]>;
   joinClassWithCode: (classCode: string, studentId: string) => Promise<boolean>;
@@ -105,18 +106,18 @@ interface AuthContextType {
   // Subject Management
   createSubject: (schoolId: string, subjectName: string) => Promise<string | null>;
   getSubjectsBySchool: (schoolId: string) => Promise<Subject[]>; 
-  updateSubject: (subjectId: string, oldName: string, newName: string) => Promise<boolean>;
+  updateSubject: (subjectId: string, newName: string) => Promise<boolean>;
   deleteSubject: (subjectId: string, subjectName: string) => Promise<boolean>;
   getSubjectById: (subjectId: string) => Promise<Subject | null>;
 
   // Exam Management
   createExamPeriod: (examPeriodData: Omit<ExamPeriod, 'id' | 'createdAt' | 'updatedAt' | 'status'>) => Promise<string | null>;
-  getExamPeriodsBySchool: (schoolId: string, getClassDetailsFn: typeof ClassService.getClassDetailsService) => Promise<ExamPeriodWithClassNames[]>;
-  getExamPeriodById: (examPeriodId: string, getClassDetailsFn?: typeof ClassService.getClassDetailsService) => Promise<ExamPeriodWithClassNames | null>;
+  getExamPeriodsBySchool: (schoolId: string) => Promise<ExamPeriodWithClassNames[]>;
+  getExamPeriodById: (examPeriodId: string) => Promise<ExamPeriodWithClassNames | null>;
   updateExamPeriod: (examPeriodId: string, data: Partial<ExamPeriod>) => Promise<boolean>;
   addOrUpdateExamResult: (resultData: Omit<ExamResult, 'id' | 'createdAt' | 'updatedAt'>) => Promise<string | null>;
   getExamResultsForTeacher: (examPeriodId: string, classId: string, subjectId: string, schoolId: string) => Promise<ExamResultWithStudentInfo[]>;
-  getExamResultsForStudent: (studentId: string, schoolId: string, getSubjectByIdFn?: typeof SubjectService.getSubjectByIdService, getExamPeriodByIdFn?: (examPeriodId: string, getClassDetailsFn: typeof ClassService.getClassDetailsService) => Promise<ExamPeriodWithClassNames | null>) => Promise<ExamResultWithStudentInfo[]>;
+  getExamResultsForStudent: (studentId: string, schoolId: string) => Promise<ExamResultWithStudentInfo[]>;
   getExamResultsByPeriodAndClass: (examPeriodId: string, classId: string, schoolId: string, subjectId: string) => Promise<ExamResult[]>;
 
 
@@ -134,6 +135,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      setLoading(true);
       if (user) {
         const userDocRef = doc(db, "users", user.uid);
         const userDocSnap = await getDoc(userDocRef);
@@ -166,7 +168,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             childStudentId: userData.childStudentId
           });
         } else {
-          console.warn(`User ${user.uid} exists in Firebase Auth but not in Firestore. This might be an incomplete signup or an admin-created user pending Firestore record.`);
+          console.warn(`User ${user.uid} exists in Firebase Auth but not in Firestore.`);
           setCurrentUser({ 
             uid: user.uid, email: user.email, displayName: user.displayName, role: null, status: 'pending_verification',
             photoURL: user.photoURL, emailVerified: user.emailVerified, isAnonymous: user.isAnonymous, metadata: user.metadata, providerData: user.providerData, providerId: user.providerId, tenantId: user.tenantId, refreshToken: user.refreshToken, delete: user.delete, getIdToken: user.getIdToken, getIdTokenResult: user.getIdTokenResult, reload: user.reload, toJSON: user.toJSON,
@@ -183,12 +185,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     return () => unsubscribe();
   }, []);
 
-  const addActivity = async (activityData: Omit<Activity, 'id' | 'timestamp'>) => {
+  const addActivity = useCallback(async (activityData: Omit<Activity, 'id' | 'timestamp'>): Promise<string | null> => {
     return ActivityService.addActivityService(activityData);
-  };
+  }, []);
 
   // --- Core Authentication ---
-  const signUp = async (email: string, pass: string, role: UserRole, displayName: string, schoolIdToJoin?: string, schoolName?: string): Promise<UserProfile | null> => {
+  const signUp = useCallback(async (email: string, pass: string, role: UserRole, displayName: string, schoolIdToJoin?: string, schoolName?: string): Promise<UserProfile | null> => {
     setLoading(true);
     try {
       const userCredential = await createUserWithEmailAndPassword(auth, email, pass);
@@ -208,7 +210,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
          if (profile.status === 'pending_verification') {
              await addActivity({
                 schoolId: profile.schoolId,
-                type: 'user_profile_updated', // generic, but implies pending
+                type: 'user_profile_updated', 
                 message: `New user ${profile.displayName} (${profile.role}) is awaiting approval for ${profile.schoolName}.`,
                 targetUserId: profile.uid,
                 targetUserName: profile.displayName,
@@ -223,9 +225,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [setLoading, addActivity]);
 
-  const logIn = async (email: string, pass: string): Promise<UserProfile | null> => {
+  const logIn = useCallback(async (email: string, pass: string): Promise<UserProfile | null> => {
     setLoading(true);
     try {
       const userCredential = await signInWithEmailAndPassword(auth, email, pass);
@@ -248,9 +250,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [setLoading]);
 
-  const logOut = async () => {
+  const logOut = useCallback(async () => {
     setLoading(true);
     try {
       await firebaseSignOut(auth);
@@ -261,10 +263,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [setLoading, setCurrentUser, router]);
 
   // --- Profile Management ---
-  const updateUserDisplayName = async (userId: string, displayName: string): Promise<boolean> => {
+  const updateUserDisplayName = useCallback(async (userId: string, displayName: string): Promise<boolean> => {
     setLoading(true);
     try {
       if (auth.currentUser && auth.currentUser.uid === userId) {
@@ -281,9 +283,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [currentUser, setLoading, setCurrentUser]);
 
-  const updateUserEmail = async (newEmail: string, currentPassword_not_used: string): Promise<boolean> => {
+  const memoizedUpdateUserEmail = useCallback(async (newEmail: string, currentPassword_not_used: string): Promise<boolean> => {
     if (!auth.currentUser) return false;
     setLoading(true);
     try {
@@ -299,9 +301,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [currentUser, setLoading, setCurrentUser]);
   
-  const updateUserPassword = async (newPassword: string, currentPassword_not_used: string): Promise<boolean> => {
+  const updateUserPassword = useCallback(async (newPassword: string, currentPassword_not_used: string): Promise<boolean> => {
     if (!auth.currentUser) return false;
     setLoading(true);
     try {
@@ -313,10 +315,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [setLoading]);
 
   // --- School Management ---
-  const createSchool = async (schoolName: string, adminId: string): Promise<string | null> => {
+  const createSchool = useCallback(async (schoolName: string, adminId: string): Promise<string | null> => {
     setLoading(true);
     try {
       const schoolId = await SchoolService.createSchoolService(schoolName, adminId);
@@ -326,9 +328,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       return schoolId;
     } catch (error) { return null; } 
     finally { setLoading(false); }
-  };
+  }, [currentUser, setLoading, setCurrentUser]);
 
-  const joinSchoolWithInviteCode = async (inviteCode: string, userId: string): Promise<boolean> => {
+  const joinSchoolWithInviteCode = useCallback(async (inviteCode: string, userId: string): Promise<boolean> => {
     setLoading(true);
     try {
       const schoolData = await SchoolService.joinSchoolWithInviteCodeService(inviteCode, userId);
@@ -338,18 +340,18 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       return !!schoolData;
     } catch (error) { return false; }
     finally { setLoading(false); }
-  };
+  }, [currentUser, setLoading, setCurrentUser]);
 
-  const checkAdminOnboardingStatus = async (): Promise<{ isOnboarded: boolean; schoolId?: string }> => {
+  const checkAdminOnboardingStatus = useCallback(async (): Promise<{ isOnboarded: boolean; schoolId?: string }> => {
     if (!currentUser || currentUser.role !== 'admin') return { isOnboarded: false };
     return { isOnboarded: !!currentUser.schoolId, schoolId: currentUser.schoolId };
-  };
+  }, [currentUser]);
   
-  const updateSchoolDetails = async (schoolId: string, data: Partial<Pick<School, 'name' | 'isExamModeActive'>>): Promise<boolean> => {
+  const updateSchoolDetails = useCallback(async (schoolId: string, data: Partial<Pick<School, 'name' | 'isExamModeActive'>>): Promise<boolean> => {
     if (!currentUser || currentUser.role !== 'admin' || currentUser.schoolId !== schoolId) return false;
     setLoading(true);
     try {
-        const school = await SchoolService.getSchoolDetailsService(schoolId); // Get current details for comparison
+        const school = await SchoolService.getSchoolDetailsService(schoolId); 
         const success = await SchoolService.updateSchoolDetailsService(schoolId, data);
         if (success && currentUser?.schoolId && currentUser.displayName && school) {
             let message = "Admin updated school settings.";
@@ -369,9 +371,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         return success;
     } catch(error) { return false; }
     finally { setLoading(false); }
-  };
+  }, [currentUser, setLoading, addActivity]);
 
-  const regenerateInviteCode = async (schoolId: string): Promise<string | null> => {
+  const regenerateInviteCode = useCallback(async (schoolId: string): Promise<string | null> => {
     if (!currentUser || currentUser.role !== 'admin' || currentUser.schoolId !== schoolId) return null;
     setLoading(true);
     try {
@@ -389,10 +391,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         return newCode;
     } catch(error) { return null; }
     finally { setLoading(false); }
-  };
+  }, [currentUser, setLoading, addActivity]);
 
   // --- User Management ---
-  const adminCreateUserInSchool = async (email: string, pass: string, displayName: string, role: UserRole, schoolId: string): Promise<UserProfileWithId | null> => {
+  const adminCreateUserInSchool = useCallback(async (email: string, pass: string, displayName: string, role: UserRole, schoolId: string): Promise<UserProfileWithId | null> => {
     setLoading(true);
     try {
        const newUser = await UserService.adminCreateUserService(auth, email, pass, displayName, role, schoolId, currentUser?.schoolName);
@@ -415,9 +417,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     } finally {
         setLoading(false);
     }
-  };
+  }, [setLoading, currentUser, addActivity]);
 
-  const approveUserForSchool = async (userId: string, schoolId: string): Promise<boolean> => {
+  const approveUserForSchool = useCallback(async (userId: string, schoolId: string): Promise<boolean> => {
     if (!currentUser || currentUser.role !== 'admin' || currentUser.schoolId !== schoolId) return false;
     setLoading(true);
     try { 
@@ -441,9 +443,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
     catch (error) { return false; }
     finally { setLoading(false); }
-  };
+  }, [currentUser, setLoading, addActivity]);
   
-  const updateUserRoleAndSchool = async (userId: string, data: { role?: UserRole; schoolId?: string, classIds?: string[], status?: UserStatus }): Promise<boolean> => {
+  const updateUserRoleAndSchool = useCallback(async (userId: string, data: { role?: UserRole; schoolId?: string, classIds?: string[], status?: UserStatus }): Promise<boolean> => {
      if (!currentUser || currentUser.role !== 'admin') return false;
     setLoading(true);
     try { 
@@ -473,11 +475,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
     catch (error) { return false; }
     finally { setLoading(false); }
-  };
+  }, [currentUser, setLoading, addActivity]);
 
 
   // --- Class Management ---
-  const createClassInSchool = async (className: string, schoolId: string, teacherId?: string): Promise<string | null> => {
+  const createClassInSchool = useCallback(async (className: string, schoolId: string, teacherId?: string): Promise<string | null> => {
     if (!currentUser || (currentUser.role !== 'admin')) return null;
     setLoading(true);
     try { 
@@ -496,9 +498,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
     catch (error) { return null; }
     finally { setLoading(false); }
-  };
+  }, [currentUser, setLoading, addActivity]);
   
-  const enrollStudentInClass = async (classId: string, studentId: string): Promise<boolean> => {
+  const enrollStudentInClass = useCallback(async (classId: string, studentId: string): Promise<boolean> => {
     if (!currentUser || (currentUser.role !== 'admin' && currentUser.role !== 'teacher')) return false;
     setLoading(true);
     try { 
@@ -524,9 +526,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
     catch (error) { return false; }
     finally { setLoading(false); }
-  };
+  }, [currentUser, setLoading, addActivity]);
 
-  const removeStudentFromClass = async (classId: string, studentId: string): Promise<boolean> => {
+  const removeStudentFromClass = useCallback(async (classId: string, studentId: string): Promise<boolean> => {
     if (!currentUser || (currentUser.role !== 'admin' && currentUser.role !== 'teacher')) return false;
     setLoading(true);
     try { 
@@ -552,9 +554,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
     catch (error) { return false; }
     finally { setLoading(false); }
-  };
+  }, [currentUser, setLoading, addActivity]);
 
-  const deleteClass = async (classId: string): Promise<boolean> => {
+  const deleteClass = useCallback(async (classId: string): Promise<boolean> => {
     if (!currentUser || currentUser.role !== 'admin') return false;
     setLoading(true);
     try { 
@@ -575,9 +577,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
     catch (error) { return false; }
     finally { setLoading(false); }
-  };
+  }, [currentUser, setLoading, addActivity]);
 
-  const regenerateClassInviteCode = async (classId: string): Promise<string | null> => {
+  const regenerateClassInviteCode = useCallback(async (classId: string): Promise<string | null> => {
     if (!currentUser || (currentUser.role !== 'admin' && currentUser.role !== 'teacher')) return null;
     setLoading(true);
     try { 
@@ -592,7 +594,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
                     classId: classId,
                     type: 'invite_code_regenerated',
                     message: `${currentUser.displayName} regenerated invite code for class "${cls.name}".`,
-                    link: `/admin/classes` // Or teacher view if applicable
+                    link: `/admin/classes` 
                 });
             }
         }
@@ -600,9 +602,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
     catch (error) { return null; }
     finally { setLoading(false); }
-  };
+  }, [currentUser, setLoading, addActivity]);
   
-  const joinClassWithCode = async (classCode: string, studentId: string): Promise<boolean> => {
+  const joinClassWithCode = useCallback(async (classCode: string, studentId: string): Promise<boolean> => {
     if (!currentUser || currentUser.role !== 'student' || currentUser.uid !== studentId) return false;
     setLoading(true);
     try {
@@ -627,9 +629,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       return success;
     } catch (error) { return false; }
     finally { setLoading(false); }
-  };
+  }, [currentUser, setLoading, setCurrentUser, addActivity]);
   
-  const updateClassDetails = async (classId: string, data: Partial<Pick<Class, 'name' | 'teacherId' | 'classInviteCode'>>): Promise<boolean> => {
+  const updateClassDetails = useCallback(async (classId: string, data: Partial<Pick<Class, 'name' | 'teacherId' | 'classInviteCode'>>): Promise<boolean> => {
     if (!currentUser || currentUser.role !== 'admin') return false;
     setLoading(true);
     try {
@@ -651,23 +653,40 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         return success;
     } catch(error) { return false; }
     finally { setLoading(false); }
-  };
+  }, [currentUser, setLoading, addActivity]);
   
-  const getClassesBySchool = async (schoolId: string) => ClassService.getClassesBySchoolService(schoolId, UserService.getUserProfileService);
-  const getClassesByIds = async (classIds: string[]) => ClassService.getClassesByIdsService(classIds, UserService.getUserProfileService, AssignmentService.getAssignmentsByClassService);
-  const getClassDetails = async (classId: string) => ClassService.getClassDetailsService(classId, UserService.getUserProfileService);
-  const getStudentsInClass = async (classId: string) => ClassService.getStudentsInClassService(classId, UserService.getUserProfileService);
-  const getStudentsNotInClass = async (schoolId: string, classId: string) => ClassService.getStudentsNotInClassService(schoolId, classId, UserService.getUsersBySchoolAndRoleService, ClassService.getStudentsInClassService, UserService.getUserProfileService);
-  const getClassesByTeacher = async (teacherId: string) => ClassService.getClassesByTeacherService(teacherId);
-  const getStudentsInMultipleClasses = async (classIds: string[]) => ClassService.getStudentsInMultipleClassesService(classIds);
+  const getClassesBySchool = useCallback(async (schoolId: string) => ClassService.getClassesBySchoolService(schoolId, UserService.getUserProfileService), []);
+  const getClassesByIds = useCallback(async (classIds: string[]) => ClassService.getClassesByIdsService(classIds, UserService.getUserProfileService, AssignmentService.getAssignmentsByClassService), []);
+  const getClassDetails = useCallback(async (classId: string) => ClassService.getClassDetailsService(classId, UserService.getUserProfileService), []);
+  const getStudentsInClass = useCallback(async (classId: string) => ClassService.getStudentsInClassService(classId, UserService.getUserProfileService), []);
+  const getStudentsNotInClass = useCallback(async (schoolId: string, classId: string) => ClassService.getStudentsNotInClassService(schoolId, classId, UserService.getUsersBySchoolAndRoleService, ClassService.getStudentsInClassService, UserService.getUserProfileService), []);
+  const getClassesByTeacher = useCallback(async (teacherId: string) => ClassService.getClassesByTeacherService(teacherId), []);
+  const getStudentsInMultipleClasses = useCallback(async (classIds: string[]) => ClassService.getStudentsInMultipleClassesService(classIds), []);
 
 
   // --- Learning Material Management ---
-  const addLearningMaterial = async (materialData: Omit<LearningMaterial, 'id' | 'createdAt' | 'updatedAt'>): Promise<string | null> => {
+  const addLearningMaterial = useCallback(async (materialData: Omit<LearningMaterial, 'id' | 'createdAt' | 'updatedAt'>, file?: File | null): Promise<string | null> => {
     if (!currentUser || (currentUser.role !== 'teacher' && currentUser.role !== 'admin')) return null;
     setLoading(true);
-    try { 
-      const newMaterialId = await MaterialService.addLearningMaterialService({ ...materialData, teacherId: materialData.teacherId || currentUser.uid }); 
+    let attachmentUrl: string | null = null;
+    let finalContent = materialData.content;
+
+    try {
+      if (file && materialData.materialType === 'pdf_upload') {
+        const path = `schools/${currentUser.schoolId}/materials/${materialData.classId || 'general'}`;
+        attachmentUrl = await uploadFileToStorageService(file, path);
+        if (!attachmentUrl) throw new Error("File upload failed.");
+        finalContent = `[Uploaded File: ${file.name}]`; // Placeholder or original filename
+      }
+
+      const dataToSave: Omit<LearningMaterial, 'id' | 'createdAt' | 'updatedAt'> = {
+        ...materialData,
+        content: finalContent,
+        attachmentUrl: attachmentUrl,
+        teacherId: materialData.teacherId || currentUser.uid,
+      };
+      
+      const newMaterialId = await MaterialService.addLearningMaterialService(dataToSave); 
        if (newMaterialId && currentUser?.schoolId && currentUser.displayName) {
             const classInfo = materialData.classId ? await ClassService.getClassDetailsService(materialData.classId, UserService.getUserProfileService) : null;
             const className = classInfo ? ` in class "${classInfo.name}"` : " (general material)";
@@ -685,12 +704,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
     catch (error) { return null; }
     finally { setLoading(false); }
-  };
+  }, [currentUser, setLoading, addActivity]);
   
-  const deleteLearningMaterial = async (materialId: string, materialTitle: string): Promise<boolean> => {
+  const deleteLearningMaterial = useCallback(async (materialId: string, materialTitle: string): Promise<boolean> => {
     if (!currentUser || (currentUser.role !== 'teacher' && currentUser.role !== 'admin')) return false;
     setLoading(true);
     try { 
+        // TODO: If material has attachmentUrl, delete from Storage as well
         const success = await MaterialService.deleteLearningMaterialService(materialId); 
         if (success && currentUser?.schoolId && currentUser.displayName) {
              await addActivity({
@@ -706,60 +726,89 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
     catch (error) { return false; }
     finally { setLoading(false); }
-  };
-  const updateLearningMaterial = async (materialId: string, data: Partial<Pick<LearningMaterial, 'title' | 'content' | 'classId' | 'materialType'>>): Promise<boolean> => {
+  }, [currentUser, setLoading, addActivity]);
+
+  const updateLearningMaterial = useCallback(async (
+    materialId: string, 
+    data: Partial<Pick<LearningMaterial, 'title' | 'content' | 'classId' | 'materialType' | 'subjectId' | 'attachmentUrl'>>, 
+    file?: File | null
+    ): Promise<boolean> => {
     if (!currentUser || (currentUser.role !== 'teacher' && currentUser.role !== 'admin')) return false;
     setLoading(true);
-    try { 
-        const success = await MaterialService.updateLearningMaterialService(materialId, data); 
-        if (success && currentUser?.schoolId && currentUser.displayName && data.title) {
-             await addActivity({
-                schoolId: currentUser.schoolId,
-                actorId: currentUser.uid,
-                actorName: currentUser.displayName,
-                type: 'material_updated',
-                message: `${currentUser.displayName} updated material "${data.title}".`,
-                link: `/teacher/materials`
-            });
-        }
-        return success;
-    }
-    catch (error) { return false; }
+    let newAttachmentUrl = data.attachmentUrl; 
+    let newContent = data.content;
+
+    try {
+      if (file && data.materialType === 'pdf_upload') {
+        const path = `schools/${currentUser.schoolId}/materials/${data.classId || editingMaterial?.classId || 'general'}`;
+        newAttachmentUrl = await uploadFileToStorageService(file, path);
+        if (!newAttachmentUrl) throw new Error("File upload failed during update.");
+        newContent = `[Uploaded File: ${file.name}]`; 
+         // TODO: Delete old file from storage if new one is uploaded and old one exists
+      }
+      
+      const updatePayload = { ...data, content: newContent, attachmentUrl: newAttachmentUrl };
+      const success = await MaterialService.updateLearningMaterialService(materialId, updatePayload); 
+      if (success && currentUser?.schoolId && currentUser.displayName && data.title) {
+           await addActivity({
+              schoolId: currentUser.schoolId,
+              actorId: currentUser.uid,
+              actorName: currentUser.displayName,
+              type: 'material_updated',
+              message: `${currentUser.displayName} updated material "${data.title}".`,
+              link: `/teacher/materials`
+          });
+      }
+      return success;
+    } catch (error) { 
+        console.error("Error updating material:", error);
+        return false; }
     finally { setLoading(false); }
-  };
+  }, [currentUser, setLoading, addActivity]);
   
-  const getLearningMaterialsByTeacher = async (teacherId: string, classId?: string) => MaterialService.getLearningMaterialsByTeacherService(teacherId, classId);
-  const getLearningMaterialsBySchool = async (schoolId: string) => MaterialService.getLearningMaterialsBySchoolService(schoolId, UserService.getUserProfileService, ClassService.getClassDetailsService);
-  const getLearningMaterialsByClass = async (classId: string) => MaterialService.getLearningMaterialsByClassService(classId);
-  const getLearningMaterialById = async (materialId: string) => MaterialService.getLearningMaterialByIdService(materialId);
+  const getLearningMaterialsByTeacher = useCallback(async (teacherId: string, classId?: string) => MaterialService.getLearningMaterialsByTeacherService(teacherId, classId), []);
+  const getLearningMaterialsBySchool = useCallback(async (schoolId: string) => MaterialService.getLearningMaterialsBySchoolService(schoolId, UserService.getUserProfileService, ClassService.getClassDetailsService), []);
+  const getLearningMaterialsByClass = useCallback(async (classId: string) => MaterialService.getLearningMaterialsByClassService(classId), []);
+  const getLearningMaterialById = useCallback(async (materialId: string) => MaterialService.getLearningMaterialByIdService(materialId), []);
 
 
   // --- Assignment Management ---
-  const createAssignment = async (assignmentData: Omit<Assignment, 'id' | 'createdAt' | 'updatedAt' | 'totalSubmissions'>): Promise<string | null> => {
+  const createAssignment = useCallback(async (assignmentData: Omit<Assignment, 'id' | 'createdAt' | 'updatedAt' | 'totalSubmissions'>, file?: File | null): Promise<string | null> => {
     if (!currentUser || currentUser.role !== 'teacher' || !currentUser.schoolId) return null;
     setLoading(true);
-    try { 
-        const newAssignmentId = await AssignmentService.createAssignmentService({ ...assignmentData, teacherId: currentUser.uid, schoolId: currentUser.schoolId });
-        if (newAssignmentId && currentUser?.schoolId && currentUser.displayName) {
-            const classInfo = await ClassService.getClassDetailsService(assignmentData.classId, UserService.getUserProfileService);
-            const className = classInfo ? classInfo.name : 'Unknown Class';
-            await addActivity({
-                schoolId: currentUser.schoolId,
-                actorId: currentUser.uid,
-                actorName: currentUser.displayName,
-                classId: assignmentData.classId,
-                type: 'assignment_created',
-                message: `${currentUser.displayName} created assignment "${assignmentData.title}" for class "${className}".`,
-                link: `/teacher/assignments/${newAssignmentId}` 
-            });
-        }
-        return newAssignmentId;
-    }
-    catch (error) { return null; }
-    finally { setLoading(false); }
-  };
+    let attachmentUrl: string | null = null;
 
-  const getAssignmentById = async (assignmentId: string, studentId?: string): Promise<AssignmentWithClassAndSubmissionInfo | null> => {
+    try {
+      if (file) {
+        const path = `schools/${currentUser.schoolId}/assignments/${assignmentData.classId}`;
+        attachmentUrl = await uploadFileToStorageService(file, path);
+        if (!attachmentUrl) throw new Error("Assignment attachment upload failed.");
+      }
+
+      const dataToSave = { ...assignmentData, teacherId: currentUser.uid, schoolId: currentUser.schoolId, attachmentUrl };
+      const newAssignmentId = await AssignmentService.createAssignmentService(dataToSave);
+      if (newAssignmentId && currentUser?.schoolId && currentUser.displayName) {
+          const classInfo = await ClassService.getClassDetailsService(assignmentData.classId, UserService.getUserProfileService);
+          const className = classInfo ? classInfo.name : 'Unknown Class';
+          await addActivity({
+              schoolId: currentUser.schoolId,
+              actorId: currentUser.uid,
+              actorName: currentUser.displayName,
+              classId: assignmentData.classId,
+              type: 'assignment_created',
+              message: `${currentUser.displayName} created assignment "${assignmentData.title}" for class "${className}".`,
+              link: `/teacher/assignments/${newAssignmentId}` 
+          });
+      }
+      return newAssignmentId;
+    } catch (error) { 
+        console.error("Error creating assignment in AuthContext:", error);
+        return null; 
+    }
+    finally { setLoading(false); }
+  }, [currentUser, setLoading, addActivity]);
+
+  const getAssignmentById = useCallback(async (assignmentId: string, studentId?: string): Promise<AssignmentWithClassAndSubmissionInfo | null> => {
     setLoading(true);
     try {
       const assignment = await AssignmentService.getAssignmentByIdService(assignmentId, ClassService.getClassDetailsService);
@@ -780,9 +829,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       return assignment;
     } catch (error) { return null; }
     finally { setLoading(false); }
-  };
+  }, [currentUser, setLoading]);
 
-  const deleteAssignment = async (assignmentId: string, assignmentTitle: string): Promise<boolean> => {
+  const deleteAssignment = useCallback(async (assignmentId: string, assignmentTitle: string): Promise<boolean> => {
     if (!currentUser || (currentUser.role !== 'teacher' && currentUser.role !== 'admin')) return false;
     setLoading(true);
     try {
@@ -790,6 +839,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       if (!assignmentDoc || (currentUser.role === 'teacher' && assignmentDoc.teacherId !== currentUser.uid)) {
         return false;
       }
+      // TODO: Delete associated files from storage if assignment.attachmentUrl exists
       const success = await AssignmentService.deleteAssignmentService(assignmentId);
       if (success && currentUser?.schoolId && currentUser.displayName) {
          await addActivity({
@@ -805,45 +855,70 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       return success;
     } catch (error) { return false; }
     finally { setLoading(false); }
-  };
+  }, [currentUser, setLoading, addActivity]);
 
-  const updateAssignment = async (assignmentId: string, assignmentTitle: string, data: Partial<Omit<Assignment, 'id' | 'createdAt' | 'updatedAt' | 'teacherId' | 'totalSubmissions'>>): Promise<boolean> => {
+  const updateAssignment = useCallback(async (
+    assignmentId: string, 
+    assignmentTitle: string, 
+    data: Partial<Omit<Assignment, 'id' | 'createdAt' | 'updatedAt' | 'teacherId' | 'totalSubmissions'>>,
+    file?: File | null
+    ): Promise<boolean> => {
     if (!currentUser || (currentUser.role !== 'teacher' && currentUser.role !== 'admin')) return false;
     setLoading(true);
+    let newAttachmentUrl = data.attachmentUrl; // Keep existing if no new file
     try {
-        const success = await AssignmentService.updateAssignmentService(assignmentId, data);
-        if (success && currentUser?.schoolId && currentUser.displayName) {
-            const assignmentDoc = await AssignmentService.getAssignmentByIdService(assignmentId, ClassService.getClassDetailsService);
-            if (assignmentDoc) {
-                 await addActivity({
-                    schoolId: currentUser.schoolId,
-                    actorId: currentUser.uid,
-                    actorName: currentUser.displayName,
-                    classId: assignmentDoc.classId,
-                    type: 'assignment_updated',
-                    message: `${currentUser.displayName} updated assignment "${data.title || assignmentTitle}".`,
-                    link: `/teacher/assignments/${assignmentId}`
-                });
-            }
-        }
-        return success;
+      if (file) {
+        const path = `schools/${currentUser.schoolId}/assignments/${data.classId || (await AssignmentService.getAssignmentByIdService(assignmentId, ClassService.getClassDetailsService))?.classId}`;
+        newAttachmentUrl = await uploadFileToStorageService(file, path);
+        if (!newAttachmentUrl) throw new Error("Assignment attachment upload failed during update.");
+        // TODO: Delete old file from storage if replacing and newAttachmentUrl is different from data.attachmentUrl
+      }
+      const updatePayload = {...data, attachmentUrl: newAttachmentUrl };
+      const success = await AssignmentService.updateAssignmentService(assignmentId, updatePayload);
+      if (success && currentUser?.schoolId && currentUser.displayName) {
+          const assignmentDoc = await AssignmentService.getAssignmentByIdService(assignmentId, ClassService.getClassDetailsService);
+          if (assignmentDoc) {
+               await addActivity({
+                  schoolId: currentUser.schoolId,
+                  actorId: currentUser.uid,
+                  actorName: currentUser.displayName,
+                  classId: assignmentDoc.classId,
+                  type: 'assignment_updated',
+                  message: `${currentUser.displayName} updated assignment "${data.title || assignmentTitle}".`,
+                  link: `/teacher/assignments/${assignmentId}`
+              });
+          }
+      }
+      return success;
     } catch (error) { return false; }
     finally { setLoading(false); }
-  };
+  }, [currentUser, setLoading, addActivity]);
 
-  const getAssignmentsByTeacher = async (teacherId: string, classId?: string) => AssignmentService.getAssignmentsByTeacherService(teacherId, ClassService.getClassDetailsService, classId);
-  const getAssignmentsByClass = async (classId: string) => AssignmentService.getAssignmentsByClassService(classId);
+  const getAssignmentsByTeacher = useCallback(async (teacherId: string, classId?: string) => AssignmentService.getAssignmentsByTeacherService(teacherId, ClassService.getClassDetailsService, classId), []);
+  const getAssignmentsByClass = useCallback(async (classId: string) => AssignmentService.getAssignmentsByClassService(classId), []);
 
 
   // --- Submission Management ---
-  const addSubmission = async (submissionData: Omit<Submission, 'id' | 'submittedAt' | 'grade' | 'feedback' | 'status'>): Promise<string | null> => {
+  const addSubmission = useCallback(async (submissionData: Omit<Submission, 'id' | 'submittedAt' | 'grade' | 'feedback' | 'status' | 'originalFileName'>, file?: File | null): Promise<string | null> => {
     if (!currentUser || currentUser.role !== 'student') return null;
     setLoading(true);
+    let contentForDB = submissionData.content;
+    let originalFileName: string | undefined = undefined;
+
     try {
       const assignment = await AssignmentService.getAssignmentByIdService(submissionData.assignmentId, ClassService.getClassDetailsService); 
       if (!assignment) throw new Error("Assignment not found");
 
-      const result = await SubmissionService.addSubmissionService(submissionData, currentUser.uid, assignment.deadline);
+      if (file && submissionData.submissionType === 'file_upload') {
+        const path = `schools/${currentUser.schoolId}/submissions/${submissionData.classId}/${submissionData.assignmentId}/${currentUser.uid}`;
+        const downloadURL = await uploadFileToStorageService(file, path);
+        if (!downloadURL) throw new Error("File upload failed for submission.");
+        contentForDB = downloadURL; // Store download URL as content
+        originalFileName = file.name;
+      }
+
+      const dataWithFilename = { ...submissionData, content: contentForDB, originalFileName };
+      const result = await SubmissionService.addSubmissionService(dataWithFilename, currentUser.uid, assignment.deadline);
       if (result && result.submissionId && currentUser && currentUser.schoolId && currentUser.displayName) {
          setCurrentUser(prev => prev ? { ...prev, studentAssignments: { ...prev.studentAssignments, [submissionData.assignmentId]: { status: result.newStatus, grade: result.existingGrade }} } : null);
          const classInfo = assignment.className || 'the class';
@@ -860,9 +935,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       return result?.submissionId || null;
     } catch (error) { return null; }
     finally { setLoading(false); }
-  };
+  }, [currentUser, setLoading, setCurrentUser, addActivity]);
 
-  const gradeSubmission = async (submissionId: string, grade: string | number, feedback?: string): Promise<boolean> => {
+  const gradeSubmission = useCallback(async (submissionId: string, grade: string | number, feedback?: string): Promise<boolean> => {
     if (!currentUser || currentUser.role !== 'teacher') return false;
     setLoading(true);
     try {
@@ -885,15 +960,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
                     link: `/student/assignments/${submission.assignmentId}`
                 });
             }
-            // No need to update current user's studentAssignments here, as teacher is grading.
         }
       }
       return success;
     } catch (error) { return false; }
     finally { setLoading(false); }
-  };
+  }, [currentUser, setLoading, addActivity]);
 
-  const getAssignmentsForStudentByClass = async (classId: string, studentId: string): Promise<AssignmentWithClassAndSubmissionInfo[]> => {
+  const getAssignmentsForStudentByClass = useCallback(async (classId: string, studentId: string): Promise<AssignmentWithClassAndSubmissionInfo[]> => {
     if (!currentUser || (currentUser.role !== 'student' && currentUser.role !== 'teacher' && currentUser.role !== 'admin')) return [];
     if (currentUser.role === 'student' && currentUser.uid !== studentId) return [];
     setLoading(true);
@@ -902,9 +976,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         return await AssignmentService.getAssignmentsForStudentByClassService(classId, studentId, SubmissionService.getSubmissionByStudentForAssignmentService, ClassService.getClassDetailsService, studentProfile);
     } catch (error) { return []; }
     finally { setLoading(false); }
-  };
+  }, [currentUser, setLoading]);
 
-  const completeStudentOnboarding = async (userId: string, classId: string, subjectIds: string[]): Promise<boolean> => {
+  const completeStudentOnboarding = useCallback(async (userId: string, classId: string, subjectIds: string[]): Promise<boolean> => {
     if (!currentUser || currentUser.uid !== userId || currentUser.role !== 'student') return false;
     setLoading(true);
     try {
@@ -929,10 +1003,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [currentUser, setLoading, setCurrentUser, addActivity]);
 
   // --- Subject Management ---
-  const createSubject = async (schoolId: string, subjectName: string): Promise<string | null> => {
+  const createSubject = useCallback(async (schoolId: string, subjectName: string): Promise<string | null> => {
     if (!currentUser || currentUser.role !== 'admin' || currentUser.schoolId !== schoolId) return null;
     setLoading(true);
     try { 
@@ -951,29 +1025,30 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
     catch (error) { return null; }
     finally { setLoading(false); }
-  };
+  }, [currentUser, setLoading, addActivity]);
   
-  const updateSubject = async (subjectId: string, oldName: string, newName: string): Promise<boolean> => {
+  const updateSubject = useCallback(async (subjectId: string, newName: string): Promise<boolean> => {
     if (!currentUser || currentUser.role !== 'admin') return false;
     setLoading(true);
     try {
+        const oldSubject = await SubjectService.getSubjectByIdService(subjectId);
         const success = await SubjectService.updateSubjectService(subjectId, newName);
-        if (success && currentUser?.schoolId && currentUser.displayName) {
+        if (success && currentUser?.schoolId && currentUser.displayName && oldSubject) {
             await addActivity({
                 schoolId: currentUser.schoolId,
                 actorId: currentUser.uid,
                 actorName: currentUser.displayName,
                 type: 'subject_updated',
-                message: `${currentUser.displayName} updated subject "${oldName}" to "${newName}".`,
+                message: `${currentUser.displayName} updated subject "${oldSubject.name}" to "${newName}".`,
                 link: `/admin/school-settings/subjects`
             });
         }
         return success;
     } catch (error) { return false; }
     finally { setLoading(false); }
-  };
+  }, [currentUser, setLoading, addActivity]);
 
-  const deleteSubject = async (subjectId: string, subjectName: string): Promise<boolean> => {
+  const deleteSubject = useCallback(async (subjectId: string, subjectName: string): Promise<boolean> => {
      if (!currentUser || currentUser.role !== 'admin') return false;
     setLoading(true);
     try {
@@ -991,10 +1066,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         return success;
     } catch (error) { return false; }
     finally { setLoading(false); }
-  };
+  }, [currentUser, setLoading, addActivity]);
 
 
-  const value = {
+  const value = useMemo(() => ({
     currentUser, loading, signUp, logIn, logOut,
     createSchool, joinSchoolWithInviteCode, checkAdminOnboardingStatus, getSchoolDetails: SchoolService.getSchoolDetailsService, updateSchoolDetails, regenerateInviteCode,
     getUsersBySchool: UserService.getUsersBySchoolService, getUsersBySchoolAndRole: UserService.getUsersBySchoolAndRoleService, adminCreateUserInSchool, updateUserRoleAndSchool, getUserProfile: UserService.getUserProfileService, approveUserForSchool,
@@ -1006,21 +1081,34 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     gradeSubmission,
     getSubmissionByStudentForAssignment: SubmissionService.getSubmissionByStudentForAssignmentService, addSubmission, getAssignmentsForStudentByClass,
     completeStudentOnboarding,
-    updateUserDisplayName, updateUserEmail, updateUserPassword,
+    updateUserDisplayName, updateUserEmail: memoizedUpdateUserEmail, updateUserPassword,
     getClassesByIds,
     createSubject, getSubjectsBySchool: SubjectService.getSubjectsBySchoolService, updateSubject, deleteSubject, getSubjectById: SubjectService.getSubjectByIdService,
-    // Exam Functions (from ExamService)
     createExamPeriod: ExamService.createExamPeriodService, 
     getExamPeriodsBySchool: (schoolId: string) => ExamService.getExamPeriodsBySchoolService(schoolId, ClassService.getClassDetailsService),
     getExamPeriodById: (examPeriodId: string) => ExamService.getExamPeriodByIdService(examPeriodId, ClassService.getClassDetailsService),
     updateExamPeriod: ExamService.updateExamPeriodService,
     addOrUpdateExamResult: ExamService.addOrUpdateExamResultService,
     getExamResultsForTeacher: (examPeriodId: string, classId: string, subjectId: string, schoolId: string) => ExamService.getExamResultsForTeacherService(examPeriodId, classId, subjectId, schoolId, UserService.getUserProfileService),
-    getExamResultsForStudent: (studentId: string, schoolId: string) => ExamService.getExamResultsByStudentService(studentId, schoolId, SubjectService.getSubjectByIdService, (examPeriodId) => ExamService.getExamPeriodByIdService(examPeriodId, ClassService.getClassDetailsService)),
+    getExamResultsForStudent: (studentId: string, schoolId: string) => ExamService.getExamResultsByStudentService(studentId, schoolId, SubjectService.getSubjectByIdService, (examPeriodId: string) => ExamService.getExamPeriodByIdService(examPeriodId, ClassService.getClassDetailsService)),
     getExamResultsByPeriodAndClass: (examPeriodId: string, classId: string, schoolId: string, subjectId: string) => ExamService.getExamResultsByPeriodAndClassService(examPeriodId, classId, schoolId, subjectId, SubjectService.getSubjectByIdService),
-    // Activity Log
     getActivities: ActivityService.getActivitiesService, addActivity
-  };
+  }), [
+    currentUser, loading, signUp, logIn, logOut,
+    createSchool, joinSchoolWithInviteCode, checkAdminOnboardingStatus, updateSchoolDetails, regenerateInviteCode,
+    adminCreateUserInSchool, updateUserRoleAndSchool, approveUserForSchool,
+    createClassInSchool, getClassesBySchool, getClassDetails, updateClassDetails, enrollStudentInClass, removeStudentFromClass, getStudentsInClass, getStudentsNotInClass, deleteClass, regenerateClassInviteCode, joinClassWithCode,
+    getClassesByTeacher, getStudentsInMultipleClasses,
+    addLearningMaterial, getLearningMaterialsByTeacher, getLearningMaterialsBySchool, getLearningMaterialsByClass, deleteLearningMaterial, updateLearningMaterial, getLearningMaterialById,
+    createAssignment, getAssignmentsByTeacher, getAssignmentsByClass, getAssignmentById, updateAssignment, deleteAssignment,
+    gradeSubmission,
+    addSubmission, getAssignmentsForStudentByClass,
+    completeStudentOnboarding,
+    updateUserDisplayName, memoizedUpdateUserEmail, updateUserPassword,
+    getClassesByIds,
+    createSubject, updateSubject, deleteSubject,
+    addActivity
+  ]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
@@ -1032,3 +1120,6 @@ export const useAuth = () => {
   }
   return context;
 };
+
+
+    

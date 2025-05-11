@@ -1,7 +1,6 @@
-
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { storage } from '@/lib/firebase';
-import { uuidv4 } from '@firebase/util'; // For generating unique filenames
+import { v4 as uuidv4 } from 'uuid'; // For generating unique filenames
 
 /**
  * Uploads a file to Firebase Storage and returns its download URL.
