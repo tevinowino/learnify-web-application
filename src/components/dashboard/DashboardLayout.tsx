@@ -82,9 +82,14 @@ export default function DashboardLayout({ children, userRole }: DashboardLayoutP
             <Link href="/" aria-label="Go to Homepage">
                 <Logo />
             </Link>
+            {currentUser?.schoolName && (
+              <p className="mt-2 text-xs text-center text-sidebar-foreground/70 truncate group-data-[collapsible=icon]:hidden">
+                {currentUser.schoolName}
+              </p>
+            )}
           </SidebarHeader>
           <ScrollArea className="flex-grow">
-            <SidebarContent className="px-2 pt-16">
+            <SidebarContent className="px-2 pt-16"> {}
               <SidebarMenu>
                 {currentNavItems.map(item => (
                   <SidebarMenuItem key={item.href}>
@@ -122,17 +127,30 @@ export default function DashboardLayout({ children, userRole }: DashboardLayoutP
         </Sidebar>
 
         <SidebarInset className="flex flex-col flex-1 overflow-hidden"> {}
-          <header className="sticky top-0 z-40 flex h-16 items-center gap-4 border-b bg-background/95 px-4 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-            <SidebarTrigger className="md:hidden">
-              <PanelLeft />
-              <span className="sr-only">Toggle sidebar</span>
-            </SidebarTrigger>
-            <div className="md:hidden flex-1">
-                 <Link href="/" aria-label="Go to Homepage">
-                    <Logo />
-                </Link>
+          <header className="sticky top-0 z-40 flex h-16 items-center justify-between gap-2 sm:gap-4 border-b bg-background/95 px-4 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+            {/* Left Group: Mobile trigger & logo (if no school name) */}
+            <div className="flex items-center gap-2">
+              <SidebarTrigger className="md:hidden">
+                <PanelLeft />
+                <span className="sr-only">Toggle sidebar</span>
+              </SidebarTrigger>
+              {/* Mobile Logo: Shown if no school name, or if school name is short enough */}
+              <Link href="/" aria-label="Go to Homepage" className={`md:hidden ${currentUser?.schoolName ? 'hidden xs:flex' : 'flex'}`}>
+                <Logo />
+              </Link>
             </div>
-            <div className="ml-auto">
+
+            {/* Center/Main Group: School Name */}
+            <div className="flex-1 text-left sm:text-center md:text-left md:pl-0"> 
+              {currentUser?.schoolName && (
+                <span className="text-sm sm:text-base md:text-lg font-semibold text-foreground truncate max-w-[120px] xxs:max-w-[150px] xs:max-w-[200px] sm:max-w-xs md:max-w-sm lg:max-w-md">
+                  {currentUser.schoolName}
+                </span>
+              )}
+            </div>
+
+            {/* Right Group: Theme Toggle */}
+            <div className="flex items-center">
               <ThemeToggle />
             </div>
           </header>
@@ -147,4 +165,3 @@ export default function DashboardLayout({ children, userRole }: DashboardLayoutP
     </SidebarProvider>
   );
 }
-
