@@ -4,75 +4,29 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { BookOpen, UploadCloud, Sparkles, Loader2, Edit3, BookCopy, Clock, Activity } from "lucide-react";
-import { useEffect, useState, useCallback } from "react";
+import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { summarizeLearningMaterial, SummarizeLearningMaterialInput } from '@/ai/flows/summarize-learning-material';
-import { useAuth } from "@/hooks/useAuth";
+import { useAuth } from "@/hooks/useAuth"; // For currentUser
+import { useTeacherDashboard } from "@/hooks/useTeacherDashboard"; // New hook
 import Link from "next/link";
-import type { LearningMaterial, AssignmentWithClassInfo, ClassWithTeacherInfo, Activity as ActivityType } from "@/types";
 import { format, formatDistanceToNow } from 'date-fns';
 
 export default function TeacherDashboardPage() {
+  const { currentUser } = useAuth(); // For display name
   const { 
-    currentUser, 
-    getLearningMaterialsByTeacher, 
-    getAssignmentsByTeacher,
-    getClassesByTeacher,
-    getActivities,
-    loading: authLoading 
-  } = useAuth();
-
+    materialCount, 
+    assignmentCount, 
+    classCount, 
+    upcomingAssignments, 
+    recentActivities, 
+    isLoading 
+  } = useTeacherDashboard();
+  
   const [materialToSummarize, setMaterialToSummarize] = useState("");
   const [summary, setSummary] = useState("");
   const [isSummarizing, setIsSummarizing] = useState(false);
   const { toast } = useToast();
-  
-  const [materialCount, setMaterialCount] = useState(0);
-  const [assignmentCount, setAssignmentCount] = useState(0);
-  const [upcomingAssignments, setUpcomingAssignments] = useState<AssignmentWithClassInfo[]>([]);
-  const [classCount, setClassCount] = useState(0);
-  const [recentActivities, setRecentActivities] = useState<ActivityType[]>([]);
-  const [isLoadingStats, setIsLoadingStats] = useState(true);
-
-  const fetchDashboardData = useCallback(async () => {
-    if (currentUser?.uid && currentUser.schoolId) {
-      setIsLoadingStats(true);
-      try {
-        const [materials, assignments, classes, activities] = await Promise.all([
-          getLearningMaterialsByTeacher(currentUser.uid),
-          getAssignmentsByTeacher(currentUser.uid),
-          getClassesByTeacher(currentUser.uid),
-          getActivities(currentUser.schoolId, { userId: currentUser.uid }, 5) // Activities related to this teacher
-        ]);
-        setMaterialCount(materials.length);
-        setAssignmentCount(assignments.length);
-        setClassCount(classes.length);
-        setRecentActivities(activities);
-
-        const now = new Date();
-        const upcoming = assignments
-          .filter(a => a.deadline.toDate() >= now)
-          .sort((a, b) => a.deadline.toDate().getTime() - b.deadline.toDate().getTime())
-          .slice(0, 3); 
-        setUpcomingAssignments(upcoming);
-
-      } catch (error) {
-        console.error("Error fetching dashboard data:", error);
-        toast({ title: "Error", description: "Could not load dashboard data.", variant: "destructive" });
-      } finally {
-        setIsLoadingStats(false);
-      }
-    } else if(!authLoading) {
-      setIsLoadingStats(false);
-    }
-  }, [currentUser, getLearningMaterialsByTeacher, getAssignmentsByTeacher, getClassesByTeacher, getActivities, authLoading, toast]);
-
-  useEffect(() => {
-    if(currentUser){
-        fetchDashboardData();
-    }
-  }, [currentUser, fetchDashboardData]);
-
 
   const handleSummarize = async () => {
     if (!materialToSummarize.trim()) {
@@ -93,8 +47,6 @@ export default function TeacherDashboardPage() {
       setIsSummarizing(false);
     }
   };
-
-  const isLoading = authLoading || isLoadingStats;
 
   return (
     <div className="space-y-6">
@@ -229,7 +181,7 @@ export default function TeacherDashboardPage() {
               {recentActivities.map(activity => (
                 <li key={activity.id} className="p-3 border rounded-md text-sm hover:bg-muted/30">
                   <p className="font-medium">{activity.message}</p>
-                  <p className="text-xs text-muted-foreground">
+                   <p className="text-xs text-muted-foreground">
                     {formatDistanceToNow(activity.timestamp.toDate(), { addSuffix: true })}
                   </p>
                   {activity.link && <Link href={activity.link} className="text-xs text-primary hover:underline">View Details</Link>}

@@ -1,107 +1,30 @@
+
 "use client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Sparkles, Loader2, Clock, FolderOpen, ListChecks, BookOpen, Activity } from "lucide-react";
-import { useEffect, useState, useCallback } from "react";
+import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
-import { DashboardLayout } from "@/components/dashboard/DashboardLayout";
 import { generateLearningPath, GenerateLearningPathInput } from '@/ai/flows/generate-learning-path';
-import { useAuth } from "@/hooks/useAuth";
+import { useAuth } from "@/hooks/useAuth"; // For currentUser
+import { useStudentDashboard } from "@/hooks/useStudentDashboard"; // New hook
 import Link from "next/link";
-import type { AssignmentWithClassAndSubmissionInfo, LearningMaterial, ClassWithTeacherInfo, Activity as ActivityType } from "@/types";
 import { format, formatDistanceToNow } from 'date-fns';
 
 export default function StudentDashboardPage() {
-  const { currentUser, getLearningMaterialsBySchool, getAssignmentsForStudentByClass, getClassesByIds, getActivities, loading: authLoading } = useAuth();
+  const { currentUser } = useAuth(); // For display name
+  const { 
+    resourceCount, 
+    enrolledClasses, 
+    upcomingAssignments, 
+    recentActivities, 
+    isLoading 
+  } = useStudentDashboard();
+  
   const [learningPath, setLearningPath] = useState("");
   const [isGeneratingPath, setIsGeneratingPath] = useState(false);
   const { toast } = useToast();
-  
-  const [resourceCount, setResourceCount] = useState(0); // Initial state should probably be 0
-  const [enrolledClasses, setEnrolledClasses] = useState<ClassWithTeacherInfo[]>([]);
-  const [upcomingAssignments, setUpcomingAssignments] = useState<AssignmentWithClassAndSubmissionInfo[]>([]);
-  const [recentMaterials, setRecentMaterials] = useState<LearningMaterial[]>([]);
-  const [recentActivities, setRecentActivities] = useState<ActivityType[]>([]); 
-  const [isLoadingStats, setIsLoadingStats] = useState(true);
-  const [isFetchingData, setIsFetchingData] = useState(false);
-
-  const fetchDashboardData = useCallback(async () => {
-    // Guard condition: currentUser and necessary IDs must exist.
-    // classIds.length check is important to ensure we have classes to fetch data for.
-    if (!currentUser?.uid || !currentUser.schoolId || !currentUser.classIds || currentUser.classIds.length === 0) {
-      setIsLoadingStats(false); // Not enough info or no classes, so no stats to load.
-      return;
-    }
-
-    setIsLoadingStats(true); // Set loading true before async operations
-    console.log("Setting isFetchingData to true");
-    setIsFetchingData(true);
-    try {
-      const [classesDetails, schoolMaterials, activities] = await Promise.all([
-        getClassesByIds(currentUser.classIds),
-        getLearningMaterialsBySchool(currentUser.schoolId),
-        // Fetch activities for the first class, or adjust if more sophisticated filtering is needed
-        getActivities(currentUser.schoolId, { classId: currentUser.classIds[0] }, 5) 
-      ]);
-      setEnrolledClasses(classesDetails);
-      setResourceCount(schoolMaterials.length); 
-      setRecentActivities(activities);
-
-      let allAssignments: AssignmentWithClassAndSubmissionInfo[] = [];
-      for (const cls of classesDetails) {
-        const classAssignments = await getAssignmentsForStudentByClass(cls.id, currentUser.uid);
-        allAssignments = [...allAssignments, ...classAssignments];
-      }
-      
-      const now = new Date();
-      const upcoming = allAssignments
-        .filter(a => a.deadline.toDate() >= now && a.submissionStatus !== 'graded' && a.submissionStatus !== 'submitted') 
-        .sort((a, b) => a.deadline.toDate().getTime() - b.deadline.toDate().getTime())
-        .slice(0, 3);
-      setUpcomingAssignments(upcoming);
-
-      const studentClassIdsSet = new Set(currentUser.classIds);
-      const relevantMaterials = schoolMaterials.filter(material => 
-        !material.classId || studentClassIdsSet.has(material.classId)
-      );
-      setRecentMaterials(relevantMaterials.sort((a,b) => b.createdAt.toMillis() - a.createdAt.toMillis()).slice(0,3));
-
-    } catch (error) {
-      console.error("Failed to fetch dashboard data", error);
-      toast({ title: "Error", description: "Could not load dashboard data.", variant: "destructive" });
-    } finally {
-      setIsLoadingStats(false);
-      console.log("Setting isFetchingData to false");
-      setIsFetchingData(false);
-    }
-  }, [currentUser, getAssignmentsForStudentByClass, getClassesByIds, getLearningMaterialsBySchool, getActivities, toast]); 
-
-  useEffect(() => {
-    console.log(`useEffect running. authLoading: ${authLoading}, currentUser: ${!!currentUser}, isFetchingData: ${isFetchingData}`);
-    // Only proceed if authentication is not loading and a currentUser object is available.
-    // The authLoading check is still necessary here to prevent fetching before auth is complete.
-    // Also, check if a fetch is not already in progress.
-    if (authLoading || isFetchingData) {
-      console.log("useEffect returning early due to authLoading or isFetchingData");
-      return;
-    }
-    if (currentUser) {
-      if (currentUser.classIds && currentUser.classIds.length > 0) {
-        // User is logged in and has classes, fetch dashboard data.
-        fetchDashboardData(); // This function will manage its own isLoadingStats
-      } else {
-        // User is logged in but has no classes (e.g., needs onboarding or error).
-        // No dashboard-specific data to fetch.
-        setIsLoadingStats(false);
-      }
-    } else {
-      // No current user after auth is done.
-      // ProtectedRoute should handle this. No dashboard data to fetch.
-      setIsLoadingStats(false);
-    } 
-  }, [currentUser, authLoading, fetchDashboardData, isFetchingData]); // Added isFetchingData here to react when it becomes false
-
 
   const handleGeneratePath = async () => {
     setIsGeneratingPath(true);
@@ -134,10 +57,15 @@ export default function StudentDashboardPage() {
     }
   };
   
-  const isLoading = authLoading || isLoadingStats;
-  
-  // This card is shown if user is authenticated, auth is done, stats attempted to load, but user has no classes.
-  if (currentUser && (!currentUser.classIds || currentUser.classIds.length === 0) && !authLoading && !isLoadingStats) {
+  if (isLoading && (!currentUser || (currentUser?.classIds && currentUser.classIds.length > 0))) {
+    return (
+      <div className="flex h-[calc(100vh-10rem)] items-center justify-center">
+        <Loader2 className="h-12 w-12 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  if (currentUser && (!currentUser.classIds || currentUser.classIds.length === 0) && !isLoading) {
      return (
         <div className="flex h-[calc(100vh-10rem)] items-center justify-center">
             <Card className="w-full max-w-md shadow-xl text-center">
@@ -153,15 +81,6 @@ export default function StudentDashboardPage() {
             </Card>
         </div>
      );
-  }
-
-  // Main loader for initial auth or data fetching
-  if (isLoading) {
-    return (
-      <div className="flex h-[calc(100vh-10rem)] items-center justify-center">
-        <Loader2 className="h-12 w-12 animate-spin text-primary" />
-      </div>
-    );
   }
 
 
@@ -190,14 +109,12 @@ export default function StudentDashboardPage() {
         </Card>
         <Card className="card-shadow hover:border-primary transition-colors">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Total Assignments</CardTitle>
+                <CardTitle className="text-sm font-medium">Upcoming Assignments</CardTitle>
                 <ListChecks className="h-5 w-5 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-                <div className="text-2xl font-bold">{
-                    enrolledClasses.reduce((sum, cls) => sum + (cls.totalAssignmentsCount || 0) ,0)
-                }</div>
-                <p className="text-xs text-muted-foreground">Across all classes</p>
+                <div className="text-2xl font-bold">{upcomingAssignments.length}</div>
+                <p className="text-xs text-muted-foreground">Assignments due soon</p>
                  <Button variant="link" asChild className="px-0 pt-2 text-sm">
                     <Link href="/student/assignments">View All Assignments</Link>
                 </Button>

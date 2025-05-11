@@ -1,8 +1,9 @@
+
 import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
 import './globals.css';
 import { Toaster } from '@/components/ui/toaster';
-import { AuthProvider } from '@/contexts/AuthContext';
+import { AuthProvider } from '@/contexts/AuthProvider'; // Updated import
 import Navbar from '@/components/shared/Navbar';
 import { siteConfig } from '@/config/site';
 import { ThemeProvider } from "@/components/theme-provider"; 
@@ -21,11 +22,11 @@ export const metadata: Metadata = {
   icons: [ 
     {
       rel: 'icon',
-      url: '/favicon.ico', // Standard path for favicon
+      url: '/logo-icon.png', // Standard path for favicon (assuming you have logo-icon.png in public)
     },
     {
       rel: 'apple-touch-icon', // For Apple devices
-      url: '/logo.svg', // Assuming logo.svg can serve as an apple-touch-icon
+      url: '/logo-icon.png', // Assuming logo.svg can serve as an apple-touch-icon
     },
   ],
 };
