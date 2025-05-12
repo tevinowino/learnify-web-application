@@ -2,7 +2,8 @@
 "use client";
 import type { ReactNode }from 'react';
 import { createContext } from 'react';
-import type { UserProfile, UserRole, School, LearningMaterial, UserProfileWithId, Class, ClassWithTeacherInfo, LearningMaterialWithTeacherInfo, Assignment, Submission, SubmissionFormat, LearningMaterialType, AssignmentWithClassInfo, SubmissionWithStudentName, AssignmentWithClassAndSubmissionInfo, UserStatus, Activity, Subject, ExamPeriod, ExamPeriodWithClassNames, ExamResult, ExamResultWithStudentInfo, ClassType } from '@/types';
+import type { UserProfile, UserRole, School, LearningMaterial, UserProfileWithId, Class, ClassWithTeacherInfo, LearningMaterialWithTeacherInfo, Assignment, Submission, SubmissionFormat, LearningMaterialType, AssignmentWithClassInfo, SubmissionWithStudentName, AssignmentWithClassAndSubmissionInfo, UserStatus, Activity, Subject, ExamPeriod, ExamPeriodWithClassNames, ExamResult, ExamResultWithStudentInfo, ClassType, Notification } from '@/types'; // Added Notification type
+import type { getClassDetailsService as GetClassDetailsServiceType } from '@/services/classService';
 
 // This will be the full type provided by the AuthProvider
 export interface AuthContextType {
@@ -74,7 +75,7 @@ export interface AuthContextType {
 
   // Student specific functions
   getSubmissionByStudentForAssignment: (assignmentId: string, studentId: string) => Promise<Submission | null>;
-  addSubmission: (submissionData: Omit<Submission, 'id' | 'submittedAt' | 'grade' | 'feedback' | 'status' | 'originalFileName'>, file?: File | null) => Promise<string | null>;
+  addSubmission: (submissionData: Omit<Submission, 'id' | 'submittedAt' | 'grade' | 'feedback' | 'status' | 'originalFileName'>, file?: File | null) => Promise<{ submissionId: string, newStatus: Submission['status'], existingGrade?: string | number } | null>;
   getAssignmentsForStudentByClass: (classId: string, studentId: string) => Promise<AssignmentWithClassAndSubmissionInfo[]>;
   getClassesByIds: (classIds: string[]) => Promise<ClassWithTeacherInfo[]>;
   joinClassWithCode: (classCode: string, studentId: string) => Promise<boolean>;
@@ -106,6 +107,9 @@ export interface AuthContextType {
   // Activity Log
   getActivities: (schoolId: string, filters?: {classId?: string, userId?: string, type?: Activity['type']}, limitCount?: number) => Promise<Activity[]>;
   addActivity: (activityData: Omit<Activity, 'id' | 'timestamp'>) => Promise<string | null>;
+
+  // Notification Management
+  addNotification: (notificationData: Omit<Notification, 'id' | 'createdAt' | 'isRead'>) => Promise<string | null>; // Added
 }
 
 export const AuthContext = createContext<AuthContextType | undefined>(undefined);
