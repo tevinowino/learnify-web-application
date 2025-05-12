@@ -1,4 +1,3 @@
-
 "use client";
 
 import React from 'react';
@@ -23,6 +22,7 @@ import {
 import { usePathname } from 'next/navigation';
 import { ScrollArea } from '../ui/scroll-area';
 import { ThemeToggle } from '../ui/theme-toggle'; 
+import NotificationBell from '../shared/NotificationBell';
 
 
 interface DashboardLayoutProps {
@@ -83,9 +83,7 @@ export default function DashboardLayout({ children, userRole }: DashboardLayoutP
       <div className="flex min-h-screen bg-secondary/30">
         <Sidebar collapsible="icon" side="left" variant="sidebar" className="hidden md:flex"> 
           <SidebarHeader className="p-4 border-b border-sidebar-border">
-            <Link href="/" aria-label="Go to Homepage">
-                <Logo />
-            </Link>
+            <Logo />
           </SidebarHeader>
           <ScrollArea className="flex-grow">
             <SidebarContent className="px-2 pt-16"> 
@@ -132,9 +130,9 @@ export default function DashboardLayout({ children, userRole }: DashboardLayoutP
                 <PanelLeft />
                 <span className="sr-only">Toggle sidebar</span>
               </SidebarTrigger>
-              <Link href="/" aria-label="Go to Homepage" className={`md:hidden ${currentUser?.schoolName ? 'hidden xs:flex' : 'flex'}`}>
+              <div className={`md:hidden ${currentUser?.schoolName ? 'hidden xs:flex' : 'flex'}`}>
                 <Logo />
-              </Link>
+              </div>
             </div>
 
              <div className="flex-1 text-left sm:text-center md:text-left md:pl-0"> 
@@ -145,6 +143,7 @@ export default function DashboardLayout({ children, userRole }: DashboardLayoutP
               )}
             </div>
             <div className="flex items-center gap-2">
+                <NotificationBell />
                 <ThemeToggle />
             </div>
           </header>
