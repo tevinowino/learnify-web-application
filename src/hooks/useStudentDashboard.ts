@@ -1,4 +1,3 @@
-
 "use client";
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from './useAuth';
@@ -23,7 +22,6 @@ export function useStudentDashboard() {
   const [isLoadingStats, setIsLoadingStats] = useState(true);
   const [isFetchingData, setIsFetchingData] = useState(false);
 
-
   const fetchDashboardData = useCallback(async () => {
     if (!currentUser?.uid || !currentUser.schoolId || !currentUser.classIds || currentUser.classIds.length === 0) {
       setIsLoadingStats(false);
@@ -36,7 +34,7 @@ export function useStudentDashboard() {
       const [classesDetails, schoolMaterials, activitiesFromService] = await Promise.all([
         getClassesByIds(currentUser.classIds),
         getLearningMaterialsBySchool(currentUser.schoolId),
-        getActivities(currentUser.schoolId, {}, 20) // Fetch more initially, then filter client-side
+        getActivities(currentUser.schoolId, {}, 20)
       ]);
       setEnrolledClasses(classesDetails);
       
@@ -48,19 +46,18 @@ export function useStudentDashboard() {
       
       const studentRelevantActivities = activitiesFromService.filter(act => 
         (act.classId && currentUser.classIds?.includes(act.classId)) || 
-        (!act.classId && !act.actorId) || // General school-wide announcements not tied to a specific class or actor
-        (act.actorId === currentUser.uid) // Their own actions
-      ).sort((a, b) => b.timestamp.toMillis() - a.timestamp.toMillis()) // Sort by timestamp descending
-      .slice(0,5); // Take top 5 after sorting
+        (!act.classId && !act.actorId) || 
+        (act.actorId === currentUser.uid)
+      ).sort((a, b) => b.timestamp.toMillis() - a.timestamp.toMillis())
+      .slice(0, 5); // Top 5 activities
       setRecentActivities(studentRelevantActivities);
-
 
       let allAssignments: AssignmentWithClassAndSubmissionInfo[] = [];
       for (const cls of classesDetails) {
         const classAssignments = await getAssignmentsForStudentByClass(cls.id, currentUser.uid);
         allAssignments = [...allAssignments, ...classAssignments];
       }
-      
+
       const now = new Date();
       const upcoming = allAssignments
         .filter(a => a.deadline.toDate() >= now && a.submissionStatus !== 'graded' && a.submissionStatus !== 'submitted') 
@@ -78,8 +75,9 @@ export function useStudentDashboard() {
   }, [currentUser, getClassesByIds, getLearningMaterialsBySchool, getAssignmentsForStudentByClass, getActivities, toast]);
 
   useEffect(() => {
-    if (!authLoading && currentUser && !isFetchingData) {
-      if (currentUser.classIds && currentUser.classIds.length > 0) {
+    // Fetch data only when the user is fully loaded and classIds are present
+    if (!authLoading && currentUser) {
+      if (currentUser.classIds?.length > 0 && !isFetchingData) {
         fetchDashboardData();
       } else {
         setIsLoadingStats(false);
@@ -87,7 +85,7 @@ export function useStudentDashboard() {
     } else if (!authLoading && !currentUser) {
         setIsLoadingStats(false);
     }
-  }, [currentUser, authLoading, fetchDashboardData, isFetchingData]);
+  }, [currentUser, authLoading, fetchDashboardData, isFetchingData]); // Added isFetchingData as a dependency to avoid re-triggering
 
   return {
     resourceCount,

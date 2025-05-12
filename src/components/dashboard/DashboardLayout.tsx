@@ -82,11 +82,11 @@ export default function DashboardLayout({ children, userRole }: DashboardLayoutP
             <Link href="/" aria-label="Go to Homepage">
                 <Logo />
             </Link>
-            {currentUser?.schoolName && (
+            {/* {currentUser?.schoolName && (
               <p className="mt-2 text-xs text-center text-sidebar-foreground/70 truncate group-data-[collapsible=icon]:hidden">
                 {currentUser.schoolName}
               </p>
-            )}
+            )} */}
           </SidebarHeader>
           <ScrollArea className="flex-grow">
             <SidebarContent className="px-2 pt-16"> {}
@@ -141,13 +141,13 @@ export default function DashboardLayout({ children, userRole }: DashboardLayoutP
             </div>
 
             {/* Center/Main Group: School Name */}
-            <div className="flex-1 text-left sm:text-center md:text-left md:pl-0"> 
+            {/* <div className="flex-1 text-left sm:text-center md:text-left md:pl-0"> 
               {currentUser?.schoolName && (
                 <span className="text-sm sm:text-base md:text-lg font-semibold text-foreground truncate max-w-[120px] xxs:max-w-[150px] xs:max-w-[200px] sm:max-w-xs md:max-w-sm lg:max-w-md">
                   {currentUser.schoolName}
                 </span>
               )}
-            </div>
+            </div> */}
 
             {/* Right Group: Theme Toggle */}
             <div className="flex items-center">
