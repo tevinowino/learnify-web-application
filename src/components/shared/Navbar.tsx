@@ -23,7 +23,7 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import React, { useState } from 'react';
 import { usePathname } from 'next/navigation';
-import { ThemeToggle } from '../ui/theme-toggle';
+// import { ThemeToggle } from '../ui/theme-toggle'; // Removed
 
 export default function Navbar() {
   const { currentUser, logOut, loading } = useAuth();
@@ -162,12 +162,12 @@ export default function Navbar() {
             </DropdownMenu>
           )}
            {loading && <div className="h-8 w-24 animate-pulse rounded-md bg-muted"></div>}
-           <ThemeToggle />
+           {/* <ThemeToggle /> Removed */}
         </nav>
 
         {/* Mobile Navigation Trigger */}
         <div className="md:hidden flex items-center gap-2">
-          <ThemeToggle />
+          {/* <ThemeToggle /> Removed */}
           <Sheet open={isMobileMenuOpen} onOpenChange={setIsMobileMenuOpen}>
             <SheetTrigger asChild>
               <Button variant="ghost" size="icon">
