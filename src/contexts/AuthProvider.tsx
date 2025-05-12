@@ -1,3 +1,4 @@
+
 "use client";
 
 import type { ReactNode } from 'react';
@@ -18,7 +19,7 @@ import type { UserProfile, UserRole, School, LearningMaterial, UserProfileWithId
 import { useRouter } from 'next/navigation';
 
 import * as SchoolService from '@/services/schoolService';
-import * as UserService from '@/services/userService';
+import *as UserService from '@/services/userService';
 import * as ClassService from '@/services/classService';
 import * as MaterialService from '@/services/learningMaterialService';
 import * as AssignmentService from '@/services/assignmentService';
@@ -32,8 +33,8 @@ import { AuthContext, type AuthContextType } from './AuthContext';
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
-  const [authProcessLoading, setAuthProcessLoading] = useState(true); // Renamed for clarity
-  const [router, setRouter] = useState(() => useRouter());
+  const [authProcessLoading, setAuthProcessLoading] = useState(true);
+  const router = useRouter(); // Initialize useRouter at the top level
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
@@ -934,7 +935,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const value: AuthContextType = useMemo(() => ({
     currentUser, 
-    loading: authProcessLoading, // Use the renamed state here
+    loading: authProcessLoading,
     signUp, logIn, logOut,
     createSchool, joinSchoolWithInviteCode, checkAdminOnboardingStatus, getSchoolDetails: SchoolService.getSchoolDetailsService, updateSchoolDetails, regenerateInviteCode,
     getUsersBySchool: UserService.getUsersBySchoolService, getUsersBySchoolAndRole: UserService.getUsersBySchoolAndRoleService, adminCreateUserInSchool, updateUserRoleAndSchool, getUserProfile: UserService.getUserProfileService, approveUserForSchool,
@@ -961,7 +962,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     getExamResultsByPeriodAndClass,
     getActivities: ActivityService.getActivitiesService, addActivity
   }), [
-    currentUser, authProcessLoading, signUp, logIn, logOut, // Use the renamed state
+    currentUser, authProcessLoading, signUp, logIn, logOut, 
     createSchool, joinSchoolWithInviteCode, checkAdminOnboardingStatus, updateSchoolDetails, regenerateInviteCode,
     adminCreateUserInSchool, updateUserRoleAndSchool, approveUserForSchool,
     createClassInSchool, getClassesBySchool, getClassDetails, updateClassDetails, enrollStudentInClass, removeStudentFromClass, getStudentsInClass, getStudentsNotInClass, deleteClass, regenerateClassInviteCode, joinClassWithCode,
@@ -983,3 +984,5 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
 
+
+    
