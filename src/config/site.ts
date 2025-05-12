@@ -4,7 +4,7 @@ export type SiteConfig = typeof siteConfig;
 export const siteConfig = {
   name: "Learnify",
   description:
-    "Personalized learning paths to help students achieve their full potential.",
+    "Revolutionize your school’s operations with AI-powered tools designed to save time, improve outcomes, and prepare students for tomorrow’s world.",
   mainNav: [
     {
       title: "Home",
@@ -14,15 +14,16 @@ export const siteConfig = {
       title: "About",
       href: "/about", 
     },
+    // Pricing removed from main nav based on user instructions to remove pricing section from landing
     {
       title: "Contact Us",
-      href: "/contact",
+      href: "/contact", // Points to the dedicated contact page, not section on homepage
     }
   ],
   links: {
     // Add any external links if needed, e.g., twitter: "https://twitter.com/shadcn"
   },
-  footerNav: [
+  footerNav: [ // These are generally page links for the footer
     { title: "About Us", href: "/about" },
     { title: "Contact", href: "/contact" },
     { title: "Privacy Policy", href: "/privacy" }, 

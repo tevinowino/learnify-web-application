@@ -14,10 +14,10 @@ export default function HeroSection() {
               <span className="text-sm font-medium text-primary">AI-Powered Learning Platform</span>
             </div>
             <h1 className="text-5xl font-extrabold tracking-tight sm:text-6xl xl:text-7xl/none bg-clip-text text-transparent bg-gradient-to-r from-primary via-accent to-secondary animate-gradient">
-              Unlock Your Potential with Personalized Learning
+              Unlock the Future of Education – Revolutionize Your School’s Operations Today
             </h1>
-            <p className="max-w-2xl mx-auto text-lg md:text-xl text-muted-foreground/90 leading-relaxed">
-              Learnify uses AI to create tailored learning paths, helping students of all levels achieve their academic goals through adaptive technology and personalized guidance.
+            <p className="max-w-3xl mx-auto text-lg md:text-xl text-muted-foreground/90 leading-relaxed">
+              Transform the way your school manages students, teachers, and administration – with AI-powered tools designed to save time, improve outcomes, and prepare students for tomorrow’s world.
             </p>
           </div>
           <div className="flex flex-col gap-4 min-[400px]:flex-row justify-center items-center w-full max-w-xl">
@@ -26,8 +26,8 @@ export default function HeroSection() {
               size="lg" 
               className="w-full min-[400px]:w-auto px-8 py-6 text-lg font-semibold transition-all duration-300 transform hover:scale-105 bg-accent hover:bg-accent/90 text-accent-foreground shadow-xl hover:shadow-accent/25"
             >
-              <Link href="/auth/signup">
-                Get Started Free <ArrowRight className="ml-2 h-5 w-5 animate-bounce-x" />
+              <Link href="#contact"> {/* Changed to contact section for demo request */}
+                Request a Free Demo <ArrowRight className="ml-2 h-5 w-5 animate-bounce-x" />
               </Link>
             </Button>
             <Button 
@@ -36,12 +36,11 @@ export default function HeroSection() {
               asChild 
               className="w-full min-[400px]:w-auto px-8 py-6 text-lg font-semibold transition-all duration-300 transform hover:scale-105 border-2 hover:bg-primary/5 shadow-xl"
             >
-              <Link href="#how-it-works">
-                Learn More
+              <Link href="/auth/signup">
+                Get Started Now
               </Link>
             </Button>
           </div>
-          {/* <div className="absolute bottom-0 left-0 w-full h-24 bg-gradient-to-t from-background to-transparent"></div> */}
         </div>
       </div>
     </section>

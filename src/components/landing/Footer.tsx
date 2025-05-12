@@ -3,7 +3,7 @@ import Logo from '@/components/shared/Logo';
 import { siteConfig } from '@/config/site';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { Send } from 'lucide-react';
+import { Send, Facebook, Instagram, Linkedin, Twitter } from 'lucide-react'; // Added social icons
 
 export default function Footer() {
   return (
@@ -14,12 +14,18 @@ export default function Footer() {
           <p className="text-sm text-muted-foreground max-w-xs">
             {siteConfig.description}
           </p>
+           <div className="space-y-1">
+            <p className="text-sm font-semibold text-foreground">Contact Info:</p>
+            <a href="mailto:support@learnifyapp.com" className="text-sm text-muted-foreground hover:text-primary block">
+              support@learnifyapp.com
+            </a>
+          </div>
         </div>
         <div className="grid grid-cols-2 gap-8 sm:grid-cols-3 md:col-span-2 md:grid-cols-3">
           <div>
             <h3 className="text-sm font-semibold text-foreground">Platform</h3>
             <ul className="mt-4 space-y-2">
-              {siteConfig.footerNav.slice(0,2).map((item) => (
+              {siteConfig.mainNav.map((item) => ( // Changed to mainNav for consistency if pricing is removed from mainNav
                 <li key={item.title}>
                   <Link href={item.href} className="text-sm text-muted-foreground hover:text-primary">
                     {item.title}
@@ -31,7 +37,7 @@ export default function Footer() {
           <div>
             <h3 className="text-sm font-semibold text-foreground">Legal</h3>
             <ul className="mt-4 space-y-2">
-              {siteConfig.footerNav.slice(2,4).map((item) => (
+              {siteConfig.footerNav.filter(item => item.title === "Privacy Policy" || item.title === "Terms of Service").map((item) => (
                 <li key={item.title}>
                   <Link href={item.href} className="text-sm text-muted-foreground hover:text-primary">
                     {item.title}
@@ -50,6 +56,12 @@ export default function Footer() {
                 <span className="sr-only">Subscribe</span>
               </Button>
             </form>
+             <div className="mt-4 flex space-x-3">
+              <Link href="#" aria-label="Facebook" className="text-muted-foreground hover:text-primary"><Facebook className="h-5 w-5" /></Link>
+              <Link href="#" aria-label="Instagram" className="text-muted-foreground hover:text-primary"><Instagram className="h-5 w-5" /></Link>
+              <Link href="#" aria-label="LinkedIn" className="text-muted-foreground hover:text-primary"><Linkedin className="h-5 w-5" /></Link>
+              <Link href="#" aria-label="Twitter" className="text-muted-foreground hover:text-primary"><Twitter className="h-5 w-5" /></Link>
+            </div>
           </div>
         </div>
       </div>
@@ -58,7 +70,6 @@ export default function Footer() {
           <p className="text-sm text-muted-foreground">
             © {new Date().getFullYear()} {siteConfig.name}. All rights reserved.
           </p>
-          {/* Add social media links here if needed */}
         </div>
       </div>
     </footer>

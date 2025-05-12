@@ -4,22 +4,25 @@ import { Quote } from 'lucide-react';
 
 const testimonials = [
   {
-    name: 'Sarah L., Student',
-    avatar: 'https://picsum.photos/seed/sarah/100/100',
-    aiHint: "person student",
-    quote: "Learnify's personalized path helped me focus on my weak areas. My grades have improved so much!",
+    name: 'Jane Doe, Headmistress',
+    school: 'Greenfield Academy',
+    avatar: 'https://picsum.photos/seed/jane/100/100',
+    aiHint: "person headmistress",
+    quote: "Since switching to Learnify, our administrative workload has been cut by 50%. Our teachers now have more time to focus on student engagement, and our parents are thrilled with the improved communication.",
   },
   {
-    name: 'Mr. John B., Teacher',
-    avatar: 'https://picsum.photos/seed/john/100/100',
-    aiHint: "person teacher",
-    quote: 'The platform is intuitive for uploading materials, and the AI summaries are a great starting point for lesson planning.',
+    name: 'John Smith, School Administrator',
+    school: 'Bright Futures School', // Changed school for variety
+    avatar: 'https://picsum.photos/seed/john-admin/100/100',
+    aiHint: "person administrator",
+    quote: 'Learnify helped us move our school into the digital age. We now have a clear overview of our students\' progress, and our teachers can manage their classrooms with ease.',
   },
   {
-    name: 'Principal Ava C., Admin',
-    avatar: 'https://picsum.photos/seed/ava/100/100',
-    aiHint: "person admin",
-    quote: 'Managing users and tracking school-wide progress has never been easier. Learnify is a game-changer for our school.',
+    name: 'Mary Johnson, Parent',
+    school: 'Student at Bright Futures School',
+    avatar: 'https://picsum.photos/seed/mary/100/100',
+    aiHint: "person parent",
+    quote: 'As a parent, I love how Learnify lets me track my child’s progress in real-time. It’s reassuring to know exactly what’s happening in my child’s education.',
   },
 ];
 
@@ -29,10 +32,7 @@ export default function TestimonialsSection() {
       <div className="container px-4 md:px-6">
         <div className="flex flex-col items-center justify-center space-y-4 text-center mb-12">
           <div className="inline-block rounded-lg bg-muted px-3 py-1 text-sm text-primary">Testimonials</div>
-          <h2 className="text-3xl font-bold tracking-tighter sm:text-5xl">Loved by Students & Educators</h2>
-          <p className="max-w-[900px] text-muted-foreground md:text-xl/relaxed lg:text-base/relaxed xl:text-xl/relaxed">
-            Hear what our users have to say about their experience with Learnify.
-          </p>
+          <h2 className="text-3xl font-bold tracking-tighter sm:text-5xl">Join Schools Who Have Already Transformed Their Education with Learnify</h2>
         </div>
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
           {testimonials.map((testimonial, index) => (
@@ -47,6 +47,7 @@ export default function TestimonialsSection() {
                   </Avatar>
                   <div>
                     <p className="font-semibold">{testimonial.name}</p>
+                    <p className="text-xs text-muted-foreground">{testimonial.school}</p>
                   </div>
                 </div>
               </CardContent>
