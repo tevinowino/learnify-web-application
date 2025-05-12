@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import { Moon, Sun } from "lucide-react"
-import { useTheme } from "next-themes" // Assuming next-themes is or will be installed
+import { useTheme } from "next-themes" 
 
 import { Button } from "@/components/ui/button"
 import {
@@ -15,7 +15,6 @@ import {
 export function ThemeToggle() {
   const { setTheme, theme } = useTheme()
 
-  // Guard against theme being undefined during initial render or if next-themes is not setup
   const currentTheme = theme || 'system'; 
 
   return (

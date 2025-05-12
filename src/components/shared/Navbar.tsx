@@ -1,4 +1,3 @@
-
 "use client";
 
 import Link from 'next/link';
@@ -6,7 +5,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import Logo from './Logo';
 import { siteConfig } from '@/config/site';
-import { LogOut, LayoutDashboard, UserCircle, UserPlus, LogInIcon, Menu, HomeIcon, InfoIcon, MessageSquareIcon, UserCog, Sparkles } from 'lucide-react';
+import { LogOut, LayoutDashboard, UserCircle, UserPlus, LogInIcon, Menu, HomeIcon, InfoIcon, MessageSquareIcon, UserCog, Sparkles, Settings } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -18,12 +17,14 @@ import {
 import {
   Sheet,
   SheetContent,
+  SheetHeader,
+  SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import React, { useState } from 'react';
 import { usePathname } from 'next/navigation';
-// import { ThemeToggle } from '../ui/theme-toggle'; // Removed
+import { ThemeToggle } from '../ui/theme-toggle';
 
 export default function Navbar() {
   const { currentUser, logOut, loading } = useAuth();
@@ -31,7 +32,7 @@ export default function Navbar() {
   const pathname = usePathname();
 
   const getDashboardPath = () => {
-    if (!currentUser || !currentUser.role) return '/auth/login'; 
+    if (!currentUser || !currentUser.role) return '/auth/login';
     switch (currentUser.role) {
       case 'admin':
         return currentUser.schoolId ? '/admin/dashboard' : '/admin/onboarding';
@@ -41,7 +42,7 @@ export default function Navbar() {
         if (currentUser.status === 'pending_verification') return '/auth/pending-verification';
         return (currentUser.classIds && currentUser.classIds.length > 0) ? '/student/dashboard' : '/student/onboarding';
       case 'parent':
-        return '/parent/dashboard'; 
+        return '/parent/dashboard';
       default:
         return '/';
     }
@@ -59,32 +60,33 @@ export default function Navbar() {
   };
   
   const mainNavLinks = siteConfig.mainNav.map(item => {
-    let icon = <HomeIcon className="mr-2 h-4 w-4" />;
-    if (item.title === "About") icon = <InfoIcon className="mr-2 h-4 w-4" />;
-    if (item.title === "Contact Us") icon = <MessageSquareIcon className="mr-2 h-4 w-4" />;
+    let icon: React.ReactNode = <HomeIcon className="mr-2 h-4 w-4" />;
+    switch (item.title) {
+        case "About": icon = <InfoIcon className="mr-2 h-4 w-4" />; break;
+        case "Contact Us": icon = <MessageSquareIcon className="mr-2 h-4 w-4" />; break;
+        // Keep HomeIcon as default
+    }
     return { ...item, icon };
   });
 
-
-  const guestLinks = [
-    ...mainNavLinks,
-    { href: "/auth/login", label: "Login", icon: <LogInIcon className="mr-2 h-4 w-4" /> },
-    { href: "/auth/signup", label: "Sign Up", icon: <UserPlus className="mr-2 h-4 w-4" /> },
-  ];
-
-  const userLinks = [
-    ...mainNavLinks,
-    { href: getDashboardPath(), label: "Dashboard", icon: <LayoutDashboard className="mr-2 h-4 w-4" /> },
-  ];
-   
-  // Add Akili chat to student's mobile nav only
-  const studentMobileLinksExtra = currentUser?.role === 'student' ? [
-      { href: "/student/akili", label: "Akili Chat", icon: <Sparkles className="mr-2 h-4 w-4" /> }
-  ] : [];
-  
-  const navLinksToDisplay = currentUser ? userLinks : guestLinks;
-  const mobileNavLinksToDisplay = currentUser ? [...userLinks, ...studentMobileLinksExtra] : guestLinks;
+  const isOnHomepage = pathname === '/';
   const isDashboardRoute = pathname?.startsWith('/admin') || pathname?.startsWith('/teacher') || pathname?.startsWith('/student') || pathname?.startsWith('/parent');
+
+  const mobileNavLinksToDisplay = [];
+  if (isOnHomepage) {
+    mobileNavLinksToDisplay.push(...mainNavLinks);
+  }
+
+  if (currentUser) {
+    // Always show Dashboard link on mobile if logged in, regardless of current page (removed !isDashboardRoute condition)
+    mobileNavLinksToDisplay.push({ href: getDashboardPath(), label: "Dashboard", icon: <LayoutDashboard className="mr-2 h-4 w-4" /> });
+    if (currentUser.role === 'student') {
+      mobileNavLinksToDisplay.push({ href: "/student/akili", label: "Akili Chat", icon: <Sparkles className="mr-2 h-4 w-4" /> });
+    }
+  } else {
+    mobileNavLinksToDisplay.push({ href: "/auth/login", label: "Login", icon: <LogInIcon className="mr-2 h-4 w-4" /> });
+    mobileNavLinksToDisplay.push({ href: "/auth/signup", label: "Sign Up", icon: <UserPlus className="mr-2 h-4 w-4" /> });
+  }
 
 
   return (
@@ -96,11 +98,13 @@ export default function Navbar() {
         
         {/* Desktop Navigation */}
         <nav className="hidden md:flex items-center space-x-1">
-          {mainNavLinks.map(item => (
+          {isOnHomepage && mainNavLinks.map(item => (
             <Button variant="ghost" asChild key={item.href}>
               <Link href={item.href}>{item.label}</Link>
             </Button>
           ))}
+          
+          {/* Akili Chat Link for Students - Desktop */}
           {currentUser?.role === 'student' && (
              <Button variant="ghost" asChild>
               <Link href="/student/akili">
@@ -153,6 +157,13 @@ export default function Navbar() {
                     <UserCog className="mr-2 h-4 w-4" /> My Profile 
                   </Link>
                 </DropdownMenuItem>
+                {currentUser.role === 'admin' && (
+                  <DropdownMenuItem asChild>
+                    <Link href="/admin/settings">
+                      <Settings className="mr-2 h-4 w-4" /> School Settings
+                    </Link>
+                  </DropdownMenuItem>
+                )}
                 <DropdownMenuSeparator />
                  <DropdownMenuItem onClick={logOut}>
                   <LogOut className="mr-2 h-4 w-4" />
@@ -162,12 +173,12 @@ export default function Navbar() {
             </DropdownMenu>
           )}
            {loading && <div className="h-8 w-24 animate-pulse rounded-md bg-muted"></div>}
-           {/* <ThemeToggle /> Removed */}
+           <ThemeToggle />
         </nav>
 
         {/* Mobile Navigation Trigger */}
         <div className="md:hidden flex items-center gap-2">
-          {/* <ThemeToggle /> Removed */}
+          <ThemeToggle />
           <Sheet open={isMobileMenuOpen} onOpenChange={setIsMobileMenuOpen}>
             <SheetTrigger asChild>
               <Button variant="ghost" size="icon">
@@ -176,24 +187,23 @@ export default function Navbar() {
               </Button>
             </SheetTrigger>
             <SheetContent side="right" className="w-[280px] sm:w-[320px] p-0">
-              <div className="p-4 border-b">
+            <SheetHeader className="p-4 border-b">
+              <SheetTitle asChild>
                  <Link href="/" aria-label="Go to Homepage" onClick={() => setIsMobileMenuOpen(false)}>
                     <Logo />
                   </Link>
-              </div>
+              </SheetTitle>
+              </SheetHeader>
               <nav className="flex flex-col space-y-1 p-2">
-                {mobileNavLinksToDisplay.map((item) => {
-                  if(isDashboardRoute && item.label === "Dashboard" && item.href !== "/" && pathname?.startsWith(item.href.split('/')[1])) return null; 
-                  
-                  return (
+                {mobileNavLinksToDisplay.map((item) => (
                     <Button variant={pathname === item.href ? "secondary" : "ghost"} className="w-full justify-start text-left text-base py-3 h-auto" asChild key={item.href} onClick={() => setIsMobileMenuOpen(false)}>
                       <Link href={item.href} className="flex items-center">
                         {item.icon}
                         <span>{item.label}</span>
                       </Link>
                     </Button>
-                  );
-                 })}
+                  )
+                 )}
                 {currentUser && (
                   <>
                     <div className="pt-4 mt-4 border-t">
@@ -208,7 +218,14 @@ export default function Navbar() {
                                 <UserCog className="mr-2 h-4 w-4" /> My Profile
                             </Link>
                         </Button>
-                        <Button variant="ghost" className="w-full justify-start text-left text-base py-3 h-auto" onClick={() => { logOut(); setIsMobileMenuOpen(false);}}>
+                        {currentUser.role === 'admin' && (
+                           <Button variant="ghost" className="w-full justify-start text-left text-base py-3 h-auto" asChild onClick={() => setIsMobileMenuOpen(false)}>
+                            <Link href="/admin/settings" className="flex items-center">
+                                <Settings className="mr-2 h-4 w-4" /> School Settings
+                            </Link>
+                           </Button>
+                        )}
+                        <Button variant="ghost" className="w-full justify-start text-left text-base py-3 h-auto text-destructive hover:text-destructive hover:bg-destructive/10" onClick={() => { logOut(); setIsMobileMenuOpen(false);}}>
                           <LogOut className="mr-2 h-4 w-4" /> Log Out
                         </Button>
                     </div>
