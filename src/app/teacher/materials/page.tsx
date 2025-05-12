@@ -21,6 +21,7 @@ import {
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from '@/components/ui/dialog';
 import Link from 'next/link'; 
 import { Label } from '@/components/ui/label';
+import Loader from '@/components/shared/Loader';
 
 
 const materialTypeIcons: Record<LearningMaterialType, React.ReactNode> = {
@@ -120,12 +121,12 @@ export default function ManageMaterialsPage() {
     
     const materialData: Omit<LearningMaterial, 'id' | 'createdAt' | 'updatedAt'> = {
       title,
-      content: materialType === 'pdf_upload' ? "" : content, // Content is empty for PDF upload, URL is stored in attachmentUrl
+      content: materialType === 'pdf_upload' ? `[Uploaded File: ${selectedFile?.name}]` : content, // Content is placeholder for PDF upload
       materialType,
       schoolId: currentUser.schoolId,
       teacherId: currentUser.uid,
-      classId: selectedClassId,
-      subjectId: selectedSubjectId, 
+      classId: selectedClassId === GENERAL_MATERIAL_VALUE ? null : selectedClassId,
+      subjectId: selectedSubjectId === NO_SUBJECT_VALUE ? null : selectedSubjectId, 
       attachmentUrl: null, // Will be set by AuthContext if file exists
     };
 
@@ -161,10 +162,10 @@ export default function ManageMaterialsPage() {
 
     const updatePayload: Partial<Omit<LearningMaterial, 'id' | 'createdAt' | 'updatedAt' | 'teacherId' | 'schoolId'>> = {
       title: editTitle,
-      content: editMaterialType === 'pdf_upload' ? (editingMaterial.content || "") : editContent, // Keep original placeholder or update text/link
+      content: editMaterialType === 'pdf_upload' ? (editSelectedFile ? `[Uploaded File: ${editSelectedFile.name}]` : editingMaterial.content) : editContent, 
       materialType: editMaterialType,
-      classId: editSelectedClassId === undefined ? null : editSelectedClassId,
-      subjectId: editSelectedSubjectId === undefined ? null : editSelectedSubjectId,
+      classId: editSelectedClassId === GENERAL_MATERIAL_VALUE ? null : editSelectedClassId,
+      subjectId: editSelectedSubjectId === NO_SUBJECT_VALUE ? null : editSelectedSubjectId,
       attachmentUrl: editingMaterial.attachmentUrl, // Will be updated by AuthContext if editSelectedFile exists
     };
     
@@ -197,7 +198,7 @@ export default function ManageMaterialsPage() {
   if (pageOverallLoading) {
     return (
       <div className="flex h-full items-center justify-center">
-        <Loader2 className="h-12 w-12 animate-spin text-primary" />
+        <Loader message="Loading materials..." size="large" />
       </div>
     );
   }
@@ -317,8 +318,8 @@ export default function ManageMaterialsPage() {
             </div>
 
             <Button type="submit" disabled={isSubmitting || !title.trim() || (materialType !== 'pdf_upload' && !content.trim()) || (materialType === 'pdf_upload' && !selectedFile)} className="bg-primary hover:bg-primary/90 button-shadow w-full sm:w-auto">
-              {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              <PlusCircle className="mr-2 h-4 w-4" /> Add Material
+              {isSubmitting ? <Loader size="small" className="mr-2" /> : <PlusCircle className="mr-2 h-4 w-4" />}
+               Add Material
             </Button>
           </form>
         </CardContent>
@@ -372,7 +373,7 @@ export default function ManageMaterialsPage() {
                         <p className="text-sm text-muted-foreground line-clamp-3">{material.content}</p>
                       ) : material.materialType === 'pdf_upload' && material.attachmentUrl ? (
                         <Button variant="link" asChild className="p-0 h-auto text-sm">
-                            <a href={material.attachmentUrl} target="_blank" rel="noopener noreferrer">
+                            <a href={material.attachmentUrl} target="_blank" rel="noopener noreferrer" download={material.content.replace("[Uploaded File: ", "").replace("]", "")}>
                                 <Download className="mr-1 h-4 w-4"/> View Uploaded PDF: {material.content.replace("[Uploaded File: ", "").replace("]", "")}
                             </a>
                         </Button>
@@ -484,7 +485,7 @@ export default function ManageMaterialsPage() {
             <DialogFooter>
               <DialogClose asChild><Button variant="outline">Cancel</Button></DialogClose>
               <Button onClick={handleUpdateMaterial} disabled={isSubmitting || !editTitle.trim() || (editMaterialType !== 'pdf_upload' && !editContent.trim()) || (editMaterialType === 'pdf_upload' && !editSelectedFile && !editingMaterial?.attachmentUrl)}>
-                {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                {isSubmitting ? <Loader size="small" className="mr-2" /> : <Save className="mr-2 h-4 w-4" />}
                 Save Changes
               </Button>
             </DialogFooter>

@@ -26,6 +26,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { format, parse } from 'date-fns';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
+import Loader from '@/components/shared/Loader';
 
 const assignmentEditSchema = z.object({
   title: z.string().min(3, "Title must be at least 3 characters."),
@@ -46,6 +47,8 @@ const availableSubmissionFormats: { id: SubmissionFormat; label: string }[] = [
   { id: 'file_link', label: 'File Link (e.g., Google Drive, Dropbox)' },
   { id: 'file_upload', label: 'File Upload (PDF, DOCX, etc.)' },
 ];
+
+const NO_SUBJECT_VALUE = "__NO_SUBJECT__";
 
 export default function EditAssignmentPage() {
   const router = useRouter();
@@ -159,7 +162,7 @@ export default function EditAssignmentPage() {
    if (pageOverallLoading) {
     return (
       <div className="flex h-full items-center justify-center">
-        <Loader2 className="h-12 w-12 animate-spin text-primary" />
+        <Loader message="Loading assignment..." size="large"/>
       </div>
     );
   }
@@ -321,8 +324,8 @@ export default function EditAssignmentPage() {
 
 
             <Button type="submit" className="w-full bg-primary hover:bg-primary/90 button-shadow" disabled={isSubmitting || pageOverallLoading || !form.formState.isDirty}>
-              {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              <Save className="mr-2 h-4 w-4" /> Save Changes
+              {isSubmitting ? <Loader size="small" className="mr-2" /> : <Save className="mr-2 h-4 w-4" />}
+               Save Changes
             </Button>
           </form>
         </CardContent>
