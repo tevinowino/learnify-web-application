@@ -1,4 +1,3 @@
-
 "use client";
 
 import type { ReactNode } from 'react';
@@ -33,12 +32,12 @@ import { AuthContext, type AuthContextType } from './AuthContext';
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
-  const [loading, setLoading] = useState(true);
-  const router = useRouter();
+  const [authProcessLoading, setAuthProcessLoading] = useState(true); // Renamed for clarity
+  const [router, setRouter] = useState(() => useRouter());
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      setLoading(true);
+      setAuthProcessLoading(true);
       if (user) {
         const userProfile = await UserService.getUserProfileService(user.uid);
         if (userProfile) {
@@ -55,7 +54,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       } else {
         setCurrentUser(null);
       }
-      setLoading(false);
+      setAuthProcessLoading(false);
     });
     return () => unsubscribe();
   }, []);
@@ -65,7 +64,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }, []);
 
   const signUp = useCallback(async (email: string, pass: string, role: UserRole, displayName: string, schoolIdToJoin?: string, schoolName?: string): Promise<UserProfile | null> => {
-    setLoading(true);
+    setAuthProcessLoading(true);
     try {
       const userCredential = await createUserWithEmailAndPassword(auth, email, pass);
       const firebaseUser = userCredential.user;
@@ -102,12 +101,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       console.error("Error signing up:", error);
       throw error; 
     } finally {
-      setLoading(false);
+      setAuthProcessLoading(false);
     }
-  }, [setLoading, setCurrentUser, addActivity]);
+  }, [setAuthProcessLoading, setCurrentUser, addActivity]);
 
   const logIn = useCallback(async (email: string, pass: string): Promise<UserProfile | null> => {
-    setLoading(true);
+    setAuthProcessLoading(true);
     try {
       const userCredential = await signInWithEmailAndPassword(auth, email, pass);
       const firebaseUser = userCredential.user;
@@ -128,12 +127,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       console.error("Error logging in:", error);
       throw error; 
     } finally {
-      setLoading(false);
+      setAuthProcessLoading(false);
     }
-  }, [setLoading, setCurrentUser]);
+  }, [setAuthProcessLoading, setCurrentUser]);
 
   const logOut = useCallback(async () => {
-    setLoading(true);
+    setAuthProcessLoading(true);
     try {
       await firebaseSignOut(auth);
       setCurrentUser(null);
@@ -141,12 +140,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     } catch (error) {
       console.error("Error logging out:", error);
     } finally {
-      setLoading(false);
+      setAuthProcessLoading(false);
     }
-  }, [setLoading, setCurrentUser, router]);
+  }, [setAuthProcessLoading, setCurrentUser, router]);
 
   const updateUserDisplayName = useCallback(async (userId: string, displayName: string): Promise<boolean> => {
-    setLoading(true);
+    // Removed setAuthProcessLoading
     try {
       if (auth.currentUser && auth.currentUser.uid === userId) {
         await updateFirebaseProfile(auth.currentUser, { displayName });
@@ -159,14 +158,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     } catch (error) {
       console.error("Error updating display name:", error);
       return false;
-    } finally {
-      setLoading(false);
     }
-  }, [currentUser, setLoading, setCurrentUser]);
+  }, [currentUser, setCurrentUser]);
 
   const updateUserEmail = useCallback(async (newEmail: string, currentPassword_not_used: string): Promise<boolean> => {
     if (!auth.currentUser) return false;
-    setLoading(true);
+    // Removed setAuthProcessLoading
     try {
       await updateFirebaseAuthEmail(auth.currentUser, newEmail); 
       const success = await UserService.updateUserEmailInFirestore(auth.currentUser.uid, newEmail);
@@ -177,27 +174,23 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     } catch (error) {
       console.error("Error updating email:", error);
       throw error;
-    } finally {
-      setLoading(false);
     }
-  }, [currentUser, setLoading, setCurrentUser]);
+  }, [currentUser, setCurrentUser]);
   
   const updateUserPassword = useCallback(async (newPassword: string, currentPassword_not_used: string): Promise<boolean> => {
     if (!auth.currentUser) return false;
-    setLoading(true);
+    // Removed setAuthProcessLoading
     try {
       await updateFirebasePassword(auth.currentUser, newPassword);
       return true;
     } catch (error) {
       console.error("Error updating password:", error);
       throw error;
-    } finally {
-      setLoading(false);
     }
-  }, [setLoading]);
+  }, []);
 
   const createSchool = useCallback(async (schoolName: string, adminId: string): Promise<string | null> => {
-    setLoading(true);
+    // Removed setAuthProcessLoading
     try {
       const schoolId = await SchoolService.createSchoolService(schoolName, adminId);
       if (schoolId && currentUser && currentUser.uid === adminId) {
@@ -205,11 +198,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       }
       return schoolId;
     } catch (error) { return null; } 
-    finally { setLoading(false); }
-  }, [currentUser, setLoading, setCurrentUser]);
+  }, [currentUser, setCurrentUser]);
 
   const joinSchoolWithInviteCode = useCallback(async (inviteCode: string, userId: string): Promise<boolean> => {
-    setLoading(true);
+    // Removed setAuthProcessLoading
     try {
       const schoolData = await SchoolService.joinSchoolWithInviteCodeService(inviteCode, userId);
       if (schoolData && currentUser && currentUser.uid === userId) {
@@ -217,8 +209,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       }
       return !!schoolData;
     } catch (error) { return false; }
-    finally { setLoading(false); }
-  }, [currentUser, setLoading, setCurrentUser]);
+  }, [currentUser, setCurrentUser]);
 
   const checkAdminOnboardingStatus = useCallback(async (): Promise<{ isOnboarded: boolean; schoolId?: string }> => {
     if (!currentUser || currentUser.role !== 'admin') return { isOnboarded: false };
@@ -227,7 +218,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   
   const updateSchoolDetails = useCallback(async (schoolId: string, data: Partial<Pick<School, 'name' | 'isExamModeActive'>>): Promise<boolean> => {
     if (!currentUser || currentUser.role !== 'admin' || currentUser.schoolId !== schoolId) return false;
-    setLoading(true);
+    // Removed setAuthProcessLoading
     try {
         const school = await SchoolService.getSchoolDetailsService(schoolId); 
         const success = await SchoolService.updateSchoolDetailsService(schoolId, data);
@@ -248,12 +239,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         }
         return success;
     } catch(error) { return false; }
-    finally { setLoading(false); }
-  }, [currentUser, setLoading, addActivity]);
+  }, [currentUser, addActivity]);
 
   const regenerateInviteCode = useCallback(async (schoolId: string): Promise<string | null> => {
     if (!currentUser || currentUser.role !== 'admin' || currentUser.schoolId !== schoolId) return null;
-    setLoading(true);
+    // Removed setAuthProcessLoading
     try {
         const newCode = await SchoolService.regenerateInviteCodeService(schoolId);
         if (newCode && currentUser?.schoolId && currentUser.displayName) {
@@ -268,11 +258,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         }
         return newCode;
     } catch(error) { return null; }
-    finally { setLoading(false); }
-  }, [currentUser, setLoading, addActivity]);
+  }, [currentUser, addActivity]);
 
   const adminCreateUserInSchool = useCallback(async (email: string, pass: string, displayName: string, role: UserRole, schoolId: string): Promise<UserProfileWithId | null> => {
-    setLoading(true);
+    // Removed setAuthProcessLoading
     try {
        const newUser = await UserService.adminCreateUserService(auth, email, pass, displayName, role, schoolId, currentUser?.schoolName);
        if (newUser && currentUser?.schoolId && currentUser.displayName && currentUser.schoolName) {
@@ -291,14 +280,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     } catch (error: any) {
       console.error("Error creating user by admin in AuthContext:", error);
       throw error;
-    } finally {
-        setLoading(false);
     }
-  }, [setLoading, currentUser, addActivity]);
+  }, [currentUser, addActivity]);
 
   const approveUserForSchool = useCallback(async (userId: string, schoolId: string): Promise<boolean> => {
     if (!currentUser || currentUser.role !== 'admin' || currentUser.schoolId !== schoolId) return false;
-    setLoading(true);
+    // Removed setAuthProcessLoading
     try { 
         const success = await UserService.approveUserService(userId, schoolId); 
         if (success && currentUser?.schoolId && currentUser.displayName) {
@@ -319,12 +306,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         return success;
     }
     catch (error) { return false; }
-    finally { setLoading(false); }
-  }, [currentUser, setLoading, addActivity]);
+  }, [currentUser, addActivity]);
   
   const updateUserRoleAndSchool = useCallback(async (userId: string, data: { role?: UserRole; schoolId?: string, classIds?: string[], status?: UserStatus }): Promise<boolean> => {
      if (!currentUser || currentUser.role !== 'admin') return false;
-    setLoading(true);
+    // Removed setAuthProcessLoading
     try { 
         const success = await UserService.updateUserRoleAndSchoolService(userId, data); 
         if (success && currentUser?.schoolId && currentUser.displayName) {
@@ -351,12 +337,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         return success;
     }
     catch (error) { return false; }
-    finally { setLoading(false); }
-  }, [currentUser, setLoading, addActivity]);
+  }, [currentUser, addActivity]);
 
   const createClassInSchool = useCallback(async (className: string, schoolId: string, teacherId?: string): Promise<string | null> => {
     if (!currentUser || (currentUser.role !== 'admin')) return null;
-    setLoading(true);
+    // Removed setAuthProcessLoading
     try { 
       const newClassId = await ClassService.createClassService(className, schoolId, teacherId || ''); 
       if (newClassId && currentUser?.schoolId && currentUser.displayName && currentUser.schoolName) {
@@ -372,12 +357,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       return newClassId;
     }
     catch (error) { return null; }
-    finally { setLoading(false); }
-  }, [currentUser, setLoading, addActivity]);
+  }, [currentUser, addActivity]);
   
   const enrollStudentInClass = useCallback(async (classId: string, studentId: string): Promise<boolean> => {
     if (!currentUser || (currentUser.role !== 'admin' && currentUser.role !== 'teacher')) return false;
-    setLoading(true);
+    // Removed setAuthProcessLoading
     try { 
       const success = await ClassService.enrollStudentInClassService(classId, studentId); 
       if (success && currentUser?.schoolId && currentUser.displayName) {
@@ -400,12 +384,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       return success;
     }
     catch (error) { return false; }
-    finally { setLoading(false); }
-  }, [currentUser, setLoading, addActivity]);
+  }, [currentUser, addActivity]);
 
   const removeStudentFromClass = useCallback(async (classId: string, studentId: string): Promise<boolean> => {
     if (!currentUser || (currentUser.role !== 'admin' && currentUser.role !== 'teacher')) return false;
-    setLoading(true);
+    // Removed setAuthProcessLoading
     try { 
         const success = await ClassService.removeStudentFromClassService(classId, studentId); 
         if (success && currentUser?.schoolId && currentUser.displayName) {
@@ -428,12 +411,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         return success;
     }
     catch (error) { return false; }
-    finally { setLoading(false); }
-  }, [currentUser, setLoading, addActivity]);
+  }, [currentUser, addActivity]);
 
   const deleteClass = useCallback(async (classId: string): Promise<boolean> => {
     if (!currentUser || currentUser.role !== 'admin') return false;
-    setLoading(true);
+    // Removed setAuthProcessLoading
     try { 
         const cls = await ClassService.getClassDetailsService(classId, UserService.getUserProfileService);
         const success = await ClassService.deleteClassService(classId); 
@@ -451,12 +433,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         return success;
     }
     catch (error) { return false; }
-    finally { setLoading(false); }
-  }, [currentUser, setLoading, addActivity]);
+  }, [currentUser, addActivity]);
 
   const regenerateClassInviteCode = useCallback(async (classId: string): Promise<string | null> => {
     if (!currentUser || (currentUser.role !== 'admin' && currentUser.role !== 'teacher')) return null;
-    setLoading(true);
+    // Removed setAuthProcessLoading
     try { 
         const newCode = await ClassService.regenerateClassInviteCodeService(classId); 
         if (newCode && currentUser?.schoolId && currentUser.displayName) {
@@ -476,12 +457,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         return newCode;
     }
     catch (error) { return null; }
-    finally { setLoading(false); }
-  }, [currentUser, setLoading, addActivity]);
+  }, [currentUser, addActivity]);
   
   const joinClassWithCode = useCallback(async (classCode: string, studentId: string): Promise<boolean> => {
     if (!currentUser || currentUser.role !== 'student' || currentUser.uid !== studentId) return false;
-    setLoading(true);
+    // Removed setAuthProcessLoading
     try {
       const success = await ClassService.joinClassWithCodeService(classCode, studentId);
       if (success && currentUser) {
@@ -503,12 +483,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       }
       return success;
     } catch (error) { return false; }
-    finally { setLoading(false); }
-  }, [currentUser, setLoading, setCurrentUser, addActivity]);
+  }, [currentUser, setCurrentUser, addActivity]);
   
   const updateClassDetails = useCallback(async (classId: string, data: Partial<Pick<Class, 'name' | 'teacherId' | 'classInviteCode'>>): Promise<boolean> => {
     if (!currentUser || currentUser.role !== 'admin') return false;
-    setLoading(true);
+    // Removed setAuthProcessLoading
     try {
         const success = await ClassService.updateClassDetailsService(classId, data);
         if (success && currentUser?.schoolId && currentUser.displayName) {
@@ -527,8 +506,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         }
         return success;
     } catch(error) { return false; }
-    finally { setLoading(false); }
-  }, [currentUser, setLoading, addActivity]);
+  }, [currentUser, addActivity]);
   
   const getClassesBySchool = useCallback(async (schoolId: string) => ClassService.getClassesBySchoolService(schoolId, UserService.getUserProfileService), []);
   const getClassesByIds = useCallback(async (classIds: string[]) => ClassService.getClassesByIdsService(classIds, UserService.getUserProfileService, AssignmentService.getAssignmentsByClassService), []);
@@ -540,7 +518,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const addLearningMaterial = useCallback(async (materialData: Omit<LearningMaterial, 'id' | 'createdAt' | 'updatedAt'>, file?: File | null): Promise<string | null> => {
     if (!currentUser || (currentUser.role !== 'teacher' && currentUser.role !== 'admin')) return null;
-    setLoading(true);
+    // Removed setAuthProcessLoading
     let attachmentUrl: string | null = null;
     let finalContent = materialData.content;
 
@@ -576,12 +554,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       return newMaterialId;
     }
     catch (error) { return null; }
-    finally { setLoading(false); }
-  }, [currentUser, setLoading, addActivity]);
+  }, [currentUser, addActivity]);
   
   const deleteLearningMaterial = useCallback(async (materialId: string, materialTitle: string): Promise<boolean> => {
     if (!currentUser || (currentUser.role !== 'teacher' && currentUser.role !== 'admin')) return false;
-    setLoading(true);
+    // Removed setAuthProcessLoading
     try { 
         const success = await MaterialService.deleteLearningMaterialService(materialId); 
         if (success && currentUser?.schoolId && currentUser.displayName) {
@@ -597,8 +574,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         return success;
     }
     catch (error) { return false; }
-    finally { setLoading(false); }
-  }, [currentUser, setLoading, addActivity]);
+  }, [currentUser, addActivity]);
 
   const updateLearningMaterial = useCallback(async (
     materialId: string, 
@@ -606,7 +582,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     file?: File | null
     ): Promise<boolean> => {
     if (!currentUser || (currentUser.role !== 'teacher' && currentUser.role !== 'admin') || !currentUser.schoolId ) return false;
-    setLoading(true);
+    // Removed setAuthProcessLoading
     let newAttachmentUrl = data.attachmentUrl; 
     let newContent = data.content;
     const editingMaterial = await MaterialService.getLearningMaterialByIdService(materialId); 
@@ -635,8 +611,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     } catch (error) { 
         console.error("Error updating material:", error);
         return false; }
-    finally { setLoading(false); }
-  }, [currentUser, setLoading, addActivity]);
+  }, [currentUser, addActivity]);
   
   const getLearningMaterialsByTeacher = useCallback(async (teacherId: string, classId?: string) => MaterialService.getLearningMaterialsByTeacherService(teacherId, classId), []);
   const getLearningMaterialsBySchool = useCallback(async (schoolId: string) => MaterialService.getLearningMaterialsBySchoolService(schoolId, UserService.getUserProfileService, ClassService.getClassDetailsService), []);
@@ -645,7 +620,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const createAssignment = useCallback(async (assignmentData: Omit<Assignment, 'id' | 'createdAt' | 'updatedAt' | 'totalSubmissions'>, file?: File | null): Promise<string | null> => {
     if (!currentUser || currentUser.role !== 'teacher' || !currentUser.schoolId) return null;
-    setLoading(true);
+    // Removed setAuthProcessLoading
     let attachmentUrl: string | null = null;
 
     try {
@@ -675,11 +650,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         console.error("Error creating assignment in AuthContext:", error);
         return null; 
     }
-    finally { setLoading(false); }
-  }, [currentUser, setLoading, addActivity]);
+  }, [currentUser, addActivity]);
 
   const getAssignmentById = useCallback(async (assignmentId: string, studentId?: string): Promise<AssignmentWithClassAndSubmissionInfo | null> => {
-    setLoading(true);
+    // Removed setAuthProcessLoading
     try {
       const assignment = await AssignmentService.getAssignmentByIdService(assignmentId, ClassService.getClassDetailsService);
       if (!assignment) return null;
@@ -698,12 +672,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       }
       return assignment;
     } catch (error) { return null; }
-    finally { setLoading(false); }
-  }, [currentUser, setLoading]);
+  }, [currentUser]);
 
   const deleteAssignment = useCallback(async (assignmentId: string, assignmentTitle: string): Promise<boolean> => {
     if (!currentUser || (currentUser.role !== 'teacher' && currentUser.role !== 'admin')) return false;
-    setLoading(true);
+    // Removed setAuthProcessLoading
     try {
       const assignmentDoc = await AssignmentService.getAssignmentByIdService(assignmentId, ClassService.getClassDetailsService);
       if (!assignmentDoc || (currentUser.role === 'teacher' && assignmentDoc.teacherId !== currentUser.uid)) {
@@ -723,8 +696,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       }
       return success;
     } catch (error) { return false; }
-    finally { setLoading(false); }
-  }, [currentUser, setLoading, addActivity]);
+  }, [currentUser, addActivity]);
 
   const updateAssignment = useCallback(async (
     assignmentId: string, 
@@ -733,7 +705,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     file?: File | null
     ): Promise<boolean> => {
     if (!currentUser || (currentUser.role !== 'teacher' && currentUser.role !== 'admin') || !currentUser.schoolId) return false;
-    setLoading(true);
+    // Removed setAuthProcessLoading
     let newAttachmentUrl = data.attachmentUrl; 
     try {
       if (file) {
@@ -759,8 +731,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       }
       return success;
     } catch (error) { return false; }
-    finally { setLoading(false); }
-  }, [currentUser, setLoading, addActivity]);
+  }, [currentUser, addActivity]);
 
   const getAssignmentsByTeacher = useCallback(async (teacherId: string, classId?: string) => AssignmentService.getAssignmentsByTeacherService(teacherId, ClassService.getClassDetailsService, classId), []);
   const getAssignmentsByClass = useCallback(async (classId: string) => AssignmentService.getAssignmentsByClassService(classId), []);
@@ -772,7 +743,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const gradeSubmission = useCallback(async (submissionId: string, grade: string | number, feedback?: string): Promise<boolean> => {
     if (!currentUser || currentUser.role !== 'teacher' || !currentUser.schoolId) return false;
-    setLoading(true);
+    // Removed setAuthProcessLoading
     try {
       const success = await SubmissionService.gradeSubmissionService(submissionId, grade, feedback);
       if (success && currentUser && currentUser.schoolId && currentUser.displayName) { 
@@ -797,15 +768,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       }
       return success;
     } catch (error) { return false; }
-    finally { setLoading(false); }
-  }, [currentUser, setLoading, addActivity]);
+  }, [currentUser, addActivity]);
   
   const addSubmission = useCallback(async (
     submissionData: Omit<Submission, 'id' | 'submittedAt' | 'grade' | 'feedback' | 'status' | 'originalFileName'>,
     file?: File | null
   ): Promise<string | null> => {
     if (!currentUser?.uid || !currentUser.schoolId) return null;
-    setLoading(true);
+    // Removed setAuthProcessLoading
     let attachmentUrl: string | null = null;
     let originalFileName: string | undefined = undefined;
 
@@ -845,7 +815,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
                 ...(prev.studentAssignments || {}),
                 [submissionData.assignmentId]: {
                     status: result.newStatus,
-                    grade: result.existingGrade, // Keep existing grade if it was an update to a graded item
+                    grade: result.existingGrade, 
                 }
             };
             return {...prev, studentAssignments: updatedAssignments };
@@ -855,25 +825,22 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     } catch (error) {
       console.error("Error in AuthContext addSubmission:", error);
       return null;
-    } finally {
-      setLoading(false);
     }
-  }, [currentUser, setLoading, addActivity, setCurrentUser]);
+  }, [currentUser, addActivity, setCurrentUser]);
 
   const getAssignmentsForStudentByClass = useCallback(async (classId: string, studentId: string): Promise<AssignmentWithClassAndSubmissionInfo[]> => {
     if (!currentUser || (currentUser.role !== 'student' && currentUser.role !== 'teacher' && currentUser.role !== 'admin')) return [];
     if (currentUser.role === 'student' && currentUser.uid !== studentId) return [];
-    setLoading(true);
+    // Removed setAuthProcessLoading
     try {
         const studentProfile = await UserService.getUserProfileService(studentId);
         return await AssignmentService.getAssignmentsForStudentByClassService(classId, studentId, SubmissionService.getSubmissionByStudentForAssignmentService, ClassService.getClassDetailsService, studentProfile);
     } catch (error) { return []; }
-    finally { setLoading(false); }
-  }, [currentUser, setLoading]);
+  }, [currentUser]);
 
   const completeStudentOnboarding = useCallback(async (userId: string, classId: string, subjectIds: string[]): Promise<boolean> => {
     if (!currentUser || currentUser.uid !== userId || currentUser.role !== 'student') return false;
-    setLoading(true);
+    // Removed setAuthProcessLoading
     try {
       const success = await UserService.completeStudentOnboardingService(userId, classId, subjectIds);
       if (success && currentUser?.schoolId && currentUser.displayName) {
@@ -893,14 +860,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     } catch (error) {
       console.error("Error completing student onboarding in AuthContext:", error);
       return false;
-    } finally {
-      setLoading(false);
     }
-  }, [currentUser, setLoading, setCurrentUser, addActivity]);
+  }, [currentUser, setCurrentUser, addActivity]);
 
   const createSubject = useCallback(async (schoolId: string, subjectName: string): Promise<string | null> => {
     if (!currentUser || currentUser.role !== 'admin' || currentUser.schoolId !== schoolId) return null;
-    setLoading(true);
+    // Removed setAuthProcessLoading
     try { 
       const newSubjectId = await SubjectService.createSubjectService(schoolId, subjectName); 
       if (newSubjectId && currentUser?.schoolId && currentUser.displayName && currentUser.schoolName) {
@@ -916,12 +881,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       return newSubjectId;
     }
     catch (error) { return null; }
-    finally { setLoading(false); }
-  }, [currentUser, setLoading, addActivity]);
+  }, [currentUser, addActivity]);
   
   const updateSubject = useCallback(async (subjectId: string, newName: string): Promise<boolean> => {
     if (!currentUser || currentUser.role !== 'admin') return false;
-    setLoading(true);
+    // Removed setAuthProcessLoading
     try {
         const oldSubject = await SubjectService.getSubjectByIdService(subjectId);
         const success = await SubjectService.updateSubjectService(subjectId, newName);
@@ -937,12 +901,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         }
         return success;
     } catch (error) { return false; }
-    finally { setLoading(false); }
-  }, [currentUser, setLoading, addActivity]);
+  }, [currentUser, addActivity]);
 
   const deleteSubject = useCallback(async (subjectId: string, subjectName: string): Promise<boolean> => {
      if (!currentUser || currentUser.role !== 'admin') return false;
-    setLoading(true);
+    // Removed setAuthProcessLoading
     try {
         const success = await SubjectService.deleteSubjectService(subjectId);
         if (success && currentUser?.schoolId && currentUser.displayName) {
@@ -957,17 +920,22 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         }
         return success;
     } catch (error) { return false; }
-    finally { setLoading(false); }
-  }, [currentUser, setLoading, addActivity]);
+  }, [currentUser, addActivity]);
   
   const getExamPeriodsBySchool = useCallback(async (schoolId: string) => ExamService.getExamPeriodsBySchoolService(schoolId, ClassService.getClassDetailsService), []);
   const getExamPeriodById = useCallback(async (examPeriodId: string) => ExamService.getExamPeriodByIdService(examPeriodId, ClassService.getClassDetailsService), []);
   const getExamResultsForStudent = useCallback(async (studentId: string, schoolId: string) => ExamService.getExamResultsByStudentService(studentId, schoolId, SubjectService.getSubjectByIdService, (examPeriodId: string) => ExamService.getExamPeriodByIdService(examPeriodId, ClassService.getClassDetailsService)), []);
   const getExamResultsForTeacher = useCallback(async (examPeriodId: string, classId: string, subjectId: string, schoolId: string) => ExamService.getExamResultsForTeacherService(examPeriodId, classId, subjectId, schoolId, UserService.getUserProfileService), []);
   const getExamResultsByPeriodAndClass = useCallback(async (examPeriodId: string, classId: string, schoolId: string, subjectId: string) => ExamService.getExamResultsByPeriodAndClassService(examPeriodId, classId, schoolId, subjectId, SubjectService.getSubjectByIdService),[]);
+  const createExamPeriod = useCallback(async (examPeriodData: Omit<ExamPeriod, 'id' | 'createdAt' | 'updatedAt' | 'status'>) => ExamService.createExamPeriodService(examPeriodData), []);
+  const updateExamPeriod = useCallback(async (examPeriodId: string, data: Partial<ExamPeriod>) => ExamService.updateExamPeriodService(examPeriodId, data), []);
+  const addOrUpdateExamResult = useCallback(async (resultData: Omit<ExamResult, 'id' | 'createdAt' | 'updatedAt'>) => ExamService.addOrUpdateExamResultService(resultData), []);
+
 
   const value: AuthContextType = useMemo(() => ({
-    currentUser, loading, signUp, logIn, logOut,
+    currentUser, 
+    loading: authProcessLoading, // Use the renamed state here
+    signUp, logIn, logOut,
     createSchool, joinSchoolWithInviteCode, checkAdminOnboardingStatus, getSchoolDetails: SchoolService.getSchoolDetailsService, updateSchoolDetails, regenerateInviteCode,
     getUsersBySchool: UserService.getUsersBySchoolService, getUsersBySchoolAndRole: UserService.getUsersBySchoolAndRoleService, adminCreateUserInSchool, updateUserRoleAndSchool, getUserProfile: UserService.getUserProfileService, approveUserForSchool,
     createClassInSchool, getClassesBySchool, getClassDetails, updateClassDetails, enrollStudentInClass, removeStudentFromClass, getStudentsInClass, getStudentsNotInClass, deleteClass, regenerateClassInviteCode, joinClassWithCode,
@@ -976,22 +944,24 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     createAssignment, getAssignmentsByTeacher, getAssignmentsByClass, getAssignmentById, updateAssignment, deleteAssignment,
     fetchSubmissionsForAssignment,
     gradeSubmission,
-    getSubmissionByStudentForAssignment: SubmissionService.getSubmissionByStudentForAssignmentService, addSubmission, getAssignmentsForStudentByClass,
+    getSubmissionByStudentForAssignment: SubmissionService.getSubmissionByStudentForAssignmentService, 
+    addSubmission, 
+    getAssignmentsForStudentByClass,
     completeStudentOnboarding,
     updateUserDisplayName, updateUserEmail, updateUserPassword,
     getClassesByIds,
     createSubject, getSubjectsBySchool: SubjectService.getSubjectsBySchoolService, updateSubject, deleteSubject, getSubjectById: SubjectService.getSubjectByIdService,
-    createExamPeriod: ExamService.createExamPeriodService, 
+    createExamPeriod, 
     getExamPeriodsBySchool,
     getExamPeriodById,
-    updateExamPeriod: ExamService.updateExamPeriodService,
-    addOrUpdateExamResult: ExamService.addOrUpdateExamResultService,
+    updateExamPeriod,
+    addOrUpdateExamResult,
     getExamResultsForTeacher,
     getExamResultsForStudent,
     getExamResultsByPeriodAndClass,
     getActivities: ActivityService.getActivitiesService, addActivity
   }), [
-    currentUser, loading, signUp, logIn, logOut,
+    currentUser, authProcessLoading, signUp, logIn, logOut, // Use the renamed state
     createSchool, joinSchoolWithInviteCode, checkAdminOnboardingStatus, updateSchoolDetails, regenerateInviteCode,
     adminCreateUserInSchool, updateUserRoleAndSchool, approveUserForSchool,
     createClassInSchool, getClassesBySchool, getClassDetails, updateClassDetails, enrollStudentInClass, removeStudentFromClass, getStudentsInClass, getStudentsNotInClass, deleteClass, regenerateClassInviteCode, joinClassWithCode,
@@ -1000,14 +970,16 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     createAssignment, getAssignmentsByTeacher, getAssignmentsByClass, getAssignmentById, updateAssignment, deleteAssignment,
     fetchSubmissionsForAssignment,
     gradeSubmission,
-    addSubmission, getAssignmentsForStudentByClass,
+    addSubmission, 
+    getAssignmentsForStudentByClass,
     completeStudentOnboarding,
     updateUserDisplayName, updateUserEmail, updateUserPassword,
     getClassesByIds,
     createSubject, updateSubject, deleteSubject,
-    getExamPeriodsBySchool, getExamPeriodById, getExamResultsForStudent, getExamResultsForTeacher, getExamResultsByPeriodAndClass,
+    createExamPeriod, getExamPeriodsBySchool, getExamPeriodById, updateExamPeriod, addOrUpdateExamResult, getExamResultsForTeacher, getExamResultsForStudent, getExamResultsByPeriodAndClass,
     addActivity
   ]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
+
