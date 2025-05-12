@@ -1,3 +1,4 @@
+
 "use client";
 
 import Link from 'next/link';
@@ -5,7 +6,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import Logo from './Logo';
 import { siteConfig } from '@/config/site';
-import { LogOut, LayoutDashboard, UserCircle, UserPlus, LogInIcon, Menu, HomeIcon, InfoIcon, DollarSignIcon, MessageSquareIcon } from 'lucide-react';
+import { LogOut, LayoutDashboard, UserCircle, UserPlus, LogInIcon, Menu, HomeIcon, InfoIcon, MessageSquareIcon, UserCog, Sparkles } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -18,11 +19,11 @@ import {
   Sheet,
   SheetContent,
   SheetTrigger,
-  SheetClose,
 } from "@/components/ui/sheet";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import React, { useState } from 'react';
 import { usePathname } from 'next/navigation';
+import { ThemeToggle } from '../ui/theme-toggle';
 
 export default function Navbar() {
   const { currentUser, logOut, loading } = useAuth();
@@ -30,23 +31,36 @@ export default function Navbar() {
   const pathname = usePathname();
 
   const getDashboardPath = () => {
-    if (!currentUser || !currentUser.role) return '/auth/login'; // Default to login if role somehow missing
+    if (!currentUser || !currentUser.role) return '/auth/login'; 
     switch (currentUser.role) {
       case 'admin':
         return currentUser.schoolId ? '/admin/dashboard' : '/admin/onboarding';
       case 'teacher':
         return '/teacher/dashboard';
       case 'student':
-        return (currentUser.classIds && currentUser.classIds.length > 0) || currentUser.status === 'pending_verification' ? '/student/dashboard' : '/student/onboarding';
+        if (currentUser.status === 'pending_verification') return '/auth/pending-verification';
+        return (currentUser.classIds && currentUser.classIds.length > 0) ? '/student/dashboard' : '/student/onboarding';
+      case 'parent':
+        return '/parent/dashboard'; 
       default:
         return '/';
+    }
+  };
+  
+  const getProfilePath = () => {
+    if (!currentUser || !currentUser.role) return '/auth/login';
+    switch (currentUser.role) {
+        case 'admin': return '/admin/profile';
+        case 'teacher': return '/teacher/profile';
+        case 'student': return '/student/profile';
+        case 'parent': return '/parent/profile';
+        default: return '/';
     }
   };
   
   const mainNavLinks = siteConfig.mainNav.map(item => {
     let icon = <HomeIcon className="mr-2 h-4 w-4" />;
     if (item.title === "About") icon = <InfoIcon className="mr-2 h-4 w-4" />;
-    if (item.title === "Pricing") icon = <DollarSignIcon className="mr-2 h-4 w-4" />;
     if (item.title === "Contact Us") icon = <MessageSquareIcon className="mr-2 h-4 w-4" />;
     return { ...item, icon };
   });
@@ -62,15 +76,23 @@ export default function Navbar() {
     ...mainNavLinks,
     { href: getDashboardPath(), label: "Dashboard", icon: <LayoutDashboard className="mr-2 h-4 w-4" /> },
   ];
+   
+  // Add Akili chat to student's mobile nav only
+  const studentMobileLinksExtra = currentUser?.role === 'student' ? [
+      { href: "/student/akili", label: "Akili Chat", icon: <Sparkles className="mr-2 h-4 w-4" /> }
+  ] : [];
   
   const navLinksToDisplay = currentUser ? userLinks : guestLinks;
-  const isDashboardRoute = pathname?.startsWith('/admin') || pathname?.startsWith('/teacher') || pathname?.startsWith('/student');
+  const mobileNavLinksToDisplay = currentUser ? [...userLinks, ...studentMobileLinksExtra] : guestLinks;
+  const isDashboardRoute = pathname?.startsWith('/admin') || pathname?.startsWith('/teacher') || pathname?.startsWith('/student') || pathname?.startsWith('/parent');
 
 
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <div className="container flex h-16 items-center justify-between px-4 md:px-6">
-        <Logo />
+        <Link href="/" aria-label="Go to Homepage">
+          <Logo />
+        </Link>
         
         {/* Desktop Navigation */}
         <nav className="hidden md:flex items-center space-x-1">
@@ -79,6 +101,13 @@ export default function Navbar() {
               <Link href={item.href}>{item.label}</Link>
             </Button>
           ))}
+          {currentUser?.role === 'student' && (
+             <Button variant="ghost" asChild>
+              <Link href="/student/akili">
+                <Sparkles className="mr-2 h-4 w-4 text-primary" /> Akili Chat
+              </Link>
+            </Button>
+          )}
 
           {!loading && !currentUser && (
             <>
@@ -119,6 +148,12 @@ export default function Navbar() {
                     <LayoutDashboard className="mr-2 h-4 w-4" /> Dashboard
                   </Link>
                 </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link href={getProfilePath()}>
+                    <UserCog className="mr-2 h-4 w-4" /> My Profile 
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
                  <DropdownMenuItem onClick={logOut}>
                   <LogOut className="mr-2 h-4 w-4" />
                   Log out
@@ -127,10 +162,12 @@ export default function Navbar() {
             </DropdownMenu>
           )}
            {loading && <div className="h-8 w-24 animate-pulse rounded-md bg-muted"></div>}
+           <ThemeToggle />
         </nav>
 
         {/* Mobile Navigation Trigger */}
-        <div className="md:hidden">
+        <div className="md:hidden flex items-center gap-2">
+          <ThemeToggle />
           <Sheet open={isMobileMenuOpen} onOpenChange={setIsMobileMenuOpen}>
             <SheetTrigger asChild>
               <Button variant="ghost" size="icon">
@@ -138,14 +175,16 @@ export default function Navbar() {
                 <span className="sr-only">Toggle menu</span>
               </Button>
             </SheetTrigger>
-            <SheetContent side="right" className="w-[280px] sm:w-[320px]">
+            <SheetContent side="right" className="w-[280px] sm:w-[320px] p-0">
               <div className="p-4 border-b">
-                <Logo />
+                 <Link href="/" aria-label="Go to Homepage" onClick={() => setIsMobileMenuOpen(false)}>
+                    <Logo />
+                  </Link>
               </div>
               <nav className="flex flex-col space-y-1 p-2">
-                {navLinksToDisplay.map((item) => {
-                  // Don't show dashboard link if already in a dashboard section (for mobile simplicity)
-                  if(isDashboardRoute && item.label === "Dashboard" && item.href !== "/") return null; 
+                {mobileNavLinksToDisplay.map((item) => {
+                  if(isDashboardRoute && item.label === "Dashboard" && item.href !== "/" && pathname?.startsWith(item.href.split('/')[1])) return null; 
+                  
                   return (
                     <Button variant={pathname === item.href ? "secondary" : "ghost"} className="w-full justify-start text-left text-base py-3 h-auto" asChild key={item.href} onClick={() => setIsMobileMenuOpen(false)}>
                       <Link href={item.href} className="flex items-center">
@@ -164,6 +203,11 @@ export default function Navbar() {
                             {currentUser.email}
                           </p>
                         </div>
+                         <Button variant="ghost" className="w-full justify-start text-left text-base py-3 h-auto" asChild onClick={() => setIsMobileMenuOpen(false)}>
+                            <Link href={getProfilePath()} className="flex items-center">
+                                <UserCog className="mr-2 h-4 w-4" /> My Profile
+                            </Link>
+                        </Button>
                         <Button variant="ghost" className="w-full justify-start text-left text-base py-3 h-auto" onClick={() => { logOut(); setIsMobileMenuOpen(false);}}>
                           <LogOut className="mr-2 h-4 w-4" /> Log Out
                         </Button>
