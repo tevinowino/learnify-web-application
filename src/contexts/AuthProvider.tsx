@@ -15,11 +15,11 @@ import {
 } from 'firebase/auth';
 import { doc, getDoc, setDoc, Timestamp, updateDoc } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase';
-import type { UserProfile, UserRole, School, LearningMaterial, UserProfileWithId, Class, ClassWithTeacherInfo, LearningMaterialWithTeacherInfo, Assignment, Submission, SubmissionFormat, LearningMaterialType, AssignmentWithClassInfo, SubmissionWithStudentName, AssignmentWithClassAndSubmissionInfo, UserStatus, Activity, Subject, ExamPeriod, ExamPeriodWithClassNames, ExamResult, ExamResultWithStudentInfo, Notification } from '@/types';
+import type { UserProfile, UserRole, School, LearningMaterial, UserProfileWithId, Class, ClassWithTeacherInfo, LearningMaterialWithTeacherInfo, Assignment, Submission, SubmissionFormat, LearningMaterialType, AssignmentWithClassInfo, SubmissionWithStudentName, AssignmentWithClassAndSubmissionInfo, UserStatus, Activity, Subject, ExamPeriod, ExamPeriodWithClassNames, ExamResult, ExamResultWithStudentInfo, Notification } from '@/types'; // Added Notification type
 import { useRouter } from 'next/navigation';
 
 import * as SchoolService from '@/services/schoolService';
-import *as UserService from '@/services/userService';
+import * as UserService from '@/services/userService';
 import * as ClassService from '@/services/classService';
 import * as MaterialService from '@/services/learningMaterialService';
 import * as AssignmentService from '@/services/assignmentService';
@@ -27,9 +27,11 @@ import * as SubmissionService from '@/services/submissionService';
 import * as SubjectService from '@/services/subjectService';
 import * as ActivityService from '@/services/activityService';
 import * as ExamService from '@/services/examService';
-import * as NotificationService from '@/services/notificationService'; // Added
+import * as NotificationService from '@/services/notificationService'; 
 import { uploadFileToStorageService } from '@/services/fileUploadService';
 import { AuthContext, type AuthContextType } from './AuthContext';
+import { sendEmail } from '@/actions/emailActions'; // Import email utility
+import { format } from 'date-fns';
 
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
@@ -66,7 +68,18 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }, []);
 
   const addNotification = useCallback(async (notificationData: Omit<Notification, 'id' | 'createdAt' | 'isRead'>): Promise<string | null> => {
-    return NotificationService.addNotificationService(notificationData);
+    const notificationId = await NotificationService.addNotificationService(notificationData);
+    if (notificationId && notificationData.userId) {
+      const recipient = await UserService.getUserProfileService(notificationData.userId);
+      if (recipient?.email) {
+        await sendEmail({
+          to: recipient.email,
+          subject: `Learnify Notification: ${notificationData.type.replace(/_/g, ' ')}`,
+          html: `<p>${notificationData.message}</p>${notificationData.link ? `<p><a href="${process.env.NEXT_PUBLIC_APP_URL}${notificationData.link}">View Details</a></p>` : ''}<p>From: ${notificationData.actorName || 'Learnify System'}</p>`,
+        });
+      }
+    }
+    return notificationId;
   }, []);
 
   const signUp = useCallback(async (email: string, pass: string, role: UserRole, displayName: string, schoolIdToJoin?: string, schoolName?: string): Promise<UserProfile | null> => {
@@ -78,6 +91,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
       await updateFirebaseProfile(firebaseUser, { displayName });
       const profile = await UserService.createUserProfileInFirestore(firebaseUser, role, displayName, schoolIdToJoin, schoolName);
+      
       if (profile && profile.schoolId && profile.displayName && profile.schoolName) {
          await addActivity({
             schoolId: profile.schoolId,
@@ -95,18 +109,24 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
                 targetUserName: profile.displayName,
                 link: '/admin/users'
             });
-            // Notify admins of the school
             const schoolAdmins = await UserService.getUsersBySchoolAndRoleService(profile.schoolId, 'admin');
-            schoolAdmins.forEach(admin => {
-                addNotification({
-                    userId: admin.uid,
-                    schoolId: profile.schoolId!,
-                    message: `New user ${profile.displayName} (${profile.role}) requires approval to join ${profile.schoolName}.`,
-                    type: 'user_profile_updated', // Can be more specific, e.g., 'user_pending_approval'
-                    link: '/admin/users',
-                    actorName: 'System'
+            for (const admin of schoolAdmins) {
+              if (admin.email) {
+                await sendEmail({
+                  to: admin.email,
+                  subject: `Learnify: New User Awaiting Approval - ${profile.displayName}`,
+                  html: `<p>A new user, <strong>${profile.displayName}</strong> (${profile.role}), has registered for <strong>${profile.schoolName}</strong> and is awaiting your approval.</p><p>Please log in to your admin dashboard to review their request.</p><p><a href="${process.env.NEXT_PUBLIC_APP_URL}/admin/users">Go to User Management</a></p>`,
                 });
-            });
+              }
+               await addNotification({
+                  userId: admin.id,
+                  schoolId: profile.schoolId!,
+                  message: `New user ${profile.displayName} (${profile.role}) requires approval to join ${profile.schoolName}.`,
+                  type: 'user_profile_updated', 
+                  link: '/admin/users',
+                  actorName: 'System'
+              });
+            }
          }
       }
       const fullProfile = await UserService.getUserProfileService(firebaseUser.uid);
@@ -285,11 +305,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
                 targetUserName: displayName,
                 link: `/admin/users/${newUser.id}/edit`
             });
-            // Notify the newly created user
-            addNotification({
+            await addNotification({
                 userId: newUser.id,
                 schoolId: schoolId,
-                message: `Welcome to ${currentUser.schoolName}! Your account has been created by an admin.`,
+                message: `Welcome to ${currentUser.schoolName}! Your account has been created by an admin. Your initial password is the one set during creation. Please change it upon first login.`,
                 type: 'user_registered',
                 actorName: currentUser.displayName,
             });
@@ -307,7 +326,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         const success = await UserService.approveUserService(userId, schoolId); 
         if (success && currentUser?.schoolId && currentUser.displayName) {
             const approvedUser = await UserService.getUserProfileService(userId);
-            if (approvedUser) {
+            if (approvedUser && approvedUser.email) {
                  await addActivity({
                     schoolId: currentUser.schoolId,
                     actorId: currentUser.uid,
@@ -318,14 +337,18 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
                     targetUserName: approvedUser.displayName,
                     link: `/admin/users`
                 });
-                // Notify the approved user
-                addNotification({
+                await sendEmail({
+                  to: approvedUser.email,
+                  subject: `Learnify: Your Account for ${approvedUser.schoolName} is Approved!`,
+                  html: `<p>Hi ${approvedUser.displayName},</p><p>Your account to join <strong>${approvedUser.schoolName}</strong> on Learnify has been approved! You can now log in and access your dashboard.</p><p><a href="${process.env.NEXT_PUBLIC_APP_URL}/auth/login">Log in to Learnify</a></p>`
+                });
+                await addNotification({
                     userId: approvedUser.id,
                     schoolId: schoolId,
                     message: `Your account for ${approvedUser.schoolName} has been approved! You can now log in.`,
                     type: 'user_approved',
                     actorName: currentUser.displayName,
-                    link: '/student/dashboard' // or teacher dashboard
+                    link: approvedUser.role === 'student' ? '/student/dashboard' : '/teacher/dashboard'
                 });
             }
         }
@@ -340,30 +363,34 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         const success = await UserService.updateUserRoleAndSchoolService(userId, data); 
         if (success && currentUser?.schoolId && currentUser.displayName) {
             const targetUser = await UserService.getUserProfileService(userId);
-            if (targetUser) {
-                let message = `${currentUser.displayName} updated profile for ${targetUser.displayName}.`;
-                let notificationMessage = `Your profile has been updated by an admin.`;
+            if (targetUser && targetUser.email) {
+                let activityMessage = `${currentUser.displayName} updated profile for ${targetUser.displayName}.`;
+                let emailSubject = "Learnify: Your Account Details Updated";
+                let emailHtml = `<p>Hi ${targetUser.displayName},</p><p>Your Learnify account details have been updated by an administrator at ${targetUser.schoolName}.</p>`;
+
                 if (data.status === 'rejected') {
-                    message = `${currentUser.displayName} rejected user request for ${targetUser.displayName}.`;
-                    notificationMessage = `Your request to join ${targetUser.schoolName} has been rejected.`;
+                    activityMessage = `${currentUser.displayName} rejected user request for ${targetUser.displayName}.`;
+                    emailSubject = `Learnify: Account Request for ${targetUser.schoolName} Rejected`;
+                    emailHtml = `<p>Hi ${targetUser.displayName},</p><p>Your request to join ${targetUser.schoolName} on Learnify has been rejected. Please contact your school administrator for more information.</p>`;
                 } else if (data.role) {
-                    message = `${currentUser.displayName} updated ${targetUser.displayName}'s role to ${data.role}.`;
-                    notificationMessage = `Your role has been updated to ${data.role} by an admin.`;
+                    activityMessage = `${currentUser.displayName} updated ${targetUser.displayName}'s role to ${data.role}.`;
+                    emailHtml += `<p>Your role has been changed to: ${data.role}.</p>`;
                 }
                 await addActivity({
                     schoolId: currentUser.schoolId,
                     actorId: currentUser.uid,
                     actorName: currentUser.displayName,
                     type: 'user_profile_updated',
-                    message: message,
+                    message: activityMessage,
                     targetUserId: targetUser.id,
                     targetUserName: targetUser.displayName,
                     link: `/admin/users/${targetUser.id}/edit`
                 });
-                 addNotification({
+                await sendEmail({ to: targetUser.email, subject: emailSubject, html: emailHtml });
+                await addNotification({
                     userId: targetUser.id,
                     schoolId: targetUser.schoolId!,
-                    message: notificationMessage,
+                    message: emailSubject, // Using subject as a concise notification message
                     type: 'user_profile_updated',
                     actorName: currentUser.displayName
                 });
@@ -400,7 +427,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       if (success && currentUser?.schoolId && currentUser.displayName) {
         const student = await UserService.getUserProfileService(studentId);
         const cls = await ClassService.getClassDetailsService(classId, UserService.getUserProfileService);
-        if (student && cls) {
+        if (student && cls && student.email) {
              await addActivity({
                 schoolId: currentUser.schoolId,
                 actorId: currentUser.uid,
@@ -412,7 +439,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
                 message: `${currentUser.displayName} enrolled ${student.displayName} in class "${cls.name}".`,
                 link: `/admin/classes`
             });
-             addNotification({
+            await sendEmail({
+              to: student.email,
+              subject: `Learnify: You've been enrolled in ${cls.name}!`,
+              html: `<p>Hi ${student.displayName},</p><p>You have been enrolled in the class "<strong>${cls.name}</strong>" by ${currentUser.displayName}.</p><p><a href="${process.env.NEXT_PUBLIC_APP_URL}/student/classes/${classId}">View Class</a></p>`,
+            });
+            await addNotification({
                 userId: studentId,
                 schoolId: currentUser.schoolId,
                 message: `You have been enrolled in class "${cls.name}" by ${currentUser.displayName}.`,
@@ -434,7 +466,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         if (success && currentUser?.schoolId && currentUser.displayName) {
             const student = await UserService.getUserProfileService(studentId);
             const cls = await ClassService.getClassDetailsService(classId, UserService.getUserProfileService);
-            if (student && cls) {
+            if (student && cls && student.email) {
                 await addActivity({
                     schoolId: currentUser.schoolId,
                     actorId: currentUser.uid,
@@ -446,7 +478,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
                     message: `${currentUser.displayName} removed ${student.displayName} from class "${cls.name}".`,
                     link: `/admin/classes`
                 });
-                  addNotification({
+                await sendEmail({
+                  to: student.email,
+                  subject: `Learnify: Removed from class ${cls.name}`,
+                  html: `<p>Hi ${student.displayName},</p><p>You have been removed from the class "<strong>${cls.name}</strong>" by ${currentUser.displayName}.</p>`,
+                });
+                await addNotification({
                     userId: studentId,
                     schoolId: currentUser.schoolId,
                     message: `You have been removed from class "${cls.name}" by ${currentUser.displayName}.`,
@@ -508,12 +545,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     if (!currentUser || currentUser.role !== 'student' || currentUser.uid !== studentId) return false;
     try {
       const success = await ClassService.joinClassWithCodeService(classCode, studentId);
-      if (success && currentUser) {
+      if (success && currentUser && currentUser.schoolId && currentUser.displayName) {
         const classDetails = await ClassService.getClassByInviteCodeService(classCode);
         if (classDetails) {
           setCurrentUser(prev => prev ? ({ ...prev, classIds: Array.from(new Set([...(prev.classIds || []), classDetails.id])) }) : null);
-          if (currentUser.schoolId && currentUser.displayName && classDetails.name) {
-            await addActivity({
+          await addActivity({
               schoolId: currentUser.schoolId,
               actorId: currentUser.uid,
               actorName: currentUser.displayName,
@@ -521,18 +557,24 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
               type: 'student_joined_class',
               message: `${currentUser.displayName} joined class "${classDetails.name}".`,
               link: `/student/classes/${classDetails.id}`
-            });
-            // Notify class teacher
-            if (classDetails.teacherId) {
-                addNotification({
-                    userId: classDetails.teacherId,
-                    schoolId: currentUser.schoolId,
-                    message: `${currentUser.displayName} has joined your class "${classDetails.name}".`,
-                    type: 'student_joined_class',
-                    link: `/teacher/classes/${classDetails.id}`,
-                    actorName: currentUser.displayName
-                });
+          });
+          if (classDetails.teacherId) {
+            const teacher = await UserService.getUserProfileService(classDetails.teacherId);
+            if (teacher?.email) {
+              await sendEmail({
+                to: teacher.email,
+                subject: `Learnify: ${currentUser.displayName} joined your class ${classDetails.name}`,
+                html: `<p>Hi ${teacher.displayName || 'Teacher'},</p><p>Student <strong>${currentUser.displayName}</strong> has joined your class "<strong>${classDetails.name}</strong>".</p><p><a href="${process.env.NEXT_PUBLIC_APP_URL}/teacher/classes/${classDetails.id}">View Class Roster</a></p>`,
+              });
             }
+            await addNotification({
+                userId: classDetails.teacherId,
+                schoolId: currentUser.schoolId,
+                message: `${currentUser.displayName} has joined your class "${classDetails.name}".`,
+                type: 'student_joined_class',
+                link: `/teacher/classes/${classDetails.id}`,
+                actorName: currentUser.displayName
+            });
           }
         }
       }
@@ -571,7 +613,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const getStudentsInMultipleClasses = useCallback(async (classIds: string[]) => ClassService.getStudentsInMultipleClassesService(classIds), []);
 
   const addLearningMaterial = useCallback(async (materialData: Omit<LearningMaterial, 'id' | 'createdAt' | 'updatedAt'>, file?: File | null): Promise<string | null> => {
-    if (!currentUser || (currentUser.role !== 'teacher' && currentUser.role !== 'admin')) return null;
+    if (!currentUser || (currentUser.role !== 'teacher' && currentUser.role !== 'admin') || !currentUser.schoolId ) return null;
     let attachmentUrl: string | null = null;
     let finalContent = materialData.content;
 
@@ -603,19 +645,25 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
                 message: `${currentUser.displayName} uploaded material "${materialData.title}"${className}.`,
                 link: materialData.classId ? `/teacher/classes/${materialData.classId}` : `/teacher/materials`
             });
-            // Notify students in the class
-            if (materialData.classId) {
+            if (materialData.classId && classInfo) {
                 const students = await ClassService.getStudentsInClassService(materialData.classId, UserService.getUserProfileService);
-                students.forEach(student => {
-                    addNotification({
-                        userId: student.uid,
-                        schoolId: currentUser.schoolId!,
-                        message: `New material "${materialData.title}" added to class "${classInfo?.name}".`,
-                        type: 'material_uploaded',
-                        link: `/student/classes/${materialData.classId}`,
-                        actorName: currentUser.displayName
+                for (const student of students) {
+                  if (student.email) {
+                    await sendEmail({
+                      to: student.email,
+                      subject: `Learnify: New Material "${materialData.title}" for ${classInfo.name}`,
+                      html: `<p>Hi ${student.displayName},</p><p>A new learning material, "<strong>${materialData.title}</strong>", has been added to your class "<strong>${classInfo.name}</strong>" by ${currentUser.displayName}.</p><p><a href="${process.env.NEXT_PUBLIC_APP_URL}/student/classes/${materialData.classId}">View Material</a></p>`,
                     });
-                });
+                  }
+                  await addNotification({
+                      userId: student.id,
+                      schoolId: currentUser.schoolId!,
+                      message: `New material "${materialData.title}" added to class "${classInfo.name}".`,
+                      type: 'material_uploaded',
+                      link: `/student/classes/${materialData.classId}`,
+                      actorName: currentUser.displayName
+                  });
+                }
             }
         }
       return newMaterialId;
@@ -684,7 +732,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const getLearningMaterialById = useCallback(async (materialId: string) => MaterialService.getLearningMaterialByIdService(materialId), []);
 
   const createAssignment = useCallback(async (assignmentData: Omit<Assignment, 'id' | 'createdAt' | 'updatedAt' | 'totalSubmissions'>, file?: File | null): Promise<string | null> => {
-    if (!currentUser || currentUser.role !== 'teacher' || !currentUser.schoolId) return null;
+    if (!currentUser || (currentUser.role !== 'teacher' && currentUser.role !== 'admin') || !currentUser.schoolId) return null;
     let attachmentUrl: string | null = null;
 
     try {
@@ -708,18 +756,24 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
               message: `${currentUser.displayName} created assignment "${assignmentData.title}" for class "${className}".`,
               link: `/teacher/assignments/${newAssignmentId}` 
           });
-          // Notify students in the class
           const students = await ClassService.getStudentsInClassService(assignmentData.classId, UserService.getUserProfileService);
-          students.forEach(student => {
-            addNotification({
-                userId: student.uid,
+          for (const student of students) {
+            if (student.email) {
+              await sendEmail({
+                to: student.email,
+                subject: `Learnify: New Assignment "${assignmentData.title}" for ${className}`,
+                html: `<p>Hi ${student.displayName},</p><p>A new assignment, "<strong>${assignmentData.title}</strong>", has been posted for your class "<strong>${className}</strong>" by ${currentUser.displayName}.</p><p>Deadline: ${format(assignmentData.deadline, 'PPpp')}</p><p><a href="${process.env.NEXT_PUBLIC_APP_URL}/student/assignments/${newAssignmentId}">View Assignment</a></p>`,
+              });
+            }
+            await addNotification({
+                userId: student.id,
                 schoolId: currentUser.schoolId!,
                 message: `New assignment "${assignmentData.title}" posted for class "${className}".`,
                 type: 'assignment_created',
                 link: `/student/assignments/${newAssignmentId}`,
                 actorName: currentUser.displayName
             });
-          });
+          }
       }
       return newAssignmentId;
     } catch (error) { 
@@ -800,18 +854,24 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
                   message: `${currentUser.displayName} updated assignment "${data.title || assignmentTitle}".`,
                   link: `/teacher/assignments/${assignmentId}`
               });
-              // Notify students in the class
               const students = await ClassService.getStudentsInClassService(assignmentDoc.classId, UserService.getUserProfileService);
-              students.forEach(student => {
-                  addNotification({
-                      userId: student.uid,
-                      schoolId: currentUser.schoolId!,
-                      message: `Assignment "${data.title || assignmentTitle}" in class "${assignmentDoc.className}" has been updated.`,
-                      type: 'assignment_updated',
-                      link: `/student/assignments/${assignmentId}`,
-                      actorName: currentUser.displayName
+              for (const student of students) {
+                if (student.email) {
+                  await sendEmail({
+                    to: student.email,
+                    subject: `Learnify: Assignment Updated - "${data.title || assignmentTitle}" for ${assignmentDoc.className}`,
+                    html: `<p>Hi ${student.displayName},</p><p>The assignment "<strong>${data.title || assignmentTitle}</strong>" for your class "<strong>${assignmentDoc.className}</strong>" has been updated by ${currentUser.displayName}.</p><p><a href="${process.env.NEXT_PUBLIC_APP_URL}/student/assignments/${assignmentId}">View Updated Assignment</a></p>`,
                   });
-              });
+                }
+                await addNotification({
+                    userId: student.id,
+                    schoolId: currentUser.schoolId!,
+                    message: `Assignment "${data.title || assignmentTitle}" in class "${assignmentDoc.className}" has been updated.`,
+                    type: 'assignment_updated',
+                    link: `/student/assignments/${assignmentId}`,
+                    actorName: currentUser.displayName
+                });
+              }
           }
       }
       return success;
@@ -827,7 +887,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }, [currentUser]);
 
   const gradeSubmission = useCallback(async (submissionId: string, grade: string | number, feedback?: string): Promise<boolean> => {
-    if (!currentUser || currentUser.role !== 'teacher' || !currentUser.schoolId) return false;
+    if (!currentUser || (currentUser.role !== 'teacher' && currentUser.role !== 'admin') || !currentUser.schoolId) return false;
     try {
       const success = await SubmissionService.gradeSubmissionService(submissionId, grade, feedback);
       if (success && currentUser && currentUser.schoolId && currentUser.displayName) { 
@@ -835,7 +895,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         if (submission) {
             const assignment = await AssignmentService.getAssignmentByIdService(submission.assignmentId, ClassService.getClassDetailsService);
             const student = await UserService.getUserProfileService(submission.studentId);
-            if (assignment && student) {
+            if (assignment && student && student.email) {
                  await addActivity({
                     schoolId: currentUser.schoolId,
                     actorId: currentUser.uid,
@@ -847,8 +907,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
                     message: `${currentUser.displayName} graded ${student.displayName}'s submission for "${assignment.title}". Grade: ${grade}.`,
                     link: `/student/assignments/${submission.assignmentId}`
                 });
-                // Notify the student
-                addNotification({
+                 await sendEmail({
+                  to: student.email,
+                  subject: `Learnify: Your Assignment "${assignment.title}" Has Been Graded!`,
+                  html: `<p>Hi ${student.displayName},</p><p>Your submission for the assignment "<strong>${assignment.title}</strong>" has been graded.</p><p>Grade: <strong>${grade}</strong></p>${feedback ? `<p>Feedback: <em>${feedback.replace(/\n/g, "<br>")}</em></p>` : ''}<p><a href="${process.env.NEXT_PUBLIC_APP_URL}/student/assignments/${submission.assignmentId}">View Submission Details</a></p>`,
+                });
+                await addNotification({
                     userId: student.id,
                     schoolId: currentUser.schoolId,
                     message: `Your submission for assignment "${assignment.title}" has been graded. Grade: ${grade}.`,
@@ -911,9 +975,16 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             };
             return {...prev, studentAssignments: updatedAssignments };
         });
-        // Notify teacher
         if (assignment.teacherId) {
-            addNotification({
+            const teacher = await UserService.getUserProfileService(assignment.teacherId);
+            if (teacher?.email) {
+              await sendEmail({
+                to: teacher.email,
+                subject: `Learnify: New Submission for "${assignment.title}" by ${currentUser.displayName}`,
+                html: `<p>Hi ${teacher.displayName || 'Teacher'},</p><p>Student <strong>${currentUser.displayName}</strong> has submitted their work for the assignment "<strong>${assignment.title}</strong>" in class "<strong>${assignment.className}</strong>".</p><p><a href="${process.env.NEXT_PUBLIC_APP_URL}/teacher/assignments/${submissionData.assignmentId}">View Submission</a></p>`,
+              });
+            }
+            await addNotification({
                 userId: assignment.teacherId,
                 schoolId: currentUser.schoolId,
                 message: `${currentUser.displayName} submitted work for your assignment "${assignment.title}".`,
@@ -944,7 +1015,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     try {
       const success = await UserService.completeStudentOnboardingService(userId, classId, subjectIds);
       if (success && currentUser?.schoolId && currentUser.displayName) {
-        setCurrentUser(prev => prev ? { ...prev, classIds: [classId], subjects: subjectIds } : null);
+        setCurrentUser(prev => prev ? ({ ...prev, classIds: [classId], subjects: subjectIds }) : null);
          const cls = await ClassService.getClassDetailsService(classId, UserService.getUserProfileService);
          await addActivity({
             schoolId: currentUser.schoolId,
@@ -955,13 +1026,31 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             message: `${currentUser.displayName} completed onboarding and joined class "${cls?.name || 'N/A'}".`,
             link: `/student/dashboard`
         });
+        if (cls?.teacherId) {
+          const teacher = await UserService.getUserProfileService(cls.teacherId);
+          if (teacher?.email) {
+             await sendEmail({
+                to: teacher.email,
+                subject: `Learnify: ${currentUser.displayName} completed onboarding for your class ${cls.name}`,
+                html: `<p>Hi ${teacher.displayName || 'Teacher'},</p><p>Student <strong>${currentUser.displayName}</strong> has completed onboarding and joined your class "<strong>${cls.name}</strong>".</p><p><a href="${process.env.NEXT_PUBLIC_APP_URL}/teacher/classes/${cls.id}">View Class Roster</a></p>`,
+              });
+          }
+            await addNotification({
+                userId: cls.teacherId,
+                schoolId: currentUser.schoolId,
+                message: `${currentUser.displayName} completed onboarding for your class "${cls.name}".`,
+                type: 'student_onboarded',
+                link: `/teacher/classes/${cls.id}`,
+                actorName: currentUser.displayName
+            });
+        }
       }
       return success;
     } catch (error) {
       console.error("Error completing student onboarding in AuthContext:", error);
       return false;
     }
-  }, [currentUser, setCurrentUser, addActivity]);
+  }, [currentUser, setCurrentUser, addActivity, addNotification]);
 
   const createSubject = useCallback(async (schoolId: string, subjectName: string): Promise<string | null> => {
     if (!currentUser || currentUser.role !== 'admin' || currentUser.schoolId !== schoolId) return null;
@@ -1037,14 +1126,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     getUsersBySchool: UserService.getUsersBySchoolService, getUsersBySchoolAndRole: UserService.getUsersBySchoolAndRoleService, adminCreateUserInSchool, updateUserRoleAndSchool, getUserProfile: UserService.getUserProfileService, approveUserForSchool,
     createClassInSchool, getClassesBySchool, getClassDetails, updateClassDetails, enrollStudentInClass, removeStudentFromClass, getStudentsInClass, getStudentsNotInClass, deleteClass, regenerateClassInviteCode, joinClassWithCode,
     getClassesByTeacher, getStudentsInMultipleClasses,
-    addLearningMaterial, getLearningMaterialsByTeacher, getLearningMaterialsBySchool, getLearningMaterialsByClass, deleteLearningMaterial, updateLearningMaterial, getLearningMaterialById,
+    addLearningMaterial, getLearningMaterialsByTeacher, getLearningMaterialsBySchool, getLearningMaterialsByClass, deleteLearningMaterial, updateLearningMaterial, getLearningMaterialById: MaterialService.getLearningMaterialByIdService,
     createAssignment, getAssignmentsByTeacher, getAssignmentsByClass, getAssignmentById, updateAssignment, deleteAssignment,
     fetchSubmissionsForAssignment,
     gradeSubmission,
     getSubmissionByStudentForAssignment: SubmissionService.getSubmissionByStudentForAssignmentService, 
     addSubmission, 
     getAssignmentsForStudentByClass,
-    completeStudentOnboarding,
+    completeStudentOnboarding: UserService.completeStudentOnboardingService,
     updateUserDisplayName, updateUserEmail, updateUserPassword,
     getClassesByIds,
     createSubject, getSubjectsBySchool: SubjectService.getSubjectsBySchoolService, updateSubject, deleteSubject, getSubjectById: SubjectService.getSubjectByIdService,
@@ -1080,3 +1169,4 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
+

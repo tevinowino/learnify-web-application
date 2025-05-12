@@ -1,19 +1,57 @@
+'use client';
 
+import React, { useEffect } from 'react';
+import { useFormState, useFormStatus } from 'react-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Mail, MessageSquare, Send, Phone, MapPin } from 'lucide-react';
+import { Mail, MessageSquare, Send, Phone, MapPin, Loader2 } from 'lucide-react';
+import { submitContactForm, type ContactFormState } from './actions';
+import { useToast } from '@/hooks/use-toast';
+
+function SubmitButton() {
+  const { pending } = useFormStatus();
+  return (
+    <Button type="submit" className="w-full button-shadow bg-accent hover:bg-accent/90 text-accent-foreground" disabled={pending}>
+      {pending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
+      Send Message
+    </Button>
+  );
+}
 
 export default function ContactPage() {
+  const { toast } = useToast();
+  const initialState: ContactFormState = { message: '', success: false };
+  const [state, formAction] = useFormState(submitContactForm, initialState);
+  const formRef = React.useRef<HTMLFormElement>(null);
+
+  useEffect(() => {
+    if (state.message) {
+      if (state.success) {
+        toast({
+          title: 'Success!',
+          description: state.message,
+        });
+        formRef.current?.reset(); // Reset form on success
+      } else {
+        toast({
+          title: 'Error',
+          description: state.message + (state.issues ? ` Issues: ${state.issues.join(', ')}` : ''),
+          variant: 'destructive',
+        });
+      }
+    }
+  }, [state, toast]);
+
   return (
     <div className="container mx-auto py-12 px-4 md:px-6">
       <Card className="max-w-4xl mx-auto card-shadow">
         <CardHeader className="text-center">
           <CardTitle className="text-4xl font-bold tracking-tight">Contact Us</CardTitle>
           <CardDescription className="text-xl text-muted-foreground mt-2">
-            We'd love to hear from you! Whether you have a question about features, trials, pricing, or anything else, our team is ready to answer all your questions.
+            We&apos;d love to hear from you! Whether you have a question about features, trials, pricing, or anything else, our team is ready to answer all your questions.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -28,8 +66,8 @@ export default function ContactPage() {
                   <Mail className="h-6 w-6 text-primary" />
                   <div>
                     <p className="font-medium">Email</p>
-                    <a href="mailto:support@learnify.example.com" className="text-muted-foreground hover:text-primary">
-                      support@learnify.example.com
+                    <a href="mailto:support@learnifyapp.com" className="text-muted-foreground hover:text-primary">
+                      support@learnifyapp.com
                     </a>
                   </div>
                 </div>
@@ -50,33 +88,31 @@ export default function ContactPage() {
               </div>
             </div>
             
-            <form className="space-y-6 bg-card p-6 sm:p-8 rounded-lg border">
+            <form ref={formRef} action={formAction} className="space-y-6 bg-card p-6 sm:p-8 rounded-lg border">
               <h3 className="text-2xl font-semibold text-foreground">Send Us a Message</h3>
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
                   <Label htmlFor="firstName">First Name</Label>
-                  <Input id="firstName" placeholder="Enter your first name" />
+                  <Input id="firstName" name="firstName" placeholder="Enter your first name" required defaultValue={state.fields?.firstName} />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="lastName">Last Name</Label>
-                  <Input id="lastName" placeholder="Enter your last name" />
+                  <Input id="lastName" name="lastName" placeholder="Enter your last name" required defaultValue={state.fields?.lastName} />
                 </div>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="email">Email</Label>
-                <Input id="email" type="email" placeholder="Enter your email" />
+                <Input id="email" name="email" type="email" placeholder="Enter your email" required defaultValue={state.fields?.email} />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="subject">Subject</Label>
-                <Input id="subject" placeholder="What is your message about?" />
+                <Input id="subject" name="subject" placeholder="What is your message about?" required defaultValue={state.fields?.subject} />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="message">Message</Label>
-                <Textarea id="message" placeholder="Enter your message" rows={5} />
+                <Textarea id="message" name="message" placeholder="Enter your message" rows={5} required defaultValue={state.fields?.message} />
               </div>
-              <Button type="submit" className="w-full button-shadow bg-accent hover:bg-accent/90 text-accent-foreground">
-                <Send className="mr-2 h-4 w-4" /> Send Message
-              </Button>
+              <SubmitButton />
             </form>
           </div>
         </CardContent>
