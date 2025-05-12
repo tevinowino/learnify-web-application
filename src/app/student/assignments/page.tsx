@@ -1,10 +1,11 @@
+
 "use client";
 
 import React, { useEffect, useState, useCallback } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Loader2, ListChecks, CheckSquare, Clock, AlertTriangle, Filter } from 'lucide-react';
+import { ListChecks, CheckSquare, Clock, AlertTriangle, Filter } from 'lucide-react';
 import type { AssignmentWithClassAndSubmissionInfo, ClassWithTeacherInfo } from '@/types';
 import Link from 'next/link';
 import { format } from 'date-fns';
@@ -17,6 +18,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import Loader from '@/components/shared/Loader'; // Import new Loader
 
 export default function StudentAllAssignmentsPage() {
   const { currentUser, getClassesByIds, getAssignmentsForStudentByClass, loading: authLoading } = useAuth();
@@ -44,7 +46,6 @@ export default function StudentAllAssignmentsPage() {
         const classAssignments = await getAssignmentsForStudentByClass(cls.id, currentUser.uid);
         assignmentsFromAllClasses = [...assignmentsFromAllClasses, ...classAssignments];
       }
-      // Sort by deadline, most recent first for "all" view initially
       assignmentsFromAllClasses.sort((a, b) => b.deadline.toMillis() - a.deadline.toMillis());
       setAllAssignments(assignmentsFromAllClasses);
       setFilteredAssignments(assignmentsFromAllClasses);
@@ -71,7 +72,6 @@ export default function StudentAllAssignmentsPage() {
     if (selectedStatusFilter !== 'all') {
       tempAssignments = tempAssignments.filter(a => a.submissionStatus === selectedStatusFilter);
     }
-    // Sort by deadline, upcoming first
     tempAssignments.sort((a,b) => a.deadline.toMillis() - b.deadline.toMillis());
     setFilteredAssignments(tempAssignments);
   }, [selectedClassFilter, selectedStatusFilter, allAssignments]);
@@ -82,8 +82,7 @@ export default function StudentAllAssignmentsPage() {
         case 'graded': return <Badge variant="default" className="bg-green-500 hover:bg-green-600"><CheckSquare className="mr-1 h-3 w-3"/>Graded</Badge>;
         case 'submitted': return <Badge variant="secondary"><Clock className="mr-1 h-3 w-3"/>Submitted</Badge>;
         case 'late': return <Badge variant="destructive"><AlertTriangle className="mr-1 h-3 w-3"/>Late</Badge>;
-        case 'missing': return <Badge variant="outline">Missing</Badge>;
-        default: return <Badge variant="outline">Pending</Badge>;
+        case 'missing': default: return <Badge variant="outline">Missing</Badge>;
     }
   };
   
@@ -92,7 +91,7 @@ export default function StudentAllAssignmentsPage() {
   if (pageOverallLoading) {
     return (
       <div className="flex h-full items-center justify-center">
-        <Loader2 className="h-12 w-12 animate-spin text-primary" />
+        <Loader message="Loading assignments..." size="large" />
       </div>
     );
   }

@@ -4,13 +4,14 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Loader2, Activity as ActivityIcon } from 'lucide-react';
+import { Activity as ActivityIcon } from 'lucide-react';
 import type { Activity } from '@/types';
 import Link from 'next/link';
 import { formatDistanceToNow } from 'date-fns';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import Loader from '@/components/shared/Loader'; // Import new Loader
 
 export default function TeacherActivityPage() {
   const { currentUser, getActivities, loading: authLoading } = useAuth();
@@ -20,17 +21,12 @@ export default function TeacherActivityPage() {
   const fetchActivities = useCallback(async () => {
     if (currentUser?.schoolId) {
       setIsLoadingActivities(true);
-      // For teachers, fetch school-wide activities for now. Can be refined with filters.
-      // Or, fetch activities where actorId is currentUser.uid OR classId is one of their classes.
-      // This would likely require adjustments in getActivitiesService or client-side filtering.
-      // For simplicity: school-wide, limited to recent.
       const schoolActivities = await getActivities(currentUser.schoolId, { }, 50); 
       
-      // Client-side filter to show only activities relevant to teacher's classes or actions
       const teacherRelevantActivities = schoolActivities.filter(act => 
         act.actorId === currentUser.uid || 
         (act.classId && currentUser.classIds?.includes(act.classId)) ||
-        !act.classId // School-wide announcements if not class specific
+        !act.classId 
       );
 
       setActivities(teacherRelevantActivities);
@@ -51,7 +47,7 @@ export default function TeacherActivityPage() {
   if (pageLoading && activities.length === 0) {
     return (
       <div className="flex h-full items-center justify-center">
-        <Loader2 className="h-12 w-12 animate-spin text-primary" />
+        <Loader message="Loading activity feed..." size="large" />
       </div>
     );
   }
@@ -104,7 +100,7 @@ export default function TeacherActivityPage() {
                      <Badge variant="outline" className="mt-1 text-xs">{activity.type.replace(/_/g, ' ').toUpperCase()}</Badge>
                   </li>
                 ))}
-                {pageLoading && activities.length > 0 && <div className="flex justify-center py-4"><Loader2 className="h-6 w-6 animate-spin text-primary"/></div>}
+                {pageLoading && activities.length > 0 && <div className="flex justify-center py-4"><Loader size="small" /></div>}
               </ul>
             </ScrollArea>
           )}

@@ -4,8 +4,8 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Loader2, BookOpen, Search, Link as LinkIcon, FileTextIcon, VideoIcon, Filter, Download } from 'lucide-react';
-import type { LearningMaterial, LearningMaterialWithTeacherInfo, LearningMaterialType, Subject } from '@/types';
+import { BookOpen, Search, Link as LinkIcon, FileTextIcon, VideoIcon, Filter, Download } from 'lucide-react';
+import type { LearningMaterialWithTeacherInfo, LearningMaterialType, Subject } from '@/types';
 import { formatDistanceToNow } from 'date-fns';
 import { Input } from '@/components/ui/input'; 
 import { Button } from '@/components/ui/button';
@@ -17,6 +17,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import Loader from '@/components/shared/Loader'; // Import new Loader
 
 
 const materialTypeIcons: Record<LearningMaterialType, React.ReactNode> = {
@@ -24,7 +25,7 @@ const materialTypeIcons: Record<LearningMaterialType, React.ReactNode> = {
   link: <LinkIcon className="h-4 w-4" />,
   pdf_link: <FileTextIcon className="h-4 w-4 text-red-500" />, 
   video_link: <VideoIcon className="h-4 w-4 text-blue-500" />,
-  pdf_upload: <Download className="h-4 w-4 text-orange-500" />, // Changed to Download
+  pdf_upload: <Download className="h-4 w-4 text-orange-500" />, 
 };
 
 export default function StudentResourcesPage() {
@@ -50,10 +51,18 @@ export default function StudentResourcesPage() {
           const subject = await getSubjectById(material.subjectId);
           subjectName = subject?.name || 'N/A';
         }
-        return { ...material, subjectName };
+        // Filter materials to show only those relevant to student's classes or general school materials
+        const isGeneralMaterial = !material.classId;
+        const isInStudentClass = currentUser.classIds?.includes(material.classId || "") || false;
+        
+        if (isGeneralMaterial || isInStudentClass) {
+          return { ...material, subjectName };
+        }
+        return null; // Exclude material not relevant to student
       }));
 
-      const sortedMaterials = enrichedMaterials.sort((a, b) => b.createdAt.toMillis() - a.createdAt.toMillis());
+      const relevantMaterials = enrichedMaterials.filter(m => m !== null) as LearningMaterialWithTeacherInfo[];
+      const sortedMaterials = relevantMaterials.sort((a, b) => b.createdAt.toMillis() - a.createdAt.toMillis());
       setMaterials(sortedMaterials);
       setFilteredMaterials(sortedMaterials);
       setSchoolSubjects(subjects); 
@@ -75,8 +84,8 @@ export default function StudentResourcesPage() {
       (material.className && material.className.toLowerCase().includes(searchTerm.toLowerCase())) ||
       (material.teacherDisplayName && material.teacherDisplayName.toLowerCase().includes(searchTerm.toLowerCase())) ||
       (material.subjectName && material.subjectName.toLowerCase().includes(searchTerm.toLowerCase())) || 
-      (material.materialType !== 'pdf_upload' && material.content.toLowerCase().includes(searchTerm.toLowerCase())) || // Search content only if not pdf_upload
-      (material.materialType === 'pdf_upload' && material.content.replace("[Uploaded File: ", "").replace("]", "").toLowerCase().includes(searchTerm.toLowerCase())) // Search filename for pdf_upload
+      (material.materialType !== 'pdf_upload' && material.content.toLowerCase().includes(searchTerm.toLowerCase())) || 
+      (material.materialType === 'pdf_upload' && material.content.replace("[Uploaded File: ", "").replace("]", "").toLowerCase().includes(searchTerm.toLowerCase())) 
     );
     if (selectedSubjectFilter !== 'all') { 
       results = results.filter(material => material.subjectId === selectedSubjectFilter);
@@ -87,14 +96,14 @@ export default function StudentResourcesPage() {
   if (authLoading || isLoading) {
     return (
       <div className="flex h-full items-center justify-center">
-        <Loader2 className="h-12 w-12 animate-spin text-primary" />
+        <Loader message="Loading resources..." size="large" />
       </div>
     );
   }
   
   if (!currentUser?.schoolId) {
      return (
-      <Card>
+      <Card className="card-shadow">
         <CardHeader>
           <CardTitle>School Not Assigned</CardTitle>
           <CardDescription>
@@ -171,12 +180,12 @@ export default function StudentResourcesPage() {
                        {material.content.replace("[Uploaded File: ", "").replace("]", "")}
                     </a>
                   </Button>
-                ) : (material.content && material.materialType !== 'pdf_upload') ? ( // For link, pdf_link, video_link
+                ) : (material.content && material.materialType !== 'pdf_upload') ? ( 
                     <Link href={material.content} target="_blank" rel="noopener noreferrer" className="text-sm text-primary hover:underline break-all line-clamp-3">
                         {material.content}
                     </Link>
                 ): (
-                   <p className="text-sm text-muted-foreground italic">No direct content or link to display.</p>
+                   <p className="text-sm text-muted-foreground italic">No direct content or link provided.</p>
                 )}
               </CardContent>
               <CardContent className="pt-0">

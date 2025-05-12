@@ -1,16 +1,18 @@
+
 "use client";
 
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Loader2, LinkIcon } from 'lucide-react';
+import { LinkIcon } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
+import Loader from '@/components/shared/Loader'; // Import new Loader
 
 export default function LinkChildPage() {
-  const { currentUser, linkChildAccount } = useAuth(); // Assuming linkChildAccount exists in AuthContext
+  const { currentUser, linkChildAccount } = useAuth(); 
   const { toast } = useToast();
   const router = useRouter();
   const [studentId, setStudentId] = useState('');
@@ -20,8 +22,10 @@ export default function LinkChildPage() {
     e.preventDefault();
     if (!studentId.trim() || !currentUser) return;
     setIsSubmitting(true);
-    // const success = await linkChildAccount(currentUser.uid, studentId); // Example service call
-    const success = true; // Placeholder
+    // TODO: Implement actual service call for linkChildAccount
+    // const success = await linkChildAccount(currentUser.uid, studentId); 
+    const success = true; // Placeholder for now
+    await new Promise(resolve => setTimeout(resolve, 1000)); // Simulate API Call
     setIsSubmitting(false);
     if (success) {
       toast({ title: "Account Linked!", description: "You can now view your child's progress." });
@@ -48,10 +52,11 @@ export default function LinkChildPage() {
                 onChange={(e) => setStudentId(e.target.value)}
                 placeholder="Enter Student ID"
                 required
+                disabled={isSubmitting}
               />
             </div>
-            <Button type="submit" className="w-full button-shadow" disabled={isSubmitting}>
-              {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            <Button type="submit" className="w-full button-shadow" disabled={isSubmitting || !studentId.trim()}>
+              {isSubmitting && <Loader size="small" className="mr-2" />}
               Link Account
             </Button>
           </form>

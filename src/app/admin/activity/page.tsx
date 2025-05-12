@@ -4,13 +4,14 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Loader2, Activity as ActivityIcon, ListFilter } from 'lucide-react';
+import { Activity as ActivityIcon, ListFilter } from 'lucide-react';
 import type { Activity } from '@/types';
 import Link from 'next/link';
 import { formatDistanceToNow } from 'date-fns';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button'; // Added import
+import { Button } from '@/components/ui/button'; 
+import Loader from '@/components/shared/Loader'; // Import new Loader
 
 export default function AdminActivityPage() {
   const { currentUser, getActivities, loading: authLoading } = useAuth();
@@ -20,7 +21,7 @@ export default function AdminActivityPage() {
   const fetchActivities = useCallback(async () => {
     if (currentUser?.schoolId) {
       setIsLoadingActivities(true);
-      const schoolActivities = await getActivities(currentUser.schoolId, {}, 50); // Fetch more for this page
+      const schoolActivities = await getActivities(currentUser.schoolId, {}, 50); 
       setActivities(schoolActivities);
       setIsLoadingActivities(false);
     } else if (!authLoading) {
@@ -39,7 +40,7 @@ export default function AdminActivityPage() {
   if (pageLoading && activities.length === 0) {
     return (
       <div className="flex h-full items-center justify-center">
-        <Loader2 className="h-12 w-12 animate-spin text-primary" />
+        <Loader message="Loading activities..." size="large" />
       </div>
     );
   }
@@ -61,7 +62,6 @@ export default function AdminActivityPage() {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <h1 className="text-2xl sm:text-3xl font-bold">School Activity Log</h1>
-        {/* Add Filter Button/Dropdown here if implementing filters */}
       </div>
 
       <Card className="card-shadow">
@@ -95,7 +95,7 @@ export default function AdminActivityPage() {
                     <Badge variant="outline" className="mt-1 text-xs">{activity.type.replace(/_/g, ' ').toUpperCase()}</Badge>
                   </li>
                 ))}
-                 {pageLoading && activities.length > 0 && <div className="flex justify-center py-4"><Loader2 className="h-6 w-6 animate-spin text-primary"/></div>}
+                 {pageLoading && activities.length > 0 && <div className="flex justify-center py-4"><Loader size="small" /></div>}
               </ul>
             </ScrollArea>
           )}

@@ -1,15 +1,17 @@
+
 "use client";
 
 import React, { useEffect, useState, useCallback } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Loader2, PlusCircle, Users } from 'lucide-react';
+import { PlusCircle, Users } from 'lucide-react';
 import type { UserProfileWithId } from '@/types';
 import Link from 'next/link';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from '@/hooks/use-toast';
 import UserTable from './components/UserTable';
+import Loader from '@/components/shared/Loader'; // Import new Loader
 
 export default function ManageUsersPage() {
   const { currentUser, getUsersBySchool, approveUserForSchool, updateUserRoleAndSchool, loading: authLoading } = useAuth();
@@ -65,14 +67,14 @@ export default function ManageUsersPage() {
   if (pageLoading && !users.length) {
     return (
       <div className="flex h-full items-center justify-center">
-        <Loader2 className="h-12 w-12 animate-spin text-primary" />
+        <Loader message="Loading users..." size="large" />
       </div>
     );
   }
 
   if (!currentUser?.schoolId && !authLoading) {
     return (
-      <Card>
+      <Card className="card-shadow">
         <CardHeader>
           <CardTitle>No School Assigned</CardTitle>
           <CardDescription>
@@ -114,7 +116,7 @@ export default function ManageUsersPage() {
             </CardHeader>
             <CardContent>
               {pageLoading && activeUsers.length === 0 ? (
-                <div className="flex justify-center py-8"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>
+                <div className="flex justify-center py-8"><Loader /></div>
               ) : activeUsers.length === 0 ? (
                 <div className="text-center py-8">
                   <Users className="mx-auto h-12 w-12 text-muted-foreground" />
@@ -140,7 +142,7 @@ export default function ManageUsersPage() {
             </CardHeader>
             <CardContent>
               {pageLoading && pendingUsers.length === 0 ? (
-                <div className="flex justify-center py-8"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>
+                <div className="flex justify-center py-8"><Loader /></div>
               ) : pendingUsers.length === 0 ? (
                 <div className="text-center py-8">
                   <Users className="mx-auto h-12 w-12 text-muted-foreground" />

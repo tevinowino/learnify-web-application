@@ -6,7 +6,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Loader2, PlusCircle, BookText, Trash2, Edit } from 'lucide-react';
+import { PlusCircle, BookText, Trash2, Edit } from 'lucide-react';
 import type { Subject } from '@/types';
 import { useToast } from '@/hooks/use-toast';
 import {
@@ -20,6 +20,7 @@ import {
   DialogClose,
 } from "@/components/ui/dialog";
 import { ScrollArea } from '@/components/ui/scroll-area';
+import Loader from '@/components/shared/Loader'; // Import new Loader
 
 export default function ManageSubjectsPage() {
   const { currentUser, createSubject, getSubjectsBySchool, updateSubject, deleteSubject, loading: authLoading } = useAuth();
@@ -40,7 +41,7 @@ export default function ManageSubjectsPage() {
     if (currentUser?.schoolId) {
       setIsLoadingPage(true);
       const schoolSubjects = await getSubjectsBySchool(currentUser.schoolId);
-      setSubjects(schoolSubjects); // Assuming getSubjectsBySchool already sorts by name
+      setSubjects(schoolSubjects); 
       setIsLoadingPage(false);
     } else if (!authLoading) {
       setIsLoadingPage(false);
@@ -95,7 +96,7 @@ export default function ManageSubjectsPage() {
 
   const handleDeleteSubject = async (subjectId: string, subjectName: string) => {
     if (!confirm(`Are you sure you want to delete the subject "${subjectName}"? This action cannot be undone and might affect existing class configurations or student records if the subject is in use.`)) return;
-    setIsSubmitting(true);
+    setIsSubmitting(true); // Use general isSubmitting for delete as well
     const success = await deleteSubject(subjectId, subjectName);
     setIsSubmitting(false);
     if (success) {
@@ -111,7 +112,7 @@ export default function ManageSubjectsPage() {
   if (pageOverallLoading) {
     return (
       <div className="flex h-full items-center justify-center">
-        <Loader2 className="h-12 w-12 animate-spin text-primary" />
+        <Loader message="Loading subjects..." size="large" />
       </div>
     );
   }
@@ -149,12 +150,13 @@ export default function ManageSubjectsPage() {
                 value={newSubjectName}
                 onChange={(e) => setNewSubjectName(e.target.value)}
                 placeholder="e.g., Mathematics, History"
+                disabled={isSubmitting}
               />
             </div>
             <DialogFooter>
-              <DialogClose asChild><Button variant="outline">Cancel</Button></DialogClose>
+              <DialogClose asChild><Button variant="outline" disabled={isSubmitting}>Cancel</Button></DialogClose>
               <Button onClick={handleCreateSubject} disabled={isSubmitting || !newSubjectName.trim()}>
-                {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                {isSubmitting && <Loader size="small" className="mr-2" />}
                 Add Subject
               </Button>
             </DialogFooter>
@@ -180,12 +182,12 @@ export default function ManageSubjectsPage() {
                   <Card key={subject.id} className="flex justify-between items-center p-4 hover:border-primary/50 transition-colors">
                     <span className="font-medium">{subject.name}</span>
                     <div className="space-x-2">
-                      <Button variant="outline" size="icon" onClick={() => openEditDialog(subject)} className="button-shadow">
+                      <Button variant="outline" size="icon" onClick={() => openEditDialog(subject)} className="button-shadow" disabled={isSubmitting}>
                         <Edit className="h-4 w-4" />
                         <span className="sr-only">Edit</span>
                       </Button>
                       <Button variant="destructive" size="icon" onClick={() => handleDeleteSubject(subject.id, subject.name)} disabled={isSubmitting} className="button-shadow">
-                        <Trash2 className="h-4 w-4" />
+                         {isSubmitting && editingSubject?.id !== subject.id ? <Loader size="small" /> : <Trash2 className="h-4 w-4" />}
                         <span className="sr-only">Delete</span>
                       </Button>
                     </div>
@@ -211,12 +213,13 @@ export default function ManageSubjectsPage() {
                 value={editSubjectName}
                 onChange={(e) => setEditSubjectName(e.target.value)}
                 placeholder="e.g., Advanced Mathematics"
+                disabled={isSubmitting}
               />
             </div>
             <DialogFooter>
-              <DialogClose asChild><Button variant="outline">Cancel</Button></DialogClose>
+              <DialogClose asChild><Button variant="outline" disabled={isSubmitting}>Cancel</Button></DialogClose>
               <Button onClick={handleUpdateSubject} disabled={isSubmitting || !editSubjectName.trim() || editSubjectName === editingSubject.name}>
-                {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                {isSubmitting && <Loader size="small" className="mr-2" />}
                 Save Changes
               </Button>
             </DialogFooter>
@@ -226,5 +229,3 @@ export default function ManageSubjectsPage() {
     </div>
   );
 }
-
-    

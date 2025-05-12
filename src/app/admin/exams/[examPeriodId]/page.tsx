@@ -6,12 +6,15 @@ import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
-import { Loader2, ArrowLeft, FilePieChart, CalendarDays, CheckCircle, Clock, Settings2 } from 'lucide-react';
+import { ArrowLeft, FilePieChart, CalendarDays, CheckCircle, Settings2 } from 'lucide-react';
 import type { ExamPeriodWithClassNames, ExamResultWithStudentInfo, UserProfileWithId, Subject } from '@/types';
 import { format } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
 import { Badge } from '@/components/ui/badge';
 import Link from 'next/link';
+import Loader from '@/components/shared/Loader'; // Import new Loader
+import FinalizeExamPeriodDialog from '../components/FinalizeExamPeriodDialog';
+
 
 export default function ExamPeriodDetailPage() {
   const params = useParams();
@@ -23,7 +26,7 @@ export default function ExamPeriodDetailPage() {
     currentUser, 
     getExamPeriodById, 
     getStudentsInClass,
-    getSubjectsBySchool, // Assuming subjects are school-wide
+    getSubjectsBySchool, 
     getExamResultsByPeriodAndClass,
     updateExamPeriod,
     addActivity,
@@ -31,10 +34,11 @@ export default function ExamPeriodDetailPage() {
   } = useAuth();
 
   const [examPeriod, setExamPeriod] = useState<ExamPeriodWithClassNames | null>(null);
-  const [classResultStatus, setClassResultStatus] = useState<Record<string, Record<string, { submitted: number, total: number }>>>({}); // classId -> subjectId -> { submitted, total }
+  const [classResultStatus, setClassResultStatus] = useState<Record<string, Record<string, { submitted: number, total: number }>>>({}); 
   const [isLoadingPage, setIsLoadingPage] = useState(true);
   const [isFinalizing, setIsFinalizing] = useState(false);
   const [schoolSubjects, setSchoolSubjects] = useState<Subject[]>([]);
+  const [isFinalizeDialogOpen, setIsFinalizeDialogOpen] = useState(false);
 
 
   const fetchData = useCallback(async () => {
@@ -57,7 +61,6 @@ export default function ExamPeriodDetailPage() {
       setExamPeriod(periodDetails);
       setSchoolSubjects(subjects);
 
-      // Fetch result status for each class and subject
       if (periodDetails.assignedClassIds && periodDetails.assignedClassIds.length > 0 && subjects.length > 0) {
         const statusMap: Record<string, Record<string, { submitted: number, total: number }>> = {};
         for (const classId of periodDetails.assignedClassIds) {
@@ -83,29 +86,27 @@ export default function ExamPeriodDetailPage() {
     fetchData();
   }, [fetchData]);
 
-  const handleFinalizeExamPeriod = async () => {
-    if (!examPeriod || examPeriod.status === 'completed') return;
-    
-    // Check if all results are submitted
-    let allSubmitted = true;
+  const checkAllResultsSubmitted = () => {
+    if (!examPeriod || schoolSubjects.length === 0) return true; // If no subjects, technically all are "submitted"
     for (const classId of examPeriod.assignedClassIds) {
         for (const subject of schoolSubjects) {
             const status = classResultStatus[classId]?.[subject.id];
             if (!status || status.submitted < status.total) {
-                allSubmitted = false;
-                break;
+                return false;
             }
         }
-        if (!allSubmitted) break;
     }
+    return true;
+  };
+  
+  const openFinalizeDialog = () => {
+    setIsFinalizeDialogOpen(true);
+  };
 
-    if (!allSubmitted) {
-        if (!confirm("Not all results have been submitted for all subjects in all classes. Are you sure you want to finalize this exam period?")) {
-            return;
-        }
-    }
-
+  const handleConfirmFinalize = async () => {
+    if (!examPeriod || examPeriod.status === 'completed') return;
     setIsFinalizing(true);
+    setIsFinalizeDialogOpen(false);
     const success = await updateExamPeriod(examPeriod.id, { status: 'completed' });
     if (success) {
       toast({ title: "Exam Period Finalized!", description: `"${examPeriod.name}" has been marked as completed.` });
@@ -131,7 +132,7 @@ export default function ExamPeriodDetailPage() {
   if (pageOverallLoading) {
     return (
       <div className="flex h-full items-center justify-center">
-        <Loader2 className="h-12 w-12 animate-spin text-primary" />
+        <Loader message="Loading exam details..." size="large" />
       </div>
     );
   }
@@ -160,8 +161,8 @@ export default function ExamPeriodDetailPage() {
               </CardDescription>
             </div>
             {canFinalize && (
-              <Button onClick={handleFinalizeExamPeriod} disabled={isFinalizing} className="button-shadow bg-accent hover:bg-accent/90 text-accent-foreground mt-2 sm:mt-0">
-                {isFinalizing && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}
+              <Button onClick={openFinalizeDialog} disabled={isFinalizing} className="button-shadow bg-accent hover:bg-accent/90 text-accent-foreground mt-2 sm:mt-0">
+                {isFinalizing && <Loader size="small" className="mr-2"/>}
                 <CheckCircle className="mr-2 h-4 w-4"/> Finalize Exam Period
               </Button>
             )}
@@ -170,6 +171,11 @@ export default function ExamPeriodDetailPage() {
                     <CheckCircle className="mr-2 h-4 w-4"/> Completed
                 </Badge>
             )}
+             {examPeriod.status === 'upcoming' && (
+                 <Button variant="outline" size="sm" asChild className="mt-2 sm:mt-0 button-shadow">
+                     <Link href={`/admin/exams/${examPeriod.id}/edit`}>Edit Period</Link>
+                 </Button>
+             )}
           </div>
         </CardHeader>
         <CardContent className="space-y-3">
@@ -209,17 +215,17 @@ export default function ExamPeriodDetailPage() {
                                     const submittedCount = status?.submitted || 0;
                                     const totalStudents = status?.total || 0;
                                     const progress = totalStudents > 0 ? (submittedCount / totalStudents) * 100 : 0;
+                                    const isComplete = submittedCount === totalStudents && totalStudents > 0;
                                     return (
                                         <div key={subject.id} className="p-2 border rounded-md">
                                             <div className="flex justify-between items-center mb-1">
                                                 <span className="font-medium text-sm">{subject.name}</span>
-                                                <Badge variant={submittedCount === totalStudents && totalStudents > 0 ? "default" : "secondary"} className={submittedCount === totalStudents && totalStudents > 0 ? "bg-green-500 hover:bg-green-600" : ""}>
+                                                <Badge variant={isComplete ? "default" : "secondary"} className={isComplete ? "bg-green-500 hover:bg-green-600" : ""}>
                                                     {submittedCount} / {totalStudents} Submitted
                                                 </Badge>
                                             </div>
-                                            {/* Basic progress bar */}
                                             <div className="w-full bg-secondary rounded-full h-2.5">
-                                                <div className="bg-primary h-2.5 rounded-full" style={{ width: `${progress}%` }}></div>
+                                                <div className={`h-2.5 rounded-full ${isComplete ? 'bg-green-500' : 'bg-primary'}`} style={{ width: `${progress}%` }}></div>
                                             </div>
                                         </div>
                                     )
@@ -232,6 +238,14 @@ export default function ExamPeriodDetailPage() {
             </div>
         </CardContent>
       </Card>
+      <FinalizeExamPeriodDialog
+        isOpen={isFinalizeDialogOpen}
+        onOpenChange={setIsFinalizeDialogOpen}
+        onConfirm={handleConfirmFinalize}
+        examPeriodName={examPeriod.name}
+        allResultsSubmitted={checkAllResultsSubmitted()}
+        isFinalizing={isFinalizing}
+      />
     </div>
   );
 }

@@ -6,13 +6,14 @@ import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { Loader2, SchoolIcon, Copy, Check, RefreshCw, Save, Settings2, AlertTriangle } from 'lucide-react';
+import { SchoolIcon, Copy, Check, RefreshCw, Save, Settings2, AlertTriangle } from 'lucide-react';
 import type { School } from '@/types';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
-import Link from 'next/link'; // Added import for Link
+import Link from 'next/link';
+import Loader from '@/components/shared/Loader'; // Import new Loader
 
 export default function SchoolSettingsPage() {
   const { currentUser, getSchoolDetails, regenerateInviteCode, updateSchoolDetails, loading: authLoading } = useAuth();
@@ -103,7 +104,7 @@ export default function SchoolSettingsPage() {
   if (authLoading || isLoading) {
     return (
       <div className="flex h-full items-center justify-center">
-        <Loader2 className="h-12 w-12 animate-spin text-primary" />
+        <Loader message="Loading school settings..." size="large" />
       </div>
     );
   }
@@ -143,7 +144,7 @@ export default function SchoolSettingsPage() {
                 />
                 {isSchoolCreator && (
                   <Button type="submit" size="icon" disabled={isSavingName || editableSchoolName === school.name} className="button-shadow">
-                    {isSavingName ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                    {isSavingName ? <Loader size="small" /> : <Save className="h-4 w-4" />}
                     <span className="sr-only">Save School Name</span>
                   </Button>
                 )}
@@ -179,7 +180,7 @@ export default function SchoolSettingsPage() {
           </div>
           {isSchoolCreator && (
             <Button onClick={handleRegenerateCode} disabled={isRegenerating} className="w-full md:w-auto bg-accent hover:bg-accent/90 text-accent-foreground button-shadow">
-              {isRegenerating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {isRegenerating && <Loader size="small" className="mr-2" />}
               <RefreshCw className="mr-2 h-4 w-4" /> Regenerate Invite Code
             </Button>
           )}
@@ -213,7 +214,7 @@ export default function SchoolSettingsPage() {
               <Label htmlFor="exam-mode-toggle" className="text-base">
                 {isExamMode ? "Exam Mode is ON" : "Exam Mode is OFF"}
               </Label>
-              {isSavingExamMode && <Loader2 className="ml-2 h-4 w-4 animate-spin"/>}
+              {isSavingExamMode && <Loader size="small" className="ml-2"/>}
             </div>
             {isExamMode && (
                 <div className="mt-3 p-3 bg-destructive/10 border border-destructive/30 rounded-md flex items-center">
@@ -234,4 +235,3 @@ export default function SchoolSettingsPage() {
     </div>
   );
 }
-

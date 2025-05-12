@@ -5,13 +5,14 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { Loader2, BookCopy, Trash2, Edit, Users, Settings2, BookOpenText, Info } from 'lucide-react';
+import { BookCopy, Trash2, Edit, Users, Settings2 } from 'lucide-react';
 import type { ClassWithTeacherInfo, UserProfileWithId } from '@/types';
 import { useToast } from '@/hooks/use-toast';
 import CreateClassDialog from './components/CreateClassDialog';
 import EditClassDialog from './components/EditClassDialog';
 import ManageStudentsDialog from './components/ManageStudentsDialog';
-import { Badge } from '@/components/ui/badge'; // Added Badge import
+import { Badge } from '@/components/ui/badge';
+import Loader from '@/components/shared/Loader'; // Import new Loader
 
 export default function ManageClassesPage() {
   const { 
@@ -34,7 +35,7 @@ export default function ManageClassesPage() {
   const [teachers, setTeachers] = useState<UserProfileWithId[]>([]);
   
   const [isLoadingPage, setIsLoadingPage] = useState(true);
-  const [isSubmitting, setIsSubmitting] = useState(false); // General submission state for delete
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const [editingClass, setEditingClass] = useState<ClassWithTeacherInfo | null>(null);
   const [managingStudentsClass, setManagingStudentsClass] = useState<ClassWithTeacherInfo | null>(null);
@@ -69,7 +70,6 @@ export default function ManageClassesPage() {
     } else {
       toast({ title: "Error", description: "Failed to delete class.", variant: "destructive" });
     }
-    setIsSubmitting(false);
   };
 
   const pageOverallLoading = authLoading || isLoadingPage;
@@ -77,14 +77,14 @@ export default function ManageClassesPage() {
   if (pageOverallLoading) {
     return (
       <div className="flex h-full items-center justify-center">
-        <Loader2 className="h-12 w-12 animate-spin text-primary" />
+        <Loader message="Loading classes..." size="large" />
       </div>
     );
   }
   
   if (!currentUser?.schoolId) {
      return (
-      <Card>
+      <Card className="card-shadow">
         <CardHeader>
           <CardTitle>School Not Assigned</CardTitle>
           <CardDescription>
@@ -147,7 +147,7 @@ export default function ManageClassesPage() {
                             <Edit className="mr-1 h-3 w-3"/> Edit
                         </Button>
                         <Button variant="destructive" size="sm" onClick={() => handleDeleteClass(classItem.id, classItem.name)} disabled={isSubmitting} className="button-shadow flex-grow sm:flex-grow-0">
-                          <Trash2 className="mr-1 h-3 w-3"/> Delete
+                          {isSubmitting ? <Loader size="small" /> : <Trash2 className="mr-1 h-3 w-3"/>} Delete
                         </Button>
                       </div>
                   </CardHeader>
@@ -191,5 +191,3 @@ export default function ManageClassesPage() {
     </div>
   );
 }
-
-    

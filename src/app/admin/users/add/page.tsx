@@ -6,7 +6,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { useRouter } from "next/navigation";
-import { Loader2, UserPlus } from "lucide-react";
+import { UserPlus } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -36,6 +36,7 @@ import {
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import type { UserRole } from "@/types";
+import Loader from "@/components/shared/Loader"; // Import new Loader
 
 const addUserSchema = z.object({
   email: z.string().email({ message: "Invalid email address." }),
@@ -107,6 +108,10 @@ export default function AddUserPage() {
     }
   }
   
+  if (authLoading && !currentUser) {
+    return <div className="flex h-full items-center justify-center"><Loader message="Loading..." size="large" /></div>;
+  }
+
   if (!currentUser || currentUser.role !== 'admin' || !currentUser.schoolId) {
     return <div className="p-4">You must be an admin of a school to add users.</div>;
   }
@@ -195,7 +200,7 @@ export default function AddUserPage() {
                 className="w-full bg-primary hover:bg-primary/90 button-shadow"
                 disabled={isLoading}
                 >
-                {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                {isLoading && <Loader size="small" className="mr-2" />}
                 Add User to School
                 </Button>
             </form>
@@ -205,4 +210,3 @@ export default function AddUserPage() {
     </div>
   );
 }
-

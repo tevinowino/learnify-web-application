@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useEffect, useState, useCallback } from 'react';
@@ -5,7 +6,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
-import { Loader2, FolderOpen, ArrowRight, UserPlus, CheckCircle } from 'lucide-react';
+import { FolderOpen, ArrowRight, UserPlus } from 'lucide-react';
 import type { ClassWithTeacherInfo } from '@/types';
 import Link from 'next/link';
 import { useToast } from '@/hooks/use-toast';
@@ -19,6 +20,7 @@ import {
   DialogTrigger,
   DialogClose,
 } from "@/components/ui/dialog";
+import Loader from '@/components/shared/Loader'; // Import new Loader
 
 export default function StudentClassesPage() {
   const { currentUser, getClassesByIds, joinClassWithCode, loading: authLoading } = useAuth();
@@ -37,7 +39,7 @@ export default function StudentClassesPage() {
       setEnrolledClasses(classes);
       setIsLoadingPage(false);
     } else {
-      setEnrolledClasses([]); // Clear if no classIds or no user
+      setEnrolledClasses([]); 
       setIsLoadingPage(false);
     }
   }, [currentUser, getClassesByIds]);
@@ -60,7 +62,7 @@ export default function StudentClassesPage() {
       toast({ title: "Successfully Joined Class!", description: "The class has been added to your list." });
       setClassCodeInput('');
       setIsJoinClassDialogOpen(false);
-      fetchEnrolledClasses(); // Refresh the list of classes
+      fetchEnrolledClasses(); 
     } else {
       toast({ title: "Failed to Join Class", description: "Invalid code or an error occurred. Please try again.", variant: "destructive" });
     }
@@ -68,10 +70,10 @@ export default function StudentClassesPage() {
   
   const pageOverallLoading = authLoading || isLoadingPage;
 
-  if (pageOverallLoading) {
+  if (pageOverallLoading && enrolledClasses.length === 0) { // Show full page loader only if no classes are yet displayed
     return (
       <div className="flex h-full items-center justify-center">
-        <Loader2 className="h-12 w-12 animate-spin text-primary" />
+        <Loader message="Loading your classes..." size="large" />
       </div>
     );
   }
@@ -107,13 +109,14 @@ export default function StudentClassesPage() {
                   onChange={(e) => setClassCodeInput(e.target.value.toUpperCase())}
                   className="col-span-3" 
                   placeholder="e.g., C-ABC123"
+                  disabled={isJoiningClass}
                 />
               </div>
             </div>
             <DialogFooter>
-              <DialogClose asChild><Button variant="outline">Cancel</Button></DialogClose>
+              <DialogClose asChild><Button variant="outline" disabled={isJoiningClass}>Cancel</Button></DialogClose>
               <Button onClick={handleJoinClass} disabled={isJoiningClass || !classCodeInput.trim()}>
-                {isJoiningClass && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                {isJoiningClass && <Loader size="small" className="mr-2" />}
                 Join Class
               </Button>
             </DialogFooter>
@@ -121,7 +124,11 @@ export default function StudentClassesPage() {
         </Dialog>
       </div>
 
-      {enrolledClasses.length === 0 ? (
+      {pageOverallLoading && enrolledClasses.length > 0 && ( // Show small loader if classes are already there but refreshing
+        <div className="flex justify-center py-4"><Loader message="Refreshing classes..." /></div>
+      )}
+
+      {!pageOverallLoading && enrolledClasses.length === 0 && (
         <Card className="card-shadow">
            <CardHeader>
             <CardTitle className="flex items-center"><FolderOpen className="mr-2 h-5 w-5 text-primary" />No Classes Yet</CardTitle>
@@ -132,7 +139,9 @@ export default function StudentClassesPage() {
             </p>
           </CardContent>
         </Card>
-      ) : (
+      )}
+
+      {!pageOverallLoading && enrolledClasses.length > 0 && (
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
           {enrolledClasses.map(classItem => (
             <Card key={classItem.id} className="card-shadow hover:border-primary/80 transition-all duration-200 flex flex-col">

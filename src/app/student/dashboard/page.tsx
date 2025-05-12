@@ -1,47 +1,32 @@
 
-"use client"; // Add this directive
+"use client"; 
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAuth } from "@/hooks/useAuth";
 import { useStudentDashboard } from "@/hooks/useStudentDashboard";
-import { Loader2, BookOpen, ListChecks, Activity as ActivityIcon } from "lucide-react"; // Added icons
+import { BookOpen, ListChecks, Activity as ActivityIcon } from "lucide-react"; 
 import Link from "next/link";
-import { formatDistanceToNow } from 'date-fns'; // For formatting activity timestamps
+import { format, formatDistanceToNow } from 'date-fns'; 
+import Loader from "@/components/shared/Loader"; // Import new Loader
+import { useRouter } from "next/navigation"; // Import useRouter
 
 const StudentDashboardPage = () => {
-  const { currentUser } = useAuth();
-  const { enrolledClasses, resourceCount, upcomingAssignments, recentActivities, isLoading } = useStudentDashboard();
+  const { currentUser, loading: authLoading } = useAuth(); // Use authLoading for initial auth check
+  const { enrolledClasses, resourceCount, upcomingAssignments, recentActivities, isLoading: dashboardLoading } = useStudentDashboard();
+  const router = useRouter(); // Initialize useRouter
 
-  if (isLoading || currentUser === undefined) {
+  const isLoading = authLoading || dashboardLoading; // Combine loading states
+
+  if (isLoading && (!currentUser || currentUser.status !== 'active')) { // Show main loader if auth or initial dashboard data is loading
     return (
       <div className="flex h-[calc(100vh-10rem)] items-center justify-center">
-        <Loader2 className="h-12 w-12 animate-spin text-primary" />
+        <Loader message="Loading your dashboard..." size="large" />
       </div>
     );
   }
 
-  if (currentUser && (!currentUser.classIds || currentUser.classIds.length === 0) && currentUser.status !== 'pending_verification') {
-    return (
-      <div className="flex h-[calc(100vh-10rem)] items-center justify-center">
-        <Card className="w-full max-w-md shadow-xl text-center card-shadow">
-          <CardHeader>
-            <CardTitle>Complete Your Onboarding</CardTitle>
-            <CardDescription>
-              Please select your class and subjects to get started.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Button asChild className="button-shadow">
-              <Link href="/student/onboarding">Go to Onboarding</Link>
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
-  
-   if (currentUser?.status === 'pending_verification') {
+  if (currentUser && currentUser.status === 'pending_verification') {
     return (
       <div className="flex h-[calc(100vh-10rem)] items-center justify-center">
         <Card className="w-full max-w-md shadow-xl text-center card-shadow">
@@ -61,6 +46,26 @@ const StudentDashboardPage = () => {
     );
   }
 
+  if (currentUser && (!currentUser.classIds || currentUser.classIds.length === 0) && currentUser.status === 'active') {
+    return (
+      <div className="flex h-[calc(100vh-10rem)] items-center justify-center">
+        <Card className="w-full max-w-md shadow-xl text-center card-shadow">
+          <CardHeader>
+            <CardTitle>Complete Your Onboarding</CardTitle>
+            <CardDescription>
+              Please select your class and subjects to get started.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button asChild className="button-shadow">
+              <Link href="/student/onboarding">Go to Onboarding</Link>
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+  
 
   return (
     <div className="space-y-6">
@@ -73,7 +78,7 @@ const StudentDashboardPage = () => {
             <BookOpen className="h-5 w-5 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            {isLoading ? <Loader2 className="h-6 w-6 animate-spin"/> : <div className="text-2xl font-bold">{enrolledClasses.length}</div>}
+            {isLoading ? <Loader size="small" /> : <div className="text-2xl font-bold">{enrolledClasses.length}</div>}
             <Button variant="link" asChild className="px-0 pt-2 text-sm">
               <Link href="/student/classes">View My Classes</Link>
             </Button>
@@ -86,7 +91,7 @@ const StudentDashboardPage = () => {
             <BookOpen className="h-5 w-5 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            {isLoading ? <Loader2 className="h-6 w-6 animate-spin"/> : <div className="text-2xl font-bold">{resourceCount}</div>}
+            {isLoading ? <Loader size="small" /> : <div className="text-2xl font-bold">{resourceCount}</div>}
             <Button variant="link" asChild className="px-0 pt-2 text-sm">
               <Link href="/student/resources">Browse Resources</Link>
             </Button>
@@ -99,7 +104,7 @@ const StudentDashboardPage = () => {
             <ListChecks className="h-5 w-5 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-             {isLoading ? <Loader2 className="h-6 w-6 animate-spin"/> : <div className="text-2xl font-bold">{upcomingAssignments.length}</div>}
+             {isLoading ? <Loader size="small" /> : <div className="text-2xl font-bold">{upcomingAssignments.length}</div>}
             <Button variant="link" asChild className="px-0 pt-2 text-sm">
               <Link href="/student/assignments">View Assignments</Link>
             </Button>
@@ -113,7 +118,7 @@ const StudentDashboardPage = () => {
             <CardTitle className="flex items-center"><ListChecks className="mr-2 h-5 w-5 text-primary"/>Upcoming Assignments</CardTitle>
           </CardHeader>
           <CardContent>
-            {isLoading ? <Loader2 className="mx-auto h-8 w-8 animate-spin text-primary"/> : 
+            {isLoading ? <Loader /> : 
               upcomingAssignments.length > 0 ? (
               <ul className="space-y-3 max-h-60 overflow-y-auto">
                 {upcomingAssignments.map(assignment => (
@@ -141,7 +146,7 @@ const StudentDashboardPage = () => {
             <CardTitle className="flex items-center"><ActivityIcon className="mr-2 h-5 w-5 text-primary"/>Recent Activity</CardTitle>
           </CardHeader>
           <CardContent>
-           {isLoading ? <Loader2 className="mx-auto h-8 w-8 animate-spin text-primary"/> : 
+           {isLoading ? <Loader /> : 
             recentActivities.length > 0 ? (
               <ul className="space-y-3 max-h-60 overflow-y-auto">
                 {recentActivities.map(activity => (
@@ -150,7 +155,7 @@ const StudentDashboardPage = () => {
                     <p className="text-xs text-muted-foreground">
                       {formatDistanceToNow(activity.timestamp.toDate(), { addSuffix: true })}
                     </p>
-                    {activity.link && <Link href={activity.link} className="text-xs text-primary hover:underline">View</Link>}
+                    {activity.link && <Link href={activity.link} className="text-xs text-primary hover:underline">View Details</Link>}
                   </li>
                 ))}
               </ul>

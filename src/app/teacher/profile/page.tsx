@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, useEffect } from 'react';
@@ -5,11 +6,12 @@ import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Loader2, UserCircle, Save, KeyRound, Mail } from 'lucide-react';
+import { UserCircle, Save, KeyRound, Mail } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
+import Loader from '@/components/shared/Loader'; // Import new Loader
 
 const profileSchema = z.object({
   displayName: z.string().min(2, "Display name must be at least 2 characters."),
@@ -96,7 +98,7 @@ export default function TeacherProfilePage() {
   };
 
   if (authLoading && !currentUser) {
-    return <div className="flex h-full items-center justify-center"><Loader2 className="h-12 w-12 animate-spin text-primary" /></div>;
+    return <div className="flex h-full items-center justify-center"><Loader message="Loading profile..." size="large" /></div>;
   }
 
   if (!currentUser) {
@@ -124,7 +126,7 @@ export default function TeacherProfilePage() {
                 <Input id="email_display" value={currentUser.email || ""} readOnly className="bg-muted/50"/>
             </div>
             <Button type="submit" disabled={isSubmittingName || !form.formState.isDirty} className="button-shadow w-full sm:w-auto">
-              {isSubmittingName && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {isSubmittingName && <Loader size="small" className="mr-2" />}
               <Save className="mr-2 h-4 w-4" /> Save Display Name
             </Button>
           </form>
@@ -143,7 +145,7 @@ export default function TeacherProfilePage() {
                 <Input id="newEmail" type="email" value={newEmail} onChange={(e) => setNewEmail(e.target.value)} placeholder="new.email@example.com" />
             </div>
             <Button type="submit" disabled={isSubmittingEmail || newEmail === currentUser.email} className="button-shadow w-full sm:w-auto">
-              {isSubmittingEmail && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {isSubmittingEmail && <Loader size="small" className="mr-2" />}
               Update Email
             </Button>
           </form>
@@ -166,7 +168,7 @@ export default function TeacherProfilePage() {
                 <Input id="confirmNewPassword" type="password" value={confirmNewPassword} onChange={(e) => setConfirmNewPassword(e.target.value)} placeholder="Confirm new password" />
             </div>
             <Button type="submit" disabled={isSubmittingPassword || !newPassword} className="button-shadow w-full sm:w-auto">
-              {isSubmittingPassword && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {isSubmittingPassword && <Loader size="small" className="mr-2" />}
               Update Password
             </Button>
           </form>

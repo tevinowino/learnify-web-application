@@ -5,15 +5,16 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Loader2, FilePieChart, PlusCircle, CalendarDays, Eye } from "lucide-react";
+import { FilePieChart, PlusCircle, CalendarDays, Eye } from "lucide-react";
 import type { ExamPeriodWithClassNames } from '@/types';
 import Link from 'next/link';
 import { format } from 'date-fns';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
+import Loader from '@/components/shared/Loader'; // Import new Loader
 
 export default function AdminExamsPage() {
-  const { currentUser, getExamPeriodsBySchool, getClassDetails, loading: authLoading } = useAuth(); // Added getClassDetails
+  const { currentUser, getExamPeriodsBySchool, getClassDetails, loading: authLoading } = useAuth();
   const { toast } = useToast();
   const [examPeriods, setExamPeriods] = useState<ExamPeriodWithClassNames[]>([]);
   const [isLoadingPage, setIsLoadingPage] = useState(true);
@@ -22,8 +23,7 @@ export default function AdminExamsPage() {
     if (currentUser?.schoolId) {
       setIsLoadingPage(true);
       try {
-        // Pass getClassDetails to resolve class names within the service
-        const periods = await getExamPeriodsBySchool(currentUser.schoolId, getClassDetails);
+        const periods = await getExamPeriodsBySchool(currentUser.schoolId);
         setExamPeriods(periods);
       } catch (error) {
         toast({ title: "Error", description: "Failed to load exam periods.", variant: "destructive" });
@@ -34,7 +34,7 @@ export default function AdminExamsPage() {
     } else if (!authLoading) {
       setIsLoadingPage(false);
     }
-  }, [currentUser, getExamPeriodsBySchool, getClassDetails, authLoading, toast]);
+  }, [currentUser, getExamPeriodsBySchool, authLoading, toast]);
 
 
   useEffect(() => {
@@ -49,7 +49,7 @@ export default function AdminExamsPage() {
   if (pageOverallLoading) {
     return (
       <div className="flex h-full items-center justify-center">
-        <Loader2 className="h-12 w-12 animate-spin text-primary" />
+        <Loader message="Loading exam periods..." size="large" />
       </div>
     );
   }
@@ -124,4 +124,3 @@ export default function AdminExamsPage() {
     </div>
   );
 }
-

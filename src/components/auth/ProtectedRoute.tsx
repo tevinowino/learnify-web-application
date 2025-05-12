@@ -6,7 +6,7 @@ import { useRouter, usePathname } from 'next/navigation';
 import type { ReactNode } from 'react';
 import React, { useEffect } from 'react';
 import type { UserProfile, UserRole } from '@/types';
-import { Loader2 } from 'lucide-react';
+import Loader from '@/components/shared/Loader'; // Import new Loader
 
 interface ProtectedRouteProps {
   children: ReactNode;
@@ -35,7 +35,8 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, allowedRoles 
     }
     
     if (currentUser.role === 'student' && (!currentUser.classIds || currentUser.classIds.length === 0) && currentUser.status === 'active') {
-      if (pathname !== '/student/onboarding') {
+      // Allow access to profile page during onboarding for name updates
+      if (pathname !== '/student/onboarding' && pathname !== '/student/profile') {
         router.replace('/student/onboarding');
         return;
       }
@@ -47,42 +48,46 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, allowedRoles 
       else if (currentUser.role === 'admin' && !currentUser.schoolId) defaultDashboard = '/admin/onboarding';
       else if (currentUser.role === 'teacher') defaultDashboard = '/teacher/dashboard';
       else if (currentUser.role === 'student' && currentUser.classIds && currentUser.classIds.length > 0) defaultDashboard = '/student/dashboard';
-      else if (currentUser.role === 'student' && (!currentUser.classIds || currentUser.classIds.length === 0)) defaultDashboard = '/student/onboarding'; // Should be caught by above
+      // This case for student without classes should be caught by the onboarding redirect above
+      else if (currentUser.role === 'student' && (!currentUser.classIds || currentUser.classIds.length === 0)) defaultDashboard = '/student/onboarding';
       router.replace(defaultDashboard);
     }
   }, [currentUser, loading, router, allowedRoles, pathname]);
 
 
-  if (loading || (!currentUser && pathname !== '/auth/login' && pathname !== '/auth/signup')) { // Allow login/signup pages during loading
+  if (loading || (!currentUser && pathname !== '/auth/login' && pathname !== '/auth/signup')) {
     return (
-      <div className="flex h-screen w-full items-center justify-center">
-        <Loader2 className="h-12 w-12 animate-spin text-primary" />
+      <div className="flex h-screen w-full flex-col items-center justify-center bg-background">
+       <Loader message="Authenticating..." size="large" />
       </div>
     );
   }
   
-  if (!currentUser) return null; // Should be redirected by useEffect
+  if (!currentUser) return null;
 
   if (currentUser.status === 'pending_verification') {
     return pathname === '/auth/pending-verification' ? <>{children}</> : (
-      <div className="flex h-screen w-full items-center justify-center">
-        <Loader2 className="h-12 w-12 animate-spin text-primary" />
+      <div className="flex h-screen w-full flex-col items-center justify-center bg-background">
+        <Loader message="Checking verification..." size="large" />
       </div>
     );
   }
 
   if (currentUser.role === 'student' && (!currentUser.classIds || currentUser.classIds.length === 0) && currentUser.status === 'active') {
-     return pathname === '/student/onboarding' ? <>{children}</> : (
-        <div className="flex h-screen w-full items-center justify-center">
-            <Loader2 className="h-12 w-12 animate-spin text-primary" />
+     if (pathname === '/student/onboarding' || pathname === '/student/profile') {
+         return <>{children}</>;
+     }
+     return (
+        <div className="flex h-screen w-full flex-col items-center justify-center bg-background">
+            <Loader message="Redirecting to onboarding..." size="large" />
         </div>
      );
   }
   
   if (!allowedRoles.includes(currentUser.role)) {
      return (
-      <div className="flex h-screen w-full items-center justify-center">
-        <Loader2 className="h-12 w-12 animate-spin text-primary" />
+      <div className="flex h-screen w-full flex-col items-center justify-center bg-background">
+        <Loader message="Verifying access..." size="large" />
       </div>
     );
   }

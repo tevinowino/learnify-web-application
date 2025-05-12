@@ -2,15 +2,16 @@
 "use client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Users, BookOpen, Settings, PlusCircle, Loader2, BookCopy, Activity, ListOrdered } from "lucide-react";
+import { Users, BookOpen, Settings, PlusCircle, BookCopy, Activity, ListOrdered } from "lucide-react";
 import Link from "next/link";
-import { useAuth } from '@/hooks/useAuth'; // Still need this for currentUser
-import { useAdminDashboard } from '@/hooks/useAdminDashboard'; // New hook
+import { useAuth } from '@/hooks/useAuth'; 
+import { useAdminDashboard } from '@/hooks/useAdminDashboard'; 
 import React from "react";
 import { formatDistanceToNow } from "date-fns";
+import Loader from "@/components/shared/Loader"; // Import new Loader
 
 export default function AdminDashboardPage() {
-  const { currentUser } = useAuth(); // For display name and general auth status
+  const { currentUser } = useAuth(); 
   const { 
     totalUsers, 
     teacherCount, 
@@ -43,7 +44,7 @@ export default function AdminDashboardPage() {
             <Users className="h-5 w-5 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            {isLoading ? <Loader2 className="h-6 w-6 animate-spin" /> : <div className="text-2xl font-bold">{totalUsers}</div>}
+            {isLoading ? <Loader size="small" /> : <div className="text-2xl font-bold">{totalUsers}</div>}
             <Button variant="link" asChild className="px-0 pt-2 text-sm">
               <Link href="/admin/users">View All Users</Link>
             </Button>
@@ -56,7 +57,7 @@ export default function AdminDashboardPage() {
             <BookOpen className="h-5 w-5 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            {isLoading ? <Loader2 className="h-6 w-6 animate-spin" /> : <div className="text-2xl font-bold">{teacherCount}</div>}
+            {isLoading ? <Loader size="small" /> : <div className="text-2xl font-bold">{teacherCount}</div>}
              <Button variant="link" asChild className="px-0 pt-2 text-sm">
               <Link href="/admin/users?role=teacher">Manage Teachers</Link>
             </Button>
@@ -69,7 +70,7 @@ export default function AdminDashboardPage() {
             <Users className="h-5 w-5 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            {isLoading ? <Loader2 className="h-6 w-6 animate-spin" /> : <div className="text-2xl font-bold">{studentCount}</div>}
+            {isLoading ? <Loader size="small" /> : <div className="text-2xl font-bold">{studentCount}</div>}
              <Button variant="link" asChild className="px-0 pt-2 text-sm">
               <Link href="/admin/users?role=student">Manage Students</Link>
             </Button>
@@ -82,7 +83,7 @@ export default function AdminDashboardPage() {
             <BookCopy className="h-5 w-5 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            {isLoading ? <Loader2 className="h-6 w-6 animate-spin" /> : <div className="text-2xl font-bold">{classCount}</div>}
+            {isLoading ? <Loader size="small" /> : <div className="text-2xl font-bold">{classCount}</div>}
             <Button variant="link" asChild className="px-0 pt-2 text-sm">
               <Link href="/admin/classes">Manage Classes</Link>
             </Button>
@@ -98,7 +99,7 @@ export default function AdminDashboardPage() {
           </CardHeader>
           <CardContent className="space-y-2">
             {isLoading ? (
-              <div className="flex justify-center py-4"><Loader2 className="h-6 w-6 animate-spin text-primary"/></div>
+              <div className="flex justify-center py-4"><Loader /></div>
             ) : recentActivities.length > 0 ? (
               <ul className="max-h-60 overflow-y-auto space-y-2">
                 {recentActivities.map(activity => (

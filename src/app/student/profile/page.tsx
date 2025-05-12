@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, useEffect } from 'react';
@@ -5,11 +6,12 @@ import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Loader2, UserCircle, Save } from 'lucide-react';
+import { UserCircle, Save } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
+import Loader from '@/components/shared/Loader'; // Import new Loader
 
 const profileSchema = z.object({
   displayName: z.string().min(2, "Display name must be at least 2 characters."),
@@ -42,7 +44,7 @@ export default function StudentProfilePage() {
     const success = await updateUserDisplayName(currentUser.uid, data.displayName);
     if (success) {
       toast({ title: "Success", description: "Display name updated successfully." });
-      form.reset({ displayName: data.displayName }, { keepValues: true }); // Update form with new value but keep dirty state
+      form.reset({ displayName: data.displayName }, { keepValues: true }); 
     } else {
       toast({ title: "Error", description: "Failed to update display name.", variant: "destructive" });
     }
@@ -50,7 +52,7 @@ export default function StudentProfilePage() {
   };
   
   if (authLoading && !currentUser) {
-    return <div className="flex h-full items-center justify-center"><Loader2 className="h-12 w-12 animate-spin text-primary" /></div>;
+    return <div className="flex h-full items-center justify-center"><Loader message="Loading profile..." size="large" /></div>;
   }
 
   if (!currentUser) {
@@ -78,14 +80,13 @@ export default function StudentProfilePage() {
                 <Input id="email_display" value={currentUser.email || ""} readOnly className="bg-muted/50"/>
             </div>
             <Button type="submit" disabled={isSubmittingName || !form.formState.isDirty} className="button-shadow">
-              {isSubmittingName && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {isSubmittingName && <Loader size="small" className="mr-2" />}
               <Save className="mr-2 h-4 w-4" /> Save Display Name
             </Button>
           </form>
         </CardContent>
       </Card>
 
-      {/* Simplified: Password/Email updates are complex due to re-authentication needs. Keeping it simple. */}
       <Card className="card-shadow">
         <CardHeader>
             <CardTitle>Account Security</CardTitle>

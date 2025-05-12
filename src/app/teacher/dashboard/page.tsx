@@ -7,13 +7,14 @@ import { BookOpen, UploadCloud, Sparkles, Loader2, Edit3, BookCopy, Clock, Activ
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { summarizeLearningMaterial, SummarizeLearningMaterialInput } from '@/ai/flows/summarize-learning-material';
-import { useAuth } from "@/hooks/useAuth"; // For currentUser
-import { useTeacherDashboard } from "@/hooks/useTeacherDashboard"; // New hook
+import { useAuth } from "@/hooks/useAuth"; 
+import { useTeacherDashboard } from "@/hooks/useTeacherDashboard"; 
 import Link from "next/link";
 import { format, formatDistanceToNow } from 'date-fns';
+import Loader from "@/components/shared/Loader"; // Import new Loader
 
 export default function TeacherDashboardPage() {
-  const { currentUser } = useAuth(); // For display name
+  const { currentUser } = useAuth(); 
   const { 
     materialCount, 
     assignmentCount, 
@@ -69,7 +70,7 @@ export default function TeacherDashboardPage() {
             <BookCopy className="h-5 w-5 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            {isLoading ? <Loader2 className="h-6 w-6 animate-spin"/> : <div className="text-2xl font-bold">{classCount}</div>}
+            {isLoading ? <Loader size="small" /> : <div className="text-2xl font-bold">{classCount}</div>}
             <p className="text-xs text-muted-foreground">Total classes assigned</p>
             <Button variant="link" asChild className="px-0 pt-2 text-sm">
               <Link href="/teacher/classes">View My Classes</Link>
@@ -82,7 +83,7 @@ export default function TeacherDashboardPage() {
             <BookOpen className="h-5 w-5 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            {isLoading ? <Loader2 className="h-6 w-6 animate-spin"/> : <div className="text-2xl font-bold">{materialCount}</div>}
+            {isLoading ? <Loader size="small" /> : <div className="text-2xl font-bold">{materialCount}</div>}
             <p className="text-xs text-muted-foreground">Total materials available</p>
             <Button variant="link" asChild className="px-0 pt-2 text-sm">
               <Link href="/teacher/materials">Manage Materials</Link>
@@ -95,7 +96,7 @@ export default function TeacherDashboardPage() {
             <Edit3 className="h-5 w-5 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            {isLoading ? <Loader2 className="h-6 w-6 animate-spin"/> : <div className="text-2xl font-bold">{assignmentCount}</div>}
+            {isLoading ? <Loader size="small" /> : <div className="text-2xl font-bold">{assignmentCount}</div>}
             <p className="text-xs text-muted-foreground">Total assignments created</p>
             <Button variant="link" asChild className="px-0 pt-2 text-sm">
               <Link href="/teacher/assignments">Manage Assignments</Link>
@@ -121,7 +122,7 @@ export default function TeacherDashboardPage() {
               className="mb-4"
             />
             <Button onClick={handleSummarize} disabled={isSummarizing || !materialToSummarize.trim()} className="bg-accent hover:bg-accent/90 text-accent-foreground button-shadow w-full sm:w-auto">
-              {isSummarizing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {isSummarizing ? <Loader size="small" className="mr-2" /> : <Sparkles className="mr-2 h-4 w-4"/> }
               Summarize Material
             </Button>
             {summary && (
@@ -141,13 +142,13 @@ export default function TeacherDashboardPage() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            {isLoading ? <Loader2 className="mx-auto h-8 w-8 animate-spin text-primary"/> : 
+            {isLoading ? <Loader /> : 
               upcomingAssignments.length > 0 ? (
-              <ul className="space-y-3">
+              <ul className="space-y-3 max-h-60 overflow-y-auto">
                 {upcomingAssignments.map(assignment => (
-                  <li key={assignment.id} className="p-3 border rounded-md hover:bg-muted/50">
+                  <li key={assignment.id} className="p-3 border rounded-md hover:bg-muted/30">
                     <Link href={`/teacher/assignments/${assignment.id}`} className="hover:underline">
-                      <h4 className="font-semibold">{assignment.title}</h4>
+                      <h4 className="font-semibold text-sm">{assignment.title}</h4>
                     </Link>
                     <p className="text-xs text-muted-foreground">
                       For: {assignment.className || 'N/A'}
@@ -159,7 +160,7 @@ export default function TeacherDashboardPage() {
                 ))}
               </ul>
             ) : (
-              <p className="text-muted-foreground">No upcoming deadlines in the near future.</p>
+              <p className="text-muted-foreground text-center py-4">No upcoming deadlines in the near future.</p>
             )}
             <Button variant="link" asChild className="px-0 pt-3 text-sm">
               <Link href="/teacher/assignments">View All Assignments</Link>
@@ -175,7 +176,7 @@ export default function TeacherDashboardPage() {
         </CardHeader>
         <CardContent className="space-y-2">
           {isLoading ? (
-            <div className="flex justify-center py-4"><Loader2 className="h-6 w-6 animate-spin text-primary"/></div>
+            <div className="flex justify-center py-4"><Loader /></div>
           ) : recentActivities.length > 0 ? (
             <ul className="max-h-60 overflow-y-auto space-y-2">
               {recentActivities.map(activity => (

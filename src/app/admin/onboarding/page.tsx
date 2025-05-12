@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useEffect, useState } from 'react';
@@ -7,8 +8,10 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, SchoolIcon, UserPlusIcon } from 'lucide-react';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { SchoolIcon, UserPlusIcon } from 'lucide-react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import Loader from '@/components/shared/Loader'; // Import new Loader
+import Logo from '@/components/shared/Logo';
 
 export default function AdminOnboardingPage() {
   const { currentUser, createSchool, joinSchoolWithInviteCode, loading: authLoading, checkAdminOnboardingStatus } = useAuth();
@@ -21,7 +24,7 @@ export default function AdminOnboardingPage() {
 
   useEffect(() => {
     if (!currentUser || currentUser.role !== 'admin') {
-       if(!authLoading) router.push('/auth/login'); // Not an admin or not logged in
+       if(!authLoading) router.push('/auth/login'); 
        return;
     }
 
@@ -39,12 +42,15 @@ export default function AdminOnboardingPage() {
 
   const handleCreateSchool = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!currentUser || !schoolName) return;
+    if (!currentUser || !schoolName.trim()) {
+      toast({ title: "Missing School Name", description: "Please enter a name for your school.", variant: "destructive"});
+      return;
+    }
     setIsSubmitting(true);
     const schoolId = await createSchool(schoolName, currentUser.uid);
     setIsSubmitting(false);
     if (schoolId) {
-      toast({ title: "School Created!", description: `School "${schoolName}" has been successfully created.` });
+      toast({ title: "School Created!", description: `School "${schoolName}" has been successfully created.`, duration: 5000 });
       router.push('/admin/dashboard');
     } else {
       toast({ title: "Error", description: "Failed to create school. Please try again.", variant: "destructive" });
@@ -53,33 +59,27 @@ export default function AdminOnboardingPage() {
 
   const handleJoinSchool = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!currentUser || !inviteCode) return;
+    if (!currentUser || !inviteCode.trim()) {
+       toast({ title: "Missing Invite Code", description: "Please enter the school's invite code.", variant: "destructive"});
+      return;
+    }
     setIsSubmitting(true);
     const success = await joinSchoolWithInviteCode(inviteCode, currentUser.uid);
     setIsSubmitting(false);
     if (success) {
-      toast({ title: "Joined School!", description: "Successfully joined the school." });
+      toast({ title: "Joined School!", description: "Successfully joined the school.", duration: 5000 });
       router.push('/admin/dashboard');
     } else {
       toast({ title: "Error", description: "Failed to join school. Invalid invite code or an error occurred.", variant: "destructive" });
     }
   };
   
-  const isLoading = authLoading || isSubmitting || checkingStatus;
+  const pageLoading = authLoading || checkingStatus;
 
-  if (isLoading && (!currentUser || currentUser.role !== 'admin')) { // Show loader if auth is still loading or if user is not admin yet
+  if (pageLoading) {
     return (
-      <div className="flex h-screen w-full items-center justify-center">
-        <Loader2 className="h-12 w-12 animate-spin text-primary" />
-      </div>
-    );
-  }
-  
-  if (checkingStatus) {
-     return (
-      <div className="flex h-screen w-full items-center justify-center">
-        <Loader2 className="h-12 w-12 animate-spin text-primary" />
-        <p className="ml-4 text-muted-foreground">Checking onboarding status...</p>
+      <div className="flex h-screen w-full flex-col items-center justify-center bg-background">
+        <Loader message={authLoading ? "Authenticating..." : "Checking onboarding status..."} size="large" />
       </div>
     );
   }
@@ -87,9 +87,12 @@ export default function AdminOnboardingPage() {
 
   return (
     <div className="flex min-h-screen flex-col items-center justify-center p-4 bg-gradient-to-br from-primary/5 via-background to-secondary/5">
-      <Card className="w-full max-w-lg shadow-xl">
-        <CardHeader>
-          <CardTitle className="text-2xl">Welcome, Admin!</CardTitle>
+      <div className="mb-8 text-center">
+        <Logo />
+      </div>
+      <Card className="w-full max-w-lg shadow-xl card-shadow">
+        <CardHeader className="text-center">
+          <CardTitle className="text-2xl sm:text-3xl">Welcome, Admin!</CardTitle>
           <CardDescription>Let's get your school set up on Learnify.</CardDescription>
         </CardHeader>
         <CardContent>
@@ -110,10 +113,11 @@ export default function AdminOnboardingPage() {
                     placeholder="e.g., Springfield Elementary"
                     required
                     className="w-full"
+                    disabled={isSubmitting}
                   />
                 </div>
-                <Button type="submit" className="w-full bg-primary hover:bg-primary/90 button-shadow" disabled={isLoading || !schoolName.trim()}>
-                  {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                <Button type="submit" className="w-full bg-primary hover:bg-primary/90 button-shadow" disabled={isSubmitting || !schoolName.trim()}>
+                  {isSubmitting && <Loader size="small" className="mr-2" />}
                   Create School
                 </Button>
               </form>
@@ -127,13 +131,14 @@ export default function AdminOnboardingPage() {
                     type="text"
                     value={inviteCode}
                     onChange={(e) => setInviteCode(e.target.value.toUpperCase())}
-                    placeholder="Enter invite code"
+                    placeholder="Enter school invite code"
                     required
                     className="w-full"
+                    disabled={isSubmitting}
                   />
                 </div>
-                <Button type="submit" className="w-full bg-accent hover:bg-accent/90 text-accent-foreground button-shadow" disabled={isLoading || !inviteCode.trim()}>
-                  {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                <Button type="submit" className="w-full bg-accent hover:bg-accent/90 text-accent-foreground button-shadow" disabled={isSubmitting || !inviteCode.trim()}>
+                  {isSubmitting && <Loader size="small" className="mr-2" />}
                   Join with Code
                 </Button>
               </form>
@@ -141,8 +146,8 @@ export default function AdminOnboardingPage() {
           </Tabs>
         </CardContent>
         <CardFooter>
-          <p className="text-xs text-muted-foreground">
-            If you don't have an invite code and aren't creating a new school, please contact your school administrator.
+          <p className="text-xs text-muted-foreground text-center w-full">
+            If you're creating a new school, an invite code will be generated for you to share.
           </p>
         </CardFooter>
       </Card>

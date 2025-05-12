@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, useEffect } from 'react';
@@ -5,12 +6,13 @@ import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Loader2, UserCircle, Save, KeyRound, Mail, LinkIcon as LinkChildIcon } from 'lucide-react';
+import { UserCircle, Save, LinkIcon as LinkChildIcon } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import Link from 'next/link';
+import Loader from '@/components/shared/Loader'; // Import new Loader
 
 const profileSchema = z.object({
   displayName: z.string().min(2, "Display name must be at least 2 characters."),
@@ -19,13 +21,10 @@ const profileSchema = z.object({
 type ProfileFormValues = z.infer<typeof profileSchema>;
 
 export default function ParentProfilePage() {
-  const { currentUser, updateUserDisplayName, loading: authLoading } = useAuth(); // Assuming email/pass update functions exist
+  const { currentUser, updateUserDisplayName, loading: authLoading } = useAuth();
   const { toast } = useToast();
   
   const [isSubmittingName, setIsSubmittingName] = useState(false);
-  // Add states for email/password update if implementing full flow
-  // const [isSubmittingEmail, setIsSubmittingEmail] = useState(false);
-  // const [newEmail, setNewEmail] = useState('');
 
   const form = useForm<ProfileFormValues>({
     resolver: zodResolver(profileSchema),
@@ -37,7 +36,6 @@ export default function ParentProfilePage() {
   useEffect(() => {
     if (currentUser) {
       form.reset({ displayName: currentUser.displayName || "" });
-      // setNewEmail(currentUser.email || '');
     }
   }, [currentUser, form]);
 
@@ -55,7 +53,7 @@ export default function ParentProfilePage() {
   };
   
   if (authLoading && !currentUser) {
-    return <div className="flex h-full items-center justify-center"><Loader2 className="h-12 w-12 animate-spin text-primary" /></div>;
+    return <div className="flex h-full items-center justify-center"><Loader message="Loading profile..." size="large" /></div>;
   }
 
   if (!currentUser) {
@@ -83,7 +81,7 @@ export default function ParentProfilePage() {
                 <Input id="email_display" value={currentUser.email || ""} readOnly className="bg-muted/50"/>
             </div>
             <Button type="submit" disabled={isSubmittingName || !form.formState.isDirty} className="button-shadow w-full sm:w-auto">
-              {isSubmittingName && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {isSubmittingName && <Loader size="small" className="mr-2" />}
               <Save className="mr-2 h-4 w-4" /> Save Display Name
             </Button>
           </form>
@@ -98,7 +96,6 @@ export default function ParentProfilePage() {
          <CardContent>
             {currentUser.childStudentId ? (
                 <p className="text-sm text-muted-foreground">Currently linked to student ID: <span className="font-semibold text-foreground">{currentUser.childStudentId}</span></p>
-                // Add option to unlink or change linked child if needed
             ) : (
                 <p className="text-sm text-muted-foreground">
                     No child account linked. 

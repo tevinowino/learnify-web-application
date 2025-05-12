@@ -4,13 +4,14 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Loader2, Activity as ActivityIcon } from 'lucide-react';
+import { Activity as ActivityIcon } from 'lucide-react';
 import type { Activity } from '@/types';
 import Link from 'next/link';
 import { formatDistanceToNow } from 'date-fns';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import Loader from '@/components/shared/Loader'; // Import new Loader
 
 export default function StudentActivityPage() {
   const { currentUser, getActivities, loading: authLoading } = useAuth();
@@ -20,13 +21,12 @@ export default function StudentActivityPage() {
   const fetchActivities = useCallback(async () => {
     if (currentUser?.schoolId && currentUser.classIds) {
       setIsLoadingActivities(true);
-      // Fetch school-wide activities first, then filter
       const schoolActivities = await getActivities(currentUser.schoolId, {}, 50); 
       
       const studentRelevantActivities = schoolActivities.filter(act => 
-        (act.classId && currentUser.classIds?.includes(act.classId)) || // Activity related to one of their classes
-        (!act.classId && !act.actorId) || // General school-wide announcements not tied to a specific class or actor
-        (act.actorId === currentUser.uid) // Their own actions
+        (act.classId && currentUser.classIds?.includes(act.classId)) || 
+        (!act.classId && !act.actorId) || 
+        (act.actorId === currentUser.uid) 
       );
       setActivities(studentRelevantActivities);
       setIsLoadingActivities(false);
@@ -46,7 +46,7 @@ export default function StudentActivityPage() {
   if (pageLoading && activities.length === 0) {
     return (
       <div className="flex h-full items-center justify-center">
-        <Loader2 className="h-12 w-12 animate-spin text-primary" />
+        <Loader message="Loading activity feed..." size="large" />
       </div>
     );
   }
@@ -98,7 +98,7 @@ export default function StudentActivityPage() {
                      <Badge variant="outline" className="mt-1 text-xs">{activity.type.replace(/_/g, ' ').toUpperCase()}</Badge>
                   </li>
                 ))}
-                {pageLoading && activities.length > 0 && <div className="flex justify-center py-4"><Loader2 className="h-6 w-6 animate-spin text-primary"/></div>}
+                {pageLoading && activities.length > 0 && <div className="flex justify-center py-4"><Loader size="small" /></div>}
               </ul>
             </ScrollArea>
           )}

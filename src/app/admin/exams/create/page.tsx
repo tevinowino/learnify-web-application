@@ -10,7 +10,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Loader2, PlusCircle, CalendarIcon, ArrowLeft, FilePieChart } from 'lucide-react';
+import { PlusCircle, CalendarIcon, ArrowLeft, FilePieChart } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import type { ClassWithTeacherInfo } from '@/types';
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
@@ -19,6 +19,7 @@ import { format } from 'date-fns';
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { ScrollArea } from '@/components/ui/scroll-area';
+import Loader from '@/components/shared/Loader'; // Import new Loader
 
 const examPeriodSchema = z.object({
   name: z.string().min(3, "Exam period name must be at least 3 characters."),
@@ -85,7 +86,6 @@ export default function CreateExamPeriodPage() {
 
     if (examPeriodId) {
       toast({ title: "Exam Period Created!", description: `"${values.name}" has been successfully created.` });
-      // Log activity
         if (currentUser.displayName && currentUser.schoolId) {
             addActivity({
                 schoolId: currentUser.schoolId,
@@ -107,7 +107,7 @@ export default function CreateExamPeriodPage() {
    if (pageOverallLoading) {
     return (
       <div className="flex h-full items-center justify-center">
-        <Loader2 className="h-12 w-12 animate-spin text-primary" />
+        <Loader message="Loading..." size="large" />
       </div>
     );
   }
@@ -227,8 +227,8 @@ export default function CreateExamPeriodPage() {
             </div>
 
             <Button type="submit" className="w-full bg-primary hover:bg-primary/90 button-shadow" disabled={isSubmitting || pageOverallLoading || allSchoolClasses.length === 0}>
-              {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              <PlusCircle className="mr-2 h-4 w-4" /> Create Exam Period
+              {isSubmitting ? <Loader size="small" className="mr-2" /> : <PlusCircle className="mr-2 h-4 w-4" />}
+              Create Exam Period
             </Button>
           </form>
         </CardContent>

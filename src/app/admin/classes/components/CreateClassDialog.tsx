@@ -4,7 +4,7 @@
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Loader2, PlusCircle } from 'lucide-react';
+import { PlusCircle } from 'lucide-react';
 import type { UserProfileWithId, ClassType, Subject } from '@/types';
 import { useToast } from '@/hooks/use-toast';
 import {
@@ -27,6 +27,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useAuth } from '@/hooks/useAuth';
+import Loader from '@/components/shared/Loader'; // Import new Loader
 
 
 interface CreateClassDialogProps {
@@ -47,7 +48,7 @@ const NO_TEACHER_VALUE = "__NO_TEACHER__";
 
 export default function CreateClassDialog({ teachers, schoolId, onCreateClass, onSuccess }: CreateClassDialogProps) {
   const { toast } = useToast();
-  const { getSubjectsBySchool } = useAuth(); // For fetching subjects
+  const { getSubjectsBySchool } = useAuth(); 
   const [newClassName, setNewClassName] = useState('');
   const [selectedTeacherForNewClass, setSelectedTeacherForNewClass] = useState<string | undefined>(undefined);
   const [selectedClassType, setSelectedClassType] = useState<ClassType>('main');
@@ -65,7 +66,7 @@ export default function CreateClassDialog({ teachers, schoolId, onCreateClass, o
         setSchoolSubjects(subjects);
       }
     };
-    if (isOpen) { // Fetch subjects when dialog opens
+    if (isOpen) { 
         fetchSchoolSubjects();
     }
   }, [isOpen, schoolId, getSubjectsBySchool]);
@@ -208,10 +209,10 @@ export default function CreateClassDialog({ teachers, schoolId, onCreateClass, o
         </ScrollArea>
         <DialogFooter>
           <DialogClose asChild>
-            <Button variant="outline">Cancel</Button>
+            <Button variant="outline" disabled={isSubmitting}>Cancel</Button>
           </DialogClose>
           <Button onClick={handleCreate} disabled={isSubmitting || !newClassName.trim() || (selectedClassType === 'subject_based' && !selectedSubjectIdForClass)}>
-            {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            {isSubmitting && <Loader size="small" className="mr-2" />}
             Create Class
           </Button>
         </DialogFooter>
@@ -219,5 +220,3 @@ export default function CreateClassDialog({ teachers, schoolId, onCreateClass, o
     </Dialog>
   );
 }
-
-    

@@ -2,54 +2,31 @@
 "use client";
 
 import React from 'react';
-import { useAuth } from '@/hooks/useAuth'; // For currentUser
-import { useParentDashboard } from '@/hooks/useParentDashboard'; // New hook
+import { useAuth } from '@/hooks/useAuth'; 
+import { useParentDashboard } from '@/hooks/useParentDashboard'; 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Loader2, User, BookOpen, BarChart2, Bell } from 'lucide-react';
+import { User, BookOpen, BarChart2, Bell } from 'lucide-react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
+import Loader from '@/components/shared/Loader'; // Import new Loader
 
 export default function ParentDashboardPage() {
   const { currentUser } = useAuth();
   const { 
-    // childData, 
-    // childAssignments, 
-    // childExamResults, 
     isLoading 
   } = useParentDashboard();
 
   if (isLoading) {
     return (
       <div className="flex h-full items-center justify-center">
-        <Loader2 className="h-12 w-12 animate-spin text-primary" />
+        <Loader message="Loading dashboard..." size="large" />
       </div>
     );
   }
   
-  // Commented out until child linking is fully implemented
-  // if (!currentUser?.childStudentId) {
-  //   return (
-  //     <Card className="card-shadow">
-  //       <CardHeader>
-  //         <CardTitle>Link Your Child's Account</CardTitle>
-  //         <CardDescription>
-  //           Please link your child's account to view their progress and activities.
-  //         </CardDescription>
-  //       </CardHeader>
-  //       <CardContent>
-  //         <Button asChild><Link href="/parent/link-child">Link Child Account</Link></Button>
-  //       </CardContent>
-  //     </Card>
-  //   );
-  // }
-
-
   return (
     <div className="space-y-6">
       <h1 className="text-2xl sm:text-3xl font-bold">Parent Dashboard</h1>
-      {/* {childData && (
-        <p className="text-muted-foreground">Viewing progress for: {childData.displayName}</p>
-      )} */}
       
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <Card className="card-shadow">
@@ -58,7 +35,7 @@ export default function ParentDashboardPage() {
             <BookOpen className="h-5 w-5 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">N/A</div> {/* Placeholder */}
+            <div className="text-2xl font-bold">N/A</div> 
             <p className="text-xs text-muted-foreground">Feature coming soon</p>
           </CardContent>
         </Card>
@@ -69,7 +46,7 @@ export default function ParentDashboardPage() {
             <BarChart2 className="h-5 w-5 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">N/A</div> {/* Placeholder */}
+            <div className="text-2xl font-bold">N/A</div> 
             <p className="text-xs text-muted-foreground">Feature coming soon</p>
           </CardContent>
         </Card>
@@ -80,7 +57,7 @@ export default function ParentDashboardPage() {
             <User className="h-5 w-5 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">N/A</div> {/* Placeholder */}
+            <div className="text-2xl font-bold">N/A</div> 
             <p className="text-xs text-muted-foreground">Feature coming soon</p>
           </CardContent>
         </Card>
@@ -92,9 +69,21 @@ export default function ParentDashboardPage() {
         </CardHeader>
         <CardContent>
           <p className="text-muted-foreground">Activity feed for your child will appear here.</p>
-          {/* Placeholder for activity items */}
         </CardContent>
       </Card>
+       {!currentUser?.childStudentId && (
+        <Card className="card-shadow mt-6">
+          <CardHeader>
+            <CardTitle>Link Your Child's Account</CardTitle>
+            <CardDescription>
+              Please link your child's account to view their progress and activities.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button asChild className="button-shadow"><Link href="/parent/link-child">Link Child Account</Link></Button>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

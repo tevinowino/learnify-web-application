@@ -6,12 +6,14 @@ import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
-import { Loader2, FolderOpen, Library, Edit3, ArrowLeft, Link as LinkIcon, FileTextIcon, VideoIcon, CheckSquare, Clock, AlertTriangle, Download } from 'lucide-react';
+import { FolderOpen, Library, Edit3, ArrowLeft, Link as LinkIcon, FileTextIcon, VideoIcon, CheckSquare, Clock, AlertTriangle, Download } from 'lucide-react';
 import type { ClassWithTeacherInfo, LearningMaterial, AssignmentWithClassAndSubmissionInfo, LearningMaterialType, UserProfileWithId, Subject, LearningMaterialWithTeacherInfo as EnrichedMaterial } from '@/types';
 import Link from 'next/link';
 import { format, formatDistanceToNow } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
 import { Badge } from '@/components/ui/badge';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import Loader from '@/components/shared/Loader'; // Import new Loader
 
 const materialTypeIcons: Record<LearningMaterialType, React.ReactNode> = {
   text: <FileTextIcon className="h-4 w-4 mr-2" />,
@@ -39,7 +41,6 @@ export default function StudentClassDetailPage() {
   const [classDetails, setClassDetails] = useState<ClassWithTeacherInfo | null>(null);
   const [materials, setMaterials] = useState<EnrichedMaterial[]>([]); 
   const [assignments, setAssignments] = useState<AssignmentWithClassAndSubmissionInfo[]>([]);
-  const [students, setStudents] = useState<UserProfileWithId[]>([]);
   const [isLoadingPage, setIsLoadingPage] = useState(true);
 
   const fetchData = useCallback(async () => {
@@ -100,15 +101,14 @@ export default function StudentClassDetailPage() {
         case 'graded': return <Badge variant="default" className="bg-green-500 hover:bg-green-600"><CheckSquare className="mr-1 h-3 w-3"/>Graded</Badge>;
         case 'submitted': return <Badge variant="secondary"><Clock className="mr-1 h-3 w-3"/>Submitted</Badge>;
         case 'late': return <Badge variant="destructive"><AlertTriangle className="mr-1 h-3 w-3"/>Late</Badge>;
-        case 'missing': return <Badge variant="outline">Missing</Badge>;
-        default: return <Badge variant="outline">Pending</Badge>;
+        case 'missing': default: return <Badge variant="outline">Missing</Badge>;
     }
   };
 
   if (authLoading || isLoadingPage) {
     return (
       <div className="flex h-full items-center justify-center">
-        <Loader2 className="h-12 w-12 animate-spin text-primary" />
+        <Loader message="Loading class details..." size="large" />
       </div>
     );
   }
@@ -139,6 +139,7 @@ export default function StudentClassDetailPage() {
           </CardTitle>
           <CardDescription>
             Teacher: {classDetails.teacherDisplayName || 'N/A'}
+            {classDetails.classType === 'subject_based' && classDetails.subjectName && ` | Subject: ${classDetails.subjectName}`}
           </CardDescription>
         </CardHeader>
       </Card>
@@ -168,7 +169,7 @@ export default function StudentClassDetailPage() {
                                 {material.content.replace("[Uploaded File: ", "").replace("]", "")}
                             </a>
                         </Button>
-                    ) : (material.content) ? ( // For link, pdf_link, video_link
+                    ) : (material.content) ? ( 
                       <Button variant="link" asChild className="p-0 h-auto mt-1">
                         <a href={material.content} target="_blank" rel="noopener noreferrer" className="text-sm text-primary hover:underline break-all">
                           {material.content} <LinkIcon className="inline h-3 w-3 ml-1"/>
@@ -223,10 +224,4 @@ export default function StudentClassDetailPage() {
       </Card>
     </div>
   );
-}
-
-import { useToast as useOriginalToast } from '@/hooks/use-toast';
-function toast(options: { title: string, description?: string, variant?: 'default' | 'destructive' }) {
-    const { toast: showToast } = useOriginalToast();
-    showToast(options);
 }

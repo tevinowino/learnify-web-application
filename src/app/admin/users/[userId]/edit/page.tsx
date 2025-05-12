@@ -6,7 +6,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { useRouter, useParams } from "next/navigation";
-import { Loader2, UserCog, Save } from "lucide-react";
+import { UserCog, Save } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -37,10 +37,11 @@ import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import type { UserProfileWithId, UserRole } from "@/types";
 import Link from "next/link";
+import Loader from "@/components/shared/Loader"; // Import new Loader
 
 const editUserSchema = z.object({
   displayName: z.string().min(2, { message: "Display name must be at least 2 characters." }),
-  email: z.string().email({ message: "Invalid email address." }).readonly(), // Email is typically not changed here
+  email: z.string().email({ message: "Invalid email address." }).readonly(), 
   role: z.enum(["admin", "teacher", "student"], {
     required_error: "Please select a role.",
   }),
@@ -91,7 +92,7 @@ export default function EditUserPage() {
     }
   }, [userId, getUserProfile, form, router, toast]);
 
-  const isLoading = authLoading || isSubmitting || isLoadingUser;
+  const pageIsLoading = authLoading || isLoadingUser; // Combined loading state for the page content
 
   async function onSubmit(values: EditUserFormValues) {
     if (!currentUser || currentUser.role !== 'admin' || !userData || !currentUser.schoolId) {
@@ -110,13 +111,13 @@ export default function EditUserPage() {
     if (values.displayName !== userData.displayName) {
       profileUpdated = await updateUserDisplayName(userId, values.displayName);
     } else {
-      profileUpdated = true; // No change needed, consider it successful for logic flow
+      profileUpdated = true; 
     }
 
     if (values.role !== userData.role) {
       roleUpdated = await updateUserRoleAndSchool(userId, { role: values.role as UserRole });
     } else {
-      roleUpdated = true; // No change needed
+      roleUpdated = true; 
     }
 
     if (profileUpdated && roleUpdated) {
@@ -135,16 +136,15 @@ export default function EditUserPage() {
     setIsSubmitting(false);
   }
   
-  if (isLoadingUser || authLoading) {
-    return <div className="flex h-full items-center justify-center"><Loader2 className="h-12 w-12 animate-spin text-primary" /></div>;
+  if (pageIsLoading) {
+    return <div className="flex h-full items-center justify-center"><Loader message="Loading user data..." size="large" /></div>;
   }
 
   if (!userData) {
     return <div className="p-4 text-center">User data could not be loaded. <Link href="/admin/users" className="text-primary hover:underline">Go back to users list.</Link></div>;
   }
   
-  // Prevent admin from editing their own role if they are the last admin or school creator
-  const canEditRole = !(currentUser?.uid === userId && (userData.role === 'admin' /* && isLastAdminLogic() */ || userData.uid === userData.school?.adminId));
+  const canEditRole = !(currentUser?.uid === userId && (userData.role === 'admin' || userData.uid === userData.school?.adminId));
 
 
   return (
@@ -197,7 +197,7 @@ export default function EditUserPage() {
                     <Select 
                       onValueChange={field.onChange} 
                       value={field.value as string | undefined} 
-                      disabled={!canEditRole || isLoading}
+                      disabled={!canEditRole || isSubmitting}
                     >
                       <FormControl>
                         <SelectTrigger id="roleEdit" className={!canEditRole ? "bg-muted/50" : ""}>
@@ -219,9 +219,9 @@ export default function EditUserPage() {
               <Button
                 type="submit"
                 className="w-full bg-primary hover:bg-primary/90 button-shadow"
-                disabled={isLoading || !form.formState.isDirty}
+                disabled={isSubmitting || !form.formState.isDirty}
               >
-                {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                {isSubmitting && <Loader size="small" className="mr-2" />}
                 <Save className="mr-2 h-4 w-4"/> Save Changes
               </Button>
             </form>

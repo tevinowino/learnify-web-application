@@ -4,11 +4,12 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Loader2, Trophy, CalendarDays, BookOpen } from "lucide-react";
-import type { ExamResultWithStudentInfo } from '@/types'; // Assuming ExamResultWithStudentInfo includes examPeriodName and subjectName
+import { Trophy, CalendarDays, BookOpen } from "lucide-react";
+import type { ExamResultWithStudentInfo } from '@/types'; 
 import { format } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
+import Loader from '@/components/shared/Loader'; // Import new Loader
 
 export default function StudentResultsPage() {
   const { currentUser, getExamResultsForStudent, getSubjectById, getExamPeriodById, getClassDetails, loading: authLoading } = useAuth();
@@ -20,17 +21,26 @@ export default function StudentResultsPage() {
     if (currentUser?.uid && currentUser.schoolId) {
       setIsLoading(true);
       try {
-        // Pass getSubjectById and getExamPeriodById to resolve names in the service
-        const fetchedResults = await getExamResultsForStudent(currentUser.uid, currentUser.schoolId, getSubjectById, (examPeriodId) => getExamPeriodById(examPeriodId, getClassDetails));
+        const fetchedResults = await getExamResultsForStudent(currentUser.uid, currentUser.schoolId);
 
-        // Group results by exam period name for display
         const grouped: Record<string, ExamResultWithStudentInfo[]> = {};
         for (const result of fetchedResults) {
-          const periodName = result.examPeriodName || 'Unknown Exam Period';
-          if (!grouped[periodName]) {
-            grouped[periodName] = [];
+          let subjectName = result.subjectId; 
+          let examPeriodName = result.examPeriodId;
+          if (getSubjectById && result.subjectId) {
+              const subject = await getSubjectById(result.subjectId);
+              subjectName = subject?.name || result.subjectId;
           }
-          grouped[periodName].push(result);
+          if (getExamPeriodById && result.examPeriodId) {
+              // Pass a dummy getClassDetails if it's not strictly needed for exam period name resolution here
+              const examPeriod = await getExamPeriodById(result.examPeriodId, async () => null); 
+              examPeriodName = examPeriod?.name || result.examPeriodId;
+          }
+
+          if (!grouped[examPeriodName]) {
+            grouped[examPeriodName] = [];
+          }
+          grouped[examPeriodName].push({ ...result, subjectName, examPeriodName });
         }
         setResultsByPeriod(grouped);
 
@@ -51,7 +61,7 @@ export default function StudentResultsPage() {
   if (authLoading || isLoading) {
     return (
       <div className="flex h-full items-center justify-center">
-        <Loader2 className="h-12 w-12 animate-spin text-primary" />
+        <Loader message="Loading your results..." size="large" />
       </div>
     );
   }

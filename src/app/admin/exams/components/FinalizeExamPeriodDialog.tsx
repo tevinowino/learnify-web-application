@@ -13,7 +13,8 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Button } from '@/components/ui/button';
-import { Loader2, AlertTriangle } from 'lucide-react';
+import { AlertTriangle } from 'lucide-react';
+import Loader from '@/components/shared/Loader'; // Import new Loader
 
 interface FinalizeExamPeriodDialogProps {
   isOpen: boolean;
@@ -50,7 +51,7 @@ export default function FinalizeExamPeriodDialog({
         <AlertDialogFooter>
           <AlertDialogCancel disabled={isFinalizing}>Cancel</AlertDialogCancel>
           <AlertDialogAction onClick={onConfirm} disabled={isFinalizing} className="bg-primary hover:bg-primary/90">
-            {isFinalizing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            {isFinalizing && <Loader size="small" className="mr-2" />}
             Yes, Finalize Period
           </AlertDialogAction>
         </AlertDialogFooter>
