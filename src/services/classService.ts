@@ -1,10 +1,18 @@
 
 import { doc, collection, query, where, getDocs, writeBatch, updateDoc, addDoc, Timestamp, arrayUnion, arrayRemove, documentId, orderBy, getDoc, deleteDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import type { Class, ClassWithTeacherInfo, UserProfileWithId, UserProfile } from '@/types';
+import type { Class, ClassWithTeacherInfo, UserProfileWithId, UserProfile, ClassType } from '@/types';
 import type { getUserProfileService as GetUserProfileServiceType } from './userService'; 
+import { getSubjectByIdService } from './subjectService'; // Import for subject name resolution
 
-export const createClassService = async (className: string, schoolId: string, teacherId: string): Promise<string | null> => {
+export const createClassService = async (
+  className: string, 
+  schoolId: string, 
+  teacherId: string,
+  classType: ClassType,
+  compulsorySubjectIds?: string[],
+  subjectId?: string | null
+  ): Promise<string | null> => {
   try {
     const classRef = collection(db, "classes");
     const classInviteCode = `C-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
@@ -14,6 +22,9 @@ export const createClassService = async (className: string, schoolId: string, te
       teacherId: teacherId || '',
       studentIds: [],
       classInviteCode: classInviteCode,
+      classType: classType,
+      compulsorySubjectIds: classType === 'main' ? (compulsorySubjectIds || []) : [],
+      subjectId: classType === 'subject_based' ? (subjectId || null) : null,
       createdAt: Timestamp.now(),
       updatedAt: Timestamp.now(),
     };
@@ -33,8 +44,6 @@ export const getClassesBySchoolService = async (
   if (!schoolId) return [];
   try {
     const classesRef = collection(db, "classes");
-    // Removed orderBy("name") to avoid needing composite index with where clause.
-    // Sorting should be handled client-side.
     const q = query(classesRef, where("schoolId", "==", schoolId));
     const querySnapshot = await getDocs(q);
     const classesPromises = querySnapshot.docs.map(async (docSnapshot) => {
@@ -44,9 +53,15 @@ export const getClassesBySchoolService = async (
         const teacherProfile = await getUserProfile(classData.teacherId);
         teacherDisplayName = teacherProfile?.displayName || 'N/A';
       }
-      return { ...classData, id: docSnapshot.id, teacherDisplayName };
+      let subjectName = undefined;
+      if (classData.classType === 'subject_based' && classData.subjectId) {
+        const subject = await getSubjectByIdService(classData.subjectId);
+        subjectName = subject?.name;
+      }
+      return { ...classData, id: docSnapshot.id, teacherDisplayName, subjectName };
     });
-    return Promise.all(classesPromises);
+    const allClasses = await Promise.all(classesPromises);
+    return allClasses.sort((a, b) => a.name.localeCompare(b.name));
   } catch (error) {
     console.error("Error fetching classes by school in service:", error);
     return [];
@@ -79,12 +94,16 @@ export const getClassesByIdsService = async (
           teacherDisplayName = teacherProfile?.displayName || 'N/A';
         }
         const assignments = await getAssignmentsForClass(classData.id);
-        return { ...classData, id: docSnapshot.id, teacherDisplayName, totalAssignmentsCount: assignments.length };
+        let subjectName = undefined;
+        if (classData.classType === 'subject_based' && classData.subjectId) {
+            const subject = await getSubjectByIdService(classData.subjectId);
+            subjectName = subject?.name;
+        }
+        return { ...classData, id: docSnapshot.id, teacherDisplayName, totalAssignmentsCount: assignments.length, subjectName };
       });
       const chunkClasses = await Promise.all(classesPromises);
       allClasses = [...allClasses, ...chunkClasses];
     }
-    // Client-side sorting as service-level sort was removed or not present.
     return allClasses.sort((a, b) => a.name.localeCompare(b.name));
   } catch (error) {
     console.error("Error fetching classes by IDs in service:", error);
@@ -107,7 +126,12 @@ export const getClassDetailsService = async (
         const teacherProfile = await getUserProfile(classData.teacherId);
         teacherDisplayName = teacherProfile?.displayName || 'N/A';
       }
-      return { ...classData, teacherDisplayName };
+      let subjectName = undefined;
+      if (classData.classType === 'subject_based' && classData.subjectId) {
+        const subject = await getSubjectByIdService(classData.subjectId);
+        subjectName = subject?.name;
+      }
+      return { ...classData, teacherDisplayName, subjectName };
     }
     return null;
   } catch (error) {
@@ -116,10 +140,21 @@ export const getClassDetailsService = async (
   }
 };
 
-export const updateClassDetailsService = async (classId: string, data: Partial<Pick<Class, 'name' | 'teacherId' | 'classInviteCode'>>): Promise<boolean> => {
+export const updateClassDetailsService = async (classId: string, data: Partial<Pick<Class, 'name' | 'teacherId' | 'classInviteCode' | 'classType' | 'compulsorySubjectIds' | 'subjectId'>>): Promise<boolean> => {
   try {
     const classRef = doc(db, "classes", classId);
-    await updateDoc(classRef, { ...data, updatedAt: Timestamp.now() });
+    const updateData: any = { ...data, updatedAt: Timestamp.now() };
+    
+    // Ensure subjectId is nullified if classType is not subject_based
+    if (data.classType && data.classType !== 'subject_based') {
+        updateData.subjectId = null;
+    }
+    // Ensure compulsorySubjectIds is empty array if classType is not main
+    if (data.classType && data.classType !== 'main') {
+        updateData.compulsorySubjectIds = [];
+    }
+
+    await updateDoc(classRef, updateData);
     return true;
   } catch (error) {
     console.error("Error updating class details in service:", error);
@@ -131,9 +166,39 @@ export const enrollStudentInClassService = async (classId: string, studentId: st
   try {
     const batch = writeBatch(db);
     const classRef = doc(db, "classes", classId);
-    batch.update(classRef, { studentIds: arrayUnion(studentId), updatedAt: Timestamp.now() });
     const studentRef = doc(db, "users", studentId);
-    batch.update(studentRef, { classIds: arrayUnion(classId), updatedAt: Timestamp.now() });
+
+    const classSnap = await getDoc(classRef);
+    if (!classSnap.exists()) return false;
+    const classData = classSnap.data() as Class;
+
+    const studentSnap = await getDoc(studentRef);
+    if (!studentSnap.exists()) return false;
+    const studentData = studentSnap.data() as UserProfile;
+
+    // Update class's student list
+    batch.update(classRef, { studentIds: arrayUnion(studentId), updatedAt: Timestamp.now() });
+    
+    // Update student's class list
+    const studentUpdatePayload: any = { classIds: arrayUnion(classId), updatedAt: Timestamp.now() };
+
+    let subjectsToAdd: string[] = [];
+    if (classData.classType === 'main' && classData.compulsorySubjectIds) {
+        subjectsToAdd.push(...classData.compulsorySubjectIds);
+    }
+    if (classData.classType === 'subject_based' && classData.subjectId) {
+        subjectsToAdd.push(classData.subjectId);
+    }
+    
+    if (subjectsToAdd.length > 0) {
+        // Ensure unique subjects by merging with existing if any
+        const currentStudentSubjects = studentData.subjects || [];
+        const finalSubjects = Array.from(new Set([...currentStudentSubjects, ...subjectsToAdd]));
+        studentUpdatePayload.subjects = finalSubjects;
+    }
+
+    batch.update(studentRef, studentUpdatePayload);
+    
     await batch.commit();
     return true;
   } catch (error) {
@@ -149,6 +214,12 @@ export const removeStudentFromClassService = async (classId: string, studentId: 
     batch.update(classRef, { studentIds: arrayRemove(studentId), updatedAt: Timestamp.now() });
     const studentRef = doc(db, "users", studentId);
     batch.update(studentRef, { classIds: arrayRemove(classId), updatedAt: Timestamp.now() });
+    
+    // Note: Removing from a class does not automatically remove subjects. 
+    // This might need more complex logic if, for example, a student leaves a main class, 
+    // whether its compulsory subjects should be removed if not part of another class.
+    // For now, it only removes the class association.
+
     await batch.commit();
     return true;
   } catch (error) {
@@ -249,51 +320,33 @@ export const getClassesByTeacherService = async (teacherId: string): Promise<Cla
   if (!teacherId) return [];
   try {
     const classesRef = collection(db, "classes");
-    // Removed orderBy("name") to avoid needing composite index with where clause.
-    // Sorting should be handled client-side.
     const q = query(classesRef, where("teacherId", "==", teacherId));
     const querySnapshot = await getDocs(q);
-    return querySnapshot.docs.map(docSnapshot => ({
-      ...(docSnapshot.data() as Class),
-      id: docSnapshot.id,
-    }));
+    const classPromises = querySnapshot.docs.map(async (docSnapshot) => {
+      const classData = docSnapshot.data() as Class;
+       let subjectName = undefined;
+        if (classData.classType === 'subject_based' && classData.subjectId) {
+            const subject = await getSubjectByIdService(classData.subjectId);
+            subjectName = subject?.name;
+        }
+      return {
+        ...(docSnapshot.data() as Class),
+        id: docSnapshot.id,
+        subjectName
+      };
+    });
+    const classes = await Promise.all(classPromises);
+    return classes.sort((a,b) => a.name.localeCompare(b.name));
   } catch (error) {
     console.error("Error fetching classes by teacher in service:", error);
     return [];
   }
 };
 
-// This function is not currently used. If it were, fetching all students and filtering client-side
-// would be one way to avoid complex indexed queries, though it might be inefficient for large schools.
-// Another approach would be to iterate classIds and do individual `array-contains` queries, then merge.
-// For now, as it's unused, leaving it as is or commenting out.
-// To make it index-friendly without changing current signature (no schoolId):
-// Would require fetching all students and filtering, which is very inefficient.
-// Assuming if used, schoolId context would be available.
-/*
-export const getStudentsInMultipleClassesService = async (classIds: string[], schoolId: string): Promise<UserProfileWithId[]> => {
-  if (!classIds || classIds.length === 0 || !schoolId) return [];
-  try {
-    // Fetch all students in the school
-    const q = query(collection(db, "users"), where("schoolId", "==", schoolId), where("role", "==", "student"));
-    const querySnapshot = await getDocs(q);
-    const schoolStudents = querySnapshot.docs.map(d => ({ id: d.id, ...d.data(), status: d.data().status || 'active' } as UserProfileWithId));
-    
-    // Filter client-side
-    return schoolStudents.filter(student => student.classIds?.some(cid => classIds.includes(cid)));
-  } catch (error) {
-    console.error("Error fetching students in multiple classes (service):", error);
-    return [];
-  }
-};
-*/
+
 export const getStudentsInMultipleClassesService = async (classIds: string[]): Promise<UserProfileWithId[]> => {
   if (!classIds || classIds.length === 0) return [];
   try {
-    // This query might require a composite index on (role, classIds) if Firestore cannot efficiently merge them.
-    // A more robust approach for no-custom-index rule would be to fetch all students and filter,
-    // or iterate classIds and do array-contains per class, then merge and deduplicate.
-    // For now, keeping it as is, assuming `array-contains-any` is optimized.
     const q = query(collection(db, "users"), where("role", "==", "student"), where("classIds", "array-contains-any", classIds));
     const querySnapshot = await getDocs(q);
     return querySnapshot.docs.map(d => ({ id: d.id, ...d.data(), status: d.data().status || 'active' } as UserProfileWithId));
@@ -343,7 +396,20 @@ export const joinClassWithCodeService = async (classCode: string, studentId: str
       const batch = writeBatch(db);
       const classRefDoc = doc(db, "classes", classDetails.id);
       batch.update(classRefDoc, { studentIds: arrayUnion(studentId), updatedAt: Timestamp.now() });
-      batch.update(studentRef, { classIds: arrayUnion(classDetails.id), updatedAt: Timestamp.now() });
+      
+      const studentUpdatePayload: any = { classIds: arrayUnion(classDetails.id), updatedAt: Timestamp.now() };
+      let subjectsToEnroll: string[] = studentData.subjects || [];
+
+      if (classDetails.classType === 'main' && classDetails.compulsorySubjectIds) {
+        subjectsToEnroll.push(...classDetails.compulsorySubjectIds);
+      }
+      if (classDetails.classType === 'subject_based' && classDetails.subjectId) {
+        subjectsToEnroll.push(classDetails.subjectId);
+      }
+      studentUpdatePayload.subjects = Array.from(new Set(subjectsToEnroll));
+
+
+      batch.update(studentRef, studentUpdatePayload);
       await batch.commit();
       return true;
     } catch (error) {
@@ -352,3 +418,4 @@ export const joinClassWithCodeService = async (classCode: string, studentId: str
     }
   };
 
+    

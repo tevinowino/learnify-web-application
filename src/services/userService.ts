@@ -1,8 +1,9 @@
 
-import { doc, getDoc, setDoc, collection, query, where, getDocs, updateDoc, Timestamp } from 'firebase/firestore';
+import { doc, getDoc, setDoc, collection, query, where, getDocs, updateDoc, Timestamp, arrayUnion } from 'firebase/firestore';
 import { createUserWithEmailAndPassword, updateProfile as updateFirebaseProfile, type Auth as FirebaseAuthType, type User as FirebaseUserType } from 'firebase/auth';
 import { db } from '@/lib/firebase';
 import type { UserProfile, UserProfileWithId, UserRole, UserStatus } from '@/types';
+import { getClassDetailsService } from './classService'; // For onboarding
 
 export const createUserProfileInFirestore = async (
   firebaseUser: FirebaseUserType,
@@ -11,13 +12,14 @@ export const createUserProfileInFirestore = async (
   schoolIdToJoin?: string,
   schoolName?: string
 ): Promise<UserProfile> => {
-  const userProfileData: Omit<UserProfile, keyof FirebaseUserType | 'classIds' | 'studentAssignments'> & { uid: string, createdAt: Timestamp, classIds: string[], studentAssignments: {}, status: UserStatus, schoolId?: string, schoolName?: string } = {
+  const userProfileData: Omit<UserProfile, keyof FirebaseUserType | 'classIds' | 'studentAssignments'> & { uid: string, createdAt: Timestamp, classIds: string[], studentAssignments: {}, status: UserStatus, schoolId?: string, schoolName?: string, subjects?: string[] } = {
     uid: firebaseUser.uid,
     email: firebaseUser.email,
     displayName: displayName,
     role: role,
     createdAt: Timestamp.now(),
     classIds: [],
+    subjects: [], // Initialize subjects array
     studentAssignments: {},
     status: (role === 'teacher' || role === 'student') && schoolIdToJoin ? 'pending_verification' : 'active',
     schoolId: (role === 'teacher' || role === 'student') ? schoolIdToJoin : undefined,
@@ -48,7 +50,7 @@ export const getUserProfileService = async (userId: string): Promise<UserProfile
     const userDocSnap = await getDoc(userDocRef);
     if (userDocSnap.exists()) {
       const data = userDocSnap.data();
-      return { id: userDocSnap.id, ...data, status: data.status || 'active' } as UserProfileWithId;
+      return { id: userDocSnap.id, ...data, status: data.status || 'active', subjects: data.subjects || [] } as UserProfileWithId;
     }
     return null;
   } catch (error) {
@@ -128,6 +130,7 @@ export const adminCreateUserService = async (
         schoolName: schoolName || 'Unknown School',
         createdAt: Timestamp.now(),
         classIds: [],
+        subjects: [], // Initialize subjects array
         studentAssignments: {},
         status: 'active' as UserStatus, // Admin created users are active immediately
       };
@@ -141,7 +144,7 @@ export const adminCreateUserService = async (
   }
 };
 
-export const updateUserRoleAndSchoolService = async (userId: string, data: { role?: UserRole; schoolId?: string, classIds?: string[], status?: UserStatus }): Promise<boolean> => {
+export const updateUserRoleAndSchoolService = async (userId: string, data: { role?: UserRole; schoolId?: string, classIds?: string[], status?: UserStatus, subjects?: string[] }): Promise<boolean> => {
   try {
     const userRef = doc(db, "users", userId);
     const updateData: any = { ...data, updatedAt: Timestamp.now() };
@@ -151,10 +154,16 @@ export const updateUserRoleAndSchoolService = async (userId: string, data: { rol
     if (data.role && !data.status) { // If role is changing, ensure status is active unless specified
         updateData.status = 'active';
     }
+    if (data.subjects && Array.isArray(data.subjects)) {
+        updateData.subjects = arrayUnion(...data.subjects); // Use arrayUnion to add new subjects without duplicates
+    } else if (data.subjects === null) { // Allow clearing subjects
+        updateData.subjects = [];
+    }
+
     await updateDoc(userRef, updateData);
     return true;
   } catch (error) {
-    console.error("Error updating user role/school/status in service:", error);
+    console.error("Error updating user role/school/status/subjects in service:", error);
     return false;
   }
 };
@@ -162,8 +171,6 @@ export const updateUserRoleAndSchoolService = async (userId: string, data: { rol
 export const approveUserService = async (userId: string, schoolId: string): Promise<boolean> => {
   try {
     const userRef = doc(db, "users", userId);
-    // When approving, if schoolId wasn't set during signup (e.g. for Admin self-onboarding), set it now.
-    // Also, ensure their status becomes active.
     const schoolDocRef = doc(db, "schools", schoolId);
     const schoolSnap = await getDoc(schoolDocRef);
     const schoolName = schoolSnap.exists() ? schoolSnap.data().name : 'Unknown School';
@@ -180,15 +187,35 @@ export const completeStudentOnboardingService = async (userId: string, classId: 
   if (!userId || !classId || !subjectIds) return false;
   try {
     const userRef = doc(db, "users", userId);
-    await updateDoc(userRef, {
-      classIds: [classId], // Student is typically in one primary class, can be expanded later if needed
-      subjects: subjectIds,
+    const userSnap = await getDoc(userRef);
+    if (!userSnap.exists()) return false;
+
+    const userData = userSnap.data() as UserProfile;
+    let finalSubjectIds = new Set(subjectIds); // Student's chosen subjects
+
+    // Fetch class details to check for compulsory subjects
+    const classDetails = await getClassDetailsService(classId, getUserProfileService); // Pass getUserProfileService if needed by getClassDetails
+    if (classDetails?.classType === 'main' && classDetails.compulsorySubjectIds) {
+      classDetails.compulsorySubjectIds.forEach(id => finalSubjectIds.add(id));
+    }
+    if (classDetails?.classType === 'subject_based' && classDetails.subjectId) {
+      finalSubjectIds.add(classDetails.subjectId);
+    }
+
+
+    const updateData: any = {
+      classIds: arrayUnion(classId), // Use arrayUnion to add classId
+      subjects: arrayUnion(...Array.from(finalSubjectIds)), // Use arrayUnion to add subjects
       updatedAt: Timestamp.now(),
       // Optionally, set a flag like `hasCompletedOnboarding: true` if needed
-    });
+    };
+    
+    await updateDoc(userRef, updateData);
     return true;
   } catch (error) {
     console.error("Error completing student onboarding in service:", error);
     return false;
   }
 };
+
+    

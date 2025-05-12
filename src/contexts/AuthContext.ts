@@ -2,7 +2,7 @@
 "use client";
 import type { ReactNode }from 'react';
 import { createContext } from 'react';
-import type { UserProfile, UserRole, School, LearningMaterial, UserProfileWithId, Class, ClassWithTeacherInfo, LearningMaterialWithTeacherInfo, Assignment, Submission, SubmissionFormat, LearningMaterialType, AssignmentWithClassInfo, SubmissionWithStudentName, AssignmentWithClassAndSubmissionInfo, UserStatus, Activity, Subject, ExamPeriod, ExamPeriodWithClassNames, ExamResult, ExamResultWithStudentInfo } from '@/types';
+import type { UserProfile, UserRole, School, LearningMaterial, UserProfileWithId, Class, ClassWithTeacherInfo, LearningMaterialWithTeacherInfo, Assignment, Submission, SubmissionFormat, LearningMaterialType, AssignmentWithClassInfo, SubmissionWithStudentName, AssignmentWithClassAndSubmissionInfo, UserStatus, Activity, Subject, ExamPeriod, ExamPeriodWithClassNames, ExamResult, ExamResultWithStudentInfo, ClassType } from '@/types';
 
 // This will be the full type provided by the AuthProvider
 export interface AuthContextType {
@@ -24,15 +24,22 @@ export interface AuthContextType {
   getUsersBySchool: (schoolId: string) => Promise<UserProfileWithId[]>;
   getUsersBySchoolAndRole: (schoolId: string, role: UserRole) => Promise<UserProfileWithId[]>;
   adminCreateUserInSchool: (email: string, pass: string, displayName: string, role: UserRole, schoolId: string) => Promise<UserProfileWithId | null>;
-  updateUserRoleAndSchool: (userId: string, data: { role?: UserRole; schoolId?: string, classIds?: string[], status?: UserStatus }) => Promise<boolean>;
+  updateUserRoleAndSchool: (userId: string, data: { role?: UserRole; schoolId?: string, classIds?: string[], status?: UserStatus, subjects?: string[] }) => Promise<boolean>;
   getUserProfile: (userId: string) => Promise<UserProfileWithId | null>;
   approveUserForSchool: (userId: string, schoolId: string) => Promise<boolean>;
 
   // Admin & Teacher Class Management
-  createClassInSchool: (className: string, schoolId: string, teacherId?: string) => Promise<string | null>;
+  createClassInSchool: (
+    className: string, 
+    schoolId: string, 
+    classType: ClassType, 
+    teacherId?: string, 
+    compulsorySubjectIds?: string[],
+    subjectId?: string | null
+  ) => Promise<string | null>;
   getClassesBySchool: (schoolId: string) => Promise<ClassWithTeacherInfo[]>;
   getClassDetails: (classId: string) => Promise<ClassWithTeacherInfo | null>;
-  updateClassDetails: (classId: string, data: Partial<Pick<Class, 'name' | 'teacherId' | 'classInviteCode'>>) => Promise<boolean>;
+  updateClassDetails: (classId: string, data: Partial<Pick<Class, 'name' | 'teacherId' | 'classInviteCode' | 'classType' | 'compulsorySubjectIds' | 'subjectId'>>) => Promise<boolean>;
   enrollStudentInClass: (classId: string, studentId: string) => Promise<boolean>;
   removeStudentFromClass: (classId: string, studentId: string) => Promise<boolean>;
   getStudentsInClass: (classId: string) => Promise<UserProfileWithId[]>;
@@ -88,7 +95,7 @@ export interface AuthContextType {
   // Exam Management
   createExamPeriod: (examPeriodData: Omit<ExamPeriod, 'id' | 'createdAt' | 'updatedAt' | 'status'>) => Promise<string | null>;
   getExamPeriodsBySchool: (schoolId: string) => Promise<ExamPeriodWithClassNames[]>;
-  getExamPeriodById: (examPeriodId: string) => Promise<ExamPeriodWithClassNames | null>;
+  getExamPeriodById: (examPeriodId: string, getClassDetails?: GetClassDetailsServiceType) => Promise<ExamPeriodWithClassNames | null>;
   updateExamPeriod: (examPeriodId: string, data: Partial<ExamPeriod>) => Promise<boolean>;
   addOrUpdateExamResult: (resultData: Omit<ExamResult, 'id' | 'createdAt' | 'updatedAt'>) => Promise<string | null>;
   getExamResultsForTeacher: (examPeriodId: string, classId: string, subjectId: string, schoolId: string) => Promise<ExamResultWithStudentInfo[]>;
@@ -102,3 +109,5 @@ export interface AuthContextType {
 }
 
 export const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+    

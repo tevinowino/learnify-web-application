@@ -18,10 +18,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import type { ClassWithTeacherInfo, Subject } from '@/types';
+import type { ClassWithTeacherInfo, Subject, Class } from '@/types'; // Added Class type
 
 export default function StudentOnboardingPage() {
-  const { currentUser, getClassesBySchool, getSubjectsBySchool, completeStudentOnboarding, loading: authLoading } = useAuth();
+  const { currentUser, getClassesBySchool, getSubjectsBySchool, completeStudentOnboarding, getClassDetails, loading: authLoading } = useAuth(); // Added getClassDetails
   const router = useRouter();
   const { toast } = useToast();
 
@@ -33,6 +33,7 @@ export default function StudentOnboardingPage() {
   
   const [isLoadingData, setIsLoadingData] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [compulsorySubjectsForSelectedClass, setCompulsorySubjectsForSelectedClass] = useState<string[]>([]);
 
   const fetchData = useCallback(async () => {
     if (!currentUser?.schoolId) {
@@ -56,17 +57,35 @@ export default function StudentOnboardingPage() {
   }, [currentUser, getClassesBySchool, getSubjectsBySchool, authLoading, toast]);
 
   useEffect(() => {
-    // Redirect if already onboarded (has classIds) or not a student
-    if (!loading && currentUser) {
+    if (!authLoading && currentUser) {
       if (currentUser.role !== 'student' || (currentUser.classIds && currentUser.classIds.length > 0)) {
         router.push(currentUser.role === 'student' ? '/student/dashboard' : '/');
         return;
       }
       fetchData();
     }
-  }, [currentUser, loading, router, fetchData]);
+  }, [currentUser, authLoading, router, fetchData]);
+
+  const handleClassSelectionChange = async (classId: string) => {
+    setSelectedClassId(classId);
+    if (classId) {
+        const classDetails = await getClassDetails(classId); // Use existing function from AuthContext
+        if (classDetails?.classType === 'main' && classDetails.compulsorySubjectIds) {
+            setCompulsorySubjectsForSelectedClass(classDetails.compulsorySubjectIds);
+            // Pre-select compulsory subjects
+            setSelectedSubjectIds(prev => Array.from(new Set([...prev, ...classDetails.compulsorySubjectIds!])));
+        } else {
+            setCompulsorySubjectsForSelectedClass([]);
+        }
+    } else {
+        setCompulsorySubjectsForSelectedClass([]);
+    }
+  };
 
   const handleSubjectToggle = (subjectId: string) => {
+    // Prevent unchecking compulsory subjects
+    if (compulsorySubjectsForSelectedClass.includes(subjectId)) return;
+
     setSelectedSubjectIds(prev => 
       prev.includes(subjectId) 
         ? prev.filter(id => id !== subjectId) 
@@ -87,13 +106,17 @@ export default function StudentOnboardingPage() {
       toast({ title: "Error", description: "Missing required information.", variant: "destructive" });
       return;
     }
-    if (selectedSubjectIds.length === 0) {
+    
+    // Merge student-selected subjects with any pre-selected compulsory subjects
+    const finalSubjectIds = Array.from(new Set([...selectedSubjectIds, ...compulsorySubjectsForSelectedClass]));
+
+    if (finalSubjectIds.length === 0 && availableSubjects.length > 0) { // only enforce if subjects are available
       toast({ title: "Subjects Required", description: "Please select at least one subject.", variant: "destructive" });
       return;
     }
 
     setIsSubmitting(true);
-    const success = await completeStudentOnboarding(currentUser.uid, selectedClassId, selectedSubjectIds);
+    const success = await completeStudentOnboarding(currentUser.uid, selectedClassId, finalSubjectIds);
     setIsSubmitting(false);
 
     if (success) {
@@ -115,7 +138,6 @@ export default function StudentOnboardingPage() {
   }
   
   if (!currentUser || currentUser.role !== 'student') {
-    // This case should ideally be handled by ProtectedRoute, but as a fallback
     return <div className="text-center p-4">Access Denied. You must be a student.</div>;
   }
   if (!currentUser.schoolId) {
@@ -153,7 +175,7 @@ export default function StudentOnboardingPage() {
               ) : (
                 <div>
                   <Label htmlFor="class-select">Choose your primary class</Label>
-                  <Select onValueChange={setSelectedClassId} value={selectedClassId}>
+                  <Select onValueChange={handleClassSelectionChange} value={selectedClassId}>
                     <SelectTrigger id="class-select" className="w-full">
                       <SelectValue placeholder="Select a class..." />
                     </SelectTrigger>
@@ -183,10 +205,13 @@ export default function StudentOnboardingPage() {
                       <div key={subject.id} className="flex items-center space-x-2">
                         <Checkbox 
                           id={`subject-${subject.id}`} 
-                          checked={selectedSubjectIds.includes(subject.id)}
+                          checked={selectedSubjectIds.includes(subject.id) || compulsorySubjectsForSelectedClass.includes(subject.id)}
                           onCheckedChange={() => handleSubjectToggle(subject.id)}
+                          disabled={compulsorySubjectsForSelectedClass.includes(subject.id)}
                         />
-                        <Label htmlFor={`subject-${subject.id}`} className="font-normal cursor-pointer">{subject.name}</Label>
+                        <Label htmlFor={`subject-${subject.id}`} className={`font-normal cursor-pointer ${compulsorySubjectsForSelectedClass.includes(subject.id) ? 'text-muted-foreground' : ''}`}>
+                          {subject.name} {compulsorySubjectsForSelectedClass.includes(subject.id) && '(Compulsory)'}
+                        </Label>
                       </div>
                     ))}
                   </div>
@@ -194,7 +219,7 @@ export default function StudentOnboardingPage() {
               )}
               <div className="flex gap-2">
                 <Button variant="outline" onClick={() => setStep(1)} className="w-1/2">Back</Button>
-                <Button onClick={handleCompleteOnboarding} className="w-1/2 button-shadow bg-primary hover:bg-primary/90" disabled={isSubmitting || selectedSubjectIds.length === 0 && availableSubjects.length > 0}>
+                <Button onClick={handleCompleteOnboarding} className="w-1/2 button-shadow bg-primary hover:bg-primary/90" disabled={isSubmitting || (selectedSubjectIds.length === 0 && compulsorySubjectsForSelectedClass.length === 0 && availableSubjects.length > 0) }>
                   {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckSquare className="mr-2 h-4 w-4" />}
                   Complete Onboarding
                 </Button>
@@ -209,3 +234,5 @@ export default function StudentOnboardingPage() {
     </div>
   );
 }
+
+    

@@ -40,7 +40,7 @@ export default function ManageSubjectsPage() {
     if (currentUser?.schoolId) {
       setIsLoadingPage(true);
       const schoolSubjects = await getSubjectsBySchool(currentUser.schoolId);
-      setSubjects(schoolSubjects);
+      setSubjects(schoolSubjects); // Assuming getSubjectsBySchool already sorts by name
       setIsLoadingPage(false);
     } else if (!authLoading) {
       setIsLoadingPage(false);
@@ -94,15 +94,15 @@ export default function ManageSubjectsPage() {
   };
 
   const handleDeleteSubject = async (subjectId: string, subjectName: string) => {
-    if (!confirm(`Are you sure you want to delete the subject "${subjectName}"? This might affect student records.`)) return;
+    if (!confirm(`Are you sure you want to delete the subject "${subjectName}"? This action cannot be undone and might affect existing class configurations or student records if the subject is in use.`)) return;
     setIsSubmitting(true);
-    const success = await deleteSubject(subjectId);
+    const success = await deleteSubject(subjectId, subjectName);
     setIsSubmitting(false);
     if (success) {
       toast({ title: "Subject Deleted!", description: `"${subjectName}" has been removed.` });
       fetchSubjects();
     } else {
-      toast({ title: "Error", description: "Failed to delete subject.", variant: "destructive" });
+      toast({ title: "Error", description: "Failed to delete subject. It might be in use.", variant: "destructive" });
     }
   };
 
@@ -143,7 +143,7 @@ export default function ManageSubjectsPage() {
               <DialogDescription>Enter the name for the new subject.</DialogDescription>
             </DialogHeader>
             <div className="grid gap-4 py-4">
-              <label htmlFor="new-subject-name" className="sr-only">Subject Name</label>
+              <Label htmlFor="new-subject-name" className="sr-only">Subject Name</Label>
               <Input
                 id="new-subject-name"
                 value={newSubjectName}
@@ -165,7 +165,7 @@ export default function ManageSubjectsPage() {
       <Card className="card-shadow">
         <CardHeader>
           <CardTitle className="flex items-center"><BookText className="mr-2 h-5 w-5 text-primary" />School Subjects ({subjects.length})</CardTitle>
-          <CardDescription>List of all subjects offered in your school. Students will choose from these during their onboarding.</CardDescription>
+          <CardDescription>List of all subjects offered in your school. These can be assigned to classes or chosen by students.</CardDescription>
         </CardHeader>
         <CardContent>
           {subjects.length === 0 ? (
@@ -205,7 +205,7 @@ export default function ManageSubjectsPage() {
               <DialogDescription>Update the subject name.</DialogDescription>
             </DialogHeader>
             <div className="grid gap-4 py-4">
-              <label htmlFor="edit-subject-name" className="sr-only">Subject Name</label>
+              <Label htmlFor="edit-subject-name" className="sr-only">Subject Name</Label>
               <Input
                 id="edit-subject-name"
                 value={editSubjectName}
@@ -226,3 +226,5 @@ export default function ManageSubjectsPage() {
     </div>
   );
 }
+
+    

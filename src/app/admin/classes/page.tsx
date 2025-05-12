@@ -1,15 +1,17 @@
+
 "use client";
 
 import React, { useEffect, useState, useCallback } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { Loader2, BookCopy, Trash2, Edit, Users } from 'lucide-react';
+import { Loader2, BookCopy, Trash2, Edit, Users, Settings2, BookOpenText, Info } from 'lucide-react';
 import type { ClassWithTeacherInfo, UserProfileWithId } from '@/types';
 import { useToast } from '@/hooks/use-toast';
 import CreateClassDialog from './components/CreateClassDialog';
 import EditClassDialog from './components/EditClassDialog';
 import ManageStudentsDialog from './components/ManageStudentsDialog';
+import { Badge } from '@/components/ui/badge'; // Added Badge import
 
 export default function ManageClassesPage() {
   const { 
@@ -44,7 +46,6 @@ export default function ManageClassesPage() {
         getClassesBySchool(currentUser.schoolId),
         getUsersBySchoolAndRole(currentUser.schoolId, 'teacher')
       ]);
-      // Sort classes client-side as orderBy was removed from service
       setClasses(schoolClasses.sort((a, b) => a.name.localeCompare(b.name)));
       setTeachers(schoolTeachers);
       setIsLoadingPage(false);
@@ -121,16 +122,27 @@ export default function ManageClassesPage() {
             <div className="space-y-4">
               {classes.map(classItem => (
                 <Card key={classItem.id} className="hover:border-primary/50 transition-colors">
-                  <CardHeader className="flex flex-col sm:flex-row justify-between items-start sm:items-center">
-                    <div className="mb-2 sm:mb-0">
-                      <CardTitle>{classItem.name}</CardTitle>
-                      <CardDescription>
+                  <CardHeader className="flex flex-col sm:flex-row justify-between items-start">
+                    <div className="mb-2 sm:mb-0 flex-grow">
+                      <div className="flex items-center gap-2 mb-1">
+                        <CardTitle>{classItem.name}</CardTitle>
+                        <Badge variant={classItem.classType === 'main' ? 'default' : 'secondary'} className="text-xs">
+                          {classItem.classType === 'main' ? 'Main Class' : 'Subject Class'}
+                        </Badge>
+                      </div>
+                      <CardDescription className="text-xs">
                         Teacher: {classItem.teacherDisplayName || 'Not Assigned'} <br />
                         Students: {classItem.studentIds?.length || 0} <br />
-                        Invite Code: {classItem.classInviteCode || 'N/A'}
+                        Invite Code: {classItem.classInviteCode || 'N/A'} <br />
+                        {classItem.classType === 'subject_based' && classItem.subjectName && (
+                          <>Subject: {classItem.subjectName} <br /></>
+                        )}
+                        {classItem.classType === 'main' && classItem.compulsorySubjectNames && classItem.compulsorySubjectNames.length > 0 && (
+                           <>Compulsory: {classItem.compulsorySubjectNames.join(', ')} <br /></>
+                        )}
                       </CardDescription>
                     </div>
-                     <div className="flex gap-2 flex-wrap sm:flex-nowrap w-full sm:w-auto">
+                     <div className="flex gap-2 flex-wrap sm:flex-nowrap w-full sm:w-auto self-start sm:self-center">
                         <Button variant="outline" size="sm" onClick={() => setEditingClass(classItem)} className="button-shadow flex-grow sm:flex-grow-0">
                             <Edit className="mr-1 h-3 w-3"/> Edit
                         </Button>
@@ -179,3 +191,5 @@ export default function ManageClassesPage() {
     </div>
   );
 }
+
+    

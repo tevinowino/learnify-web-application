@@ -61,6 +61,7 @@ export interface LearningMaterialWithTeacherInfo extends LearningMaterial {
   subjectName?: string;
 }
 
+export type ClassType = 'main' | 'subject_based';
 
 export interface Class {
   id: string;
@@ -69,6 +70,9 @@ export interface Class {
   teacherId?: string; 
   studentIds?: string[]; 
   classInviteCode?: string; 
+  classType: ClassType;
+  compulsorySubjectIds?: string[]; // For 'main' class type
+  subjectId?: string | null; // For 'subject_based' class type, linking to a specific subject
   createdAt: Timestamp;
   updatedAt?: Timestamp;
 }
@@ -77,6 +81,8 @@ export interface ClassWithTeacherInfo extends Class {
   teacherDisplayName?: string;
   submittedAssignmentsCount?: number; 
   totalAssignmentsCount?: number;     
+  compulsorySubjectNames?: string[]; // For display
+  subjectName?: string; // For display of subject-based class
 }
 
 export type SubmissionFormat = 'text_entry' | 'file_link' | 'file_upload';
@@ -230,3 +236,5 @@ export interface AttendanceRecord {
   markedBy: string; 
   createdAt: Timestamp;
 }
+
+    
