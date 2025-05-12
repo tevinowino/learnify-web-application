@@ -13,7 +13,7 @@ export default function HomePage() {
       <WhyLearnifySection />
       <FeaturesSection />
       <WhySetApartSection />
-      <TestimonialsSection />
+      {/* <TestimonialsSection /> */}
       <ContactUsSection /> {/* This section now includes the "Get Started Today" content */}
       <Footer />
     </>

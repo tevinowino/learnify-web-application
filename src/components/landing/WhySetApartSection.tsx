@@ -30,8 +30,8 @@ export default function WhySetApartSection() {
     <section id="why-set-apart" className="w-full py-12 md:py-24 lg:py-32 bg-secondary/50">
       <div className="container px-4 md:px-6">
         <div className="flex flex-col items-center justify-center space-y-4 text-center mb-12">
-          <div className="inline-block rounded-lg bg-muted px-3 py-1 text-sm text-primary">Be a Pioneer</div>
-          <h2 className="text-3xl font-bold tracking-tighter sm:text-5xl">Your School, Leading the Digital Education Revolution</h2>
+          <div className="inline-block rounded-lg bg-muted px-3 py-1 text-lg text-primary">Be a Pioneer</div>
+          <h2 className="text-2xl font-bold tracking-tighter sm:text-4xl">Your School, Leading the Digital Education Revolution</h2>
         </div>
         <div className="mx-auto grid max-w-5xl gap-8 sm:grid-cols-2 lg:grid-cols-2">
           {points.map((point, index) => (
