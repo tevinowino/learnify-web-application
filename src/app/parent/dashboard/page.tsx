@@ -1,40 +1,22 @@
+
 "use client";
 
-import React, { useEffect, useState } from 'react';
-import { useAuth } from '@/hooks/useAuth';
+import React from 'react';
+import { useAuth } from '@/hooks/useAuth'; // For currentUser
+import { useParentDashboard } from '@/hooks/useParentDashboard'; // New hook
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Loader2, User, BookOpen, BarChart2, Bell } from 'lucide-react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
-// import type { UserProfileWithId, AssignmentWithClassAndSubmissionInfo, ExamResult } from '@/types'; // Assuming ExamResult type
 
 export default function ParentDashboardPage() {
-  const { currentUser, loading: authLoading } = useAuth();
-  // const [childData, setChildData] = useState<UserProfileWithId | null>(null);
-  // const [childAssignments, setChildAssignments] = useState<AssignmentWithClassAndSubmissionInfo[]>([]);
-  // const [childExamResults, setChildExamResults] = useState<ExamResult[]>([]);
-  const [isLoadingData, setIsLoadingData] = useState(true);
-
-  useEffect(() => {
-    const fetchData = async () => {
-      if (!currentUser || !currentUser.childStudentId) { // Assuming childStudentId is on parent's profile
-        setIsLoadingData(false);
-        return;
-      }
-      // TODO: Fetch child's data, assignments, results using currentUser.childStudentId
-      // e.g., const child = await getStudentProfile(currentUser.childStudentId);
-      // const assignments = await getAssignmentsForStudent(currentUser.childStudentId);
-      // setChildData(child);
-      // setChildAssignments(assignments);
-      setIsLoadingData(false);
-    };
-
-    if (currentUser) {
-      fetchData();
-    }
-  }, [currentUser]);
-
-  const isLoading = authLoading || isLoadingData;
+  const { currentUser } = useAuth();
+  const { 
+    // childData, 
+    // childAssignments, 
+    // childExamResults, 
+    isLoading 
+  } = useParentDashboard();
 
   if (isLoading) {
     return (
@@ -43,7 +25,8 @@ export default function ParentDashboardPage() {
       </div>
     );
   }
-
+  
+  // Commented out until child linking is fully implemented
   // if (!currentUser?.childStudentId) {
   //   return (
   //     <Card className="card-shadow">
@@ -59,6 +42,7 @@ export default function ParentDashboardPage() {
   //     </Card>
   //   );
   // }
+
 
   return (
     <div className="space-y-6">

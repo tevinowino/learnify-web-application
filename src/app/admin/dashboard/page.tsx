@@ -4,48 +4,22 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Users, BookOpen, Settings, PlusCircle, Loader2, BookCopy, Activity, ListOrdered } from "lucide-react";
 import Link from "next/link";
-import { useAuth } from "@/hooks/useAuth"; 
-import React, { useEffect, useState, useCallback } from "react";
-import type { UserProfileWithId, ClassWithTeacherInfo, Activity as ActivityType } from "@/types";
+import { useAuth } from '@/hooks/useAuth'; // Still need this for currentUser
+import { useAdminDashboard } from '@/hooks/useAdminDashboard'; // New hook
+import React from "react";
 import { formatDistanceToNow } from "date-fns";
 
 export default function AdminDashboardPage() {
-  const { currentUser, getUsersBySchool, getClassesBySchool, getActivities, loading: authLoading } = useAuth();
-  const [totalUsers, setTotalUsers] = useState(0);
-  const [teacherCount, setTeacherCount] = useState(0);
-  const [studentCount, setStudentCount] = useState(0);
-  const [classCount, setClassCount] = useState(0);
-  const [recentActivities, setRecentActivities] = useState<ActivityType[]>([]);
-  const [isLoadingStats, setIsLoadingStats] = useState(true);
+  const { currentUser } = useAuth(); // For display name and general auth status
+  const { 
+    totalUsers, 
+    teacherCount, 
+    studentCount, 
+    classCount, 
+    recentActivities, 
+    isLoading 
+  } = useAdminDashboard();
   
-  const fetchDashboardData = useCallback(async () => {
-    if (currentUser?.schoolId) {
-      setIsLoadingStats(true);
-      const [users, classes, activities] = await Promise.all([
-        getUsersBySchool(currentUser.schoolId),
-        getClassesBySchool(currentUser.schoolId),
-        getActivities(currentUser.schoolId, {}, 5) // Fetch top 5 school-wide activities
-      ]);
-      
-      setTotalUsers(users.length);
-      setTeacherCount(users.filter(user => user.role === 'teacher').length);
-      setStudentCount(users.filter(user => user.role === 'student').length);
-      setClassCount(classes.length);
-      setRecentActivities(activities);
-      setIsLoadingStats(false);
-    } else if(!authLoading) {
-      setIsLoadingStats(false);
-    }
-  }, [currentUser, getUsersBySchool, getClassesBySchool, getActivities, authLoading]);
-
-  useEffect(() => {
-    if(currentUser) {
-        fetchDashboardData();
-    }
-  }, [currentUser, fetchDashboardData]);
-
-  const isLoading = authLoading || isLoadingStats;
-
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
