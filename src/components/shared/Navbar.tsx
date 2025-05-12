@@ -1,3 +1,4 @@
+
 "use client";
 
 import Link from 'next/link';
@@ -5,7 +6,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import Logo from './Logo';
 import { siteConfig } from '@/config/site';
-import { LogOut, LayoutDashboard, UserCircle, UserPlus, LogInIcon, Menu, HomeIcon, InfoIcon, MessageSquareIcon, UserCog, Sparkles, Settings } from 'lucide-react';
+import { LogOut, LayoutDashboard, UserCircle, UserPlus, LogInIcon, Menu, HomeIcon, InfoIcon, MessageSquareIcon, UserCog, Sparkles, Settings, Brain } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -64,13 +65,11 @@ export default function Navbar() {
     switch (item.title) {
         case "About": icon = <InfoIcon className="mr-2 h-4 w-4" />; break;
         case "Contact Us": icon = <MessageSquareIcon className="mr-2 h-4 w-4" />; break;
-        // Keep HomeIcon as default
     }
     return { ...item, icon };
   });
 
   const isOnHomepage = pathname === '/';
-  const isDashboardRoute = pathname?.startsWith('/admin') || pathname?.startsWith('/teacher') || pathname?.startsWith('/student') || pathname?.startsWith('/parent');
 
   const mobileNavLinksToDisplay = [];
   if (isOnHomepage) {
@@ -78,10 +77,12 @@ export default function Navbar() {
   }
 
   if (currentUser) {
-    // Always show Dashboard link on mobile if logged in, regardless of current page (removed !isDashboardRoute condition)
     mobileNavLinksToDisplay.push({ href: getDashboardPath(), label: "Dashboard", icon: <LayoutDashboard className="mr-2 h-4 w-4" /> });
     if (currentUser.role === 'student') {
       mobileNavLinksToDisplay.push({ href: "/student/akili", label: "Akili Chat", icon: <Sparkles className="mr-2 h-4 w-4" /> });
+    }
+    if (currentUser.role === 'teacher') {
+      mobileNavLinksToDisplay.push({ href: "/teacher/mwalimu", label: "Mwalimu AI", icon: <Brain className="mr-2 h-4 w-4" /> });
     }
   } else {
     mobileNavLinksToDisplay.push({ href: "/auth/login", label: "Login", icon: <LogInIcon className="mr-2 h-4 w-4" /> });
@@ -96,7 +97,6 @@ export default function Navbar() {
           <Logo />
         </Link>
         
-        {/* Desktop Navigation */}
         <nav className="hidden md:flex items-center space-x-1">
           {isOnHomepage && mainNavLinks.map(item => (
             <Button variant="ghost" asChild key={item.href}>
@@ -104,11 +104,17 @@ export default function Navbar() {
             </Button>
           ))}
           
-          {/* Akili Chat Link for Students - Desktop */}
           {currentUser?.role === 'student' && (
              <Button variant="ghost" asChild>
               <Link href="/student/akili">
                 <Sparkles className="mr-2 h-4 w-4 text-primary" /> Akili Chat
+              </Link>
+            </Button>
+          )}
+          {currentUser?.role === 'teacher' && (
+             <Button variant="ghost" asChild>
+              <Link href="/teacher/mwalimu">
+                <Brain className="mr-2 h-4 w-4 text-primary" /> Mwalimu AI
               </Link>
             </Button>
           )}
@@ -176,7 +182,6 @@ export default function Navbar() {
            <ThemeToggle />
         </nav>
 
-        {/* Mobile Navigation Trigger */}
         <div className="md:hidden flex items-center gap-2">
           <ThemeToggle />
           <Sheet open={isMobileMenuOpen} onOpenChange={setIsMobileMenuOpen}>
@@ -188,7 +193,7 @@ export default function Navbar() {
             </SheetTrigger>
             <SheetContent side="right" className="w-[280px] sm:w-[320px] p-0">
             <SheetHeader className="p-4 border-b">
-              <SheetTitle asChild>
+              <SheetTitle>
                  <Link href="/" aria-label="Go to Homepage" onClick={() => setIsMobileMenuOpen(false)}>
                     <Logo />
                   </Link>
