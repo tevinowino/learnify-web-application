@@ -218,7 +218,8 @@ export interface Activity {
     | 'exam_period_finalized'
     | 'exam_results_entered'
     | 'school_settings_updated'
-    | 'invite_code_regenerated';
+    | 'invite_code_regenerated'
+    | 'general_announcement'; // Generic type for school-wide news
   message: string; 
   link?: string; 
   timestamp: Timestamp;
@@ -237,4 +238,14 @@ export interface AttendanceRecord {
   createdAt: Timestamp;
 }
 
+export interface Notification {
+  id: string;
+  userId: string; // The user who should receive this notification
+  message: string;
+  link?: string; // Link to the relevant page (e.g., assignment, submission)
+  isRead: boolean;
+  createdAt: Timestamp;
+  type: Activity['type'] | 'general_announcement' | 'system_update';
+  actorName?: string; // Name of the user who triggered the notification, if applicable
+}
     

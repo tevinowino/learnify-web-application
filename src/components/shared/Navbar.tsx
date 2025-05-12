@@ -6,7 +6,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import Logo from './Logo';
 import { siteConfig } from '@/config/site';
-import { LogOut, LayoutDashboard, UserCircle, UserPlus, LogInIcon, Menu, HomeIcon, InfoIcon, MessageSquareIcon, UserCog, Sparkles, Settings, Brain } from 'lucide-react';
+import { LogOut, LayoutDashboard, UserCircle, UserPlus, LogInIcon, Menu, HomeIcon, InfoIcon, MessageSquareIcon, UserCog, Sparkles, Settings, Brain, Bell } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -26,6 +26,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import React, { useState } from 'react';
 import { usePathname } from 'next/navigation';
 import { ThemeToggle } from '../ui/theme-toggle';
+import NotificationBell from './NotificationBell'; 
 
 export default function Navbar() {
   const { currentUser, logOut, loading } = useAuth();
@@ -134,55 +135,59 @@ export default function Navbar() {
             </>
           )}
           {!loading && currentUser && (
-             <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" className="relative h-9 w-9 rounded-full">
-                  <Avatar className="h-9 w-9">
-                    <AvatarImage src={currentUser.photoURL || undefined} alt={currentUser.displayName || "User"} />
-                    <AvatarFallback>{currentUser.displayName ? currentUser.displayName.charAt(0).toUpperCase() : <UserCircle/>}</AvatarFallback>
-                  </Avatar>
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent className="w-56" align="end" forceMount>
-                <DropdownMenuLabel className="font-normal">
-                  <div className="flex flex-col space-y-1">
-                    <p className="text-sm font-medium leading-none">{currentUser.displayName || "User"}</p>
-                    <p className="text-xs leading-none text-muted-foreground">
-                      {currentUser.email}
-                    </p>
-                  </div>
-                </DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem asChild>
-                  <Link href={getDashboardPath()}>
-                    <LayoutDashboard className="mr-2 h-4 w-4" /> Dashboard
-                  </Link>
-                </DropdownMenuItem>
-                <DropdownMenuItem asChild>
-                  <Link href={getProfilePath()}>
-                    <UserCog className="mr-2 h-4 w-4" /> My Profile 
-                  </Link>
-                </DropdownMenuItem>
-                {currentUser.role === 'admin' && (
+            <>
+              <NotificationBell /> 
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" className="relative h-9 w-9 rounded-full">
+                    <Avatar className="h-9 w-9">
+                      <AvatarImage src={currentUser.photoURL || undefined} alt={currentUser.displayName || "User"} />
+                      <AvatarFallback>{currentUser.displayName ? currentUser.displayName.charAt(0).toUpperCase() : <UserCircle/>}</AvatarFallback>
+                    </Avatar>
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent className="w-56" align="end" forceMount>
+                  <DropdownMenuLabel className="font-normal">
+                    <div className="flex flex-col space-y-1">
+                      <p className="text-sm font-medium leading-none">{currentUser.displayName || "User"}</p>
+                      <p className="text-xs leading-none text-muted-foreground">
+                        {currentUser.email}
+                      </p>
+                    </div>
+                  </DropdownMenuLabel>
+                  <DropdownMenuSeparator />
                   <DropdownMenuItem asChild>
-                    <Link href="/admin/settings">
-                      <Settings className="mr-2 h-4 w-4" /> School Settings
+                    <Link href={getDashboardPath()}>
+                      <LayoutDashboard className="mr-2 h-4 w-4" /> Dashboard
                     </Link>
                   </DropdownMenuItem>
-                )}
-                <DropdownMenuSeparator />
-                 <DropdownMenuItem onClick={logOut}>
-                  <LogOut className="mr-2 h-4 w-4" />
-                  Log out
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+                  <DropdownMenuItem asChild>
+                    <Link href={getProfilePath()}>
+                      <UserCog className="mr-2 h-4 w-4" /> My Profile 
+                    </Link>
+                  </DropdownMenuItem>
+                  {currentUser.role === 'admin' && (
+                    <DropdownMenuItem asChild>
+                      <Link href="/admin/settings">
+                        <Settings className="mr-2 h-4 w-4" /> School Settings
+                      </Link>
+                    </DropdownMenuItem>
+                  )}
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={logOut}>
+                    <LogOut className="mr-2 h-4 w-4" />
+                    Log out
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </>
           )}
            {loading && <div className="h-8 w-24 animate-pulse rounded-md bg-muted"></div>}
            <ThemeToggle />
         </nav>
 
         <div className="md:hidden flex items-center gap-2">
+          {currentUser && <NotificationBell />}
           <ThemeToggle />
           <Sheet open={isMobileMenuOpen} onOpenChange={setIsMobileMenuOpen}>
             <SheetTrigger asChild>
