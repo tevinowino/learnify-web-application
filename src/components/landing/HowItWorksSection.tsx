@@ -35,8 +35,8 @@ export default function WhyLearnifySection() {
       <div className="container px-4 md:px-6">
         <div className="flex flex-col items-center justify-center space-y-4 text-center">
           <div className="space-y-2">
-            <div className="inline-block rounded-lg bg-muted px-3 py-1 text-sm text-primary">Why Learnify?</div>
-            <h2 className="text-3xl font-bold tracking-tighter sm:text-5xl">Here’s How Learnify Solves Your Biggest Challenges</h2>
+            <div className="inline-block rounded-lg bg-muted px-3 py-1 text-lg text-primary">Why Learnify?</div>
+            <h2 className="text-2xl font-bold tracking-tighter sm:text-4xl">Here’s How Learnify Solves Your Biggest Challenges</h2>
           </div>
         </div>
         <div className="mx-auto grid max-w-5xl items-start gap-8 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-2 pt-12">
