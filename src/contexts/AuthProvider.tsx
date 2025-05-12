@@ -1,4 +1,3 @@
-
 "use client";
 
 import type { ReactNode } from 'react';
@@ -75,7 +74,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         await sendEmail({
           to: recipient.email,
           subject: `Learnify Notification: ${notificationData.type.replace(/_/g, ' ')}`,
-          html: `<p>${notificationData.message}</p>${notificationData.link ? `<p><a href="${process.env.NEXT_PUBLIC_APP_URL}${notificationData.link}">View Details</a></p>` : ''}<p>From: ${notificationData.actorName || 'Learnify System'}</p>`,
+          html: `<p>${notificationData.message}</p>${notificationData.link ? `<p><a href="${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:9002'}${notificationData.link}">View Details</a></p>` : ''}<p>From: ${notificationData.actorName || 'Learnify System'}</p>`,
         });
       }
     }
@@ -115,7 +114,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
                 await sendEmail({
                   to: admin.email,
                   subject: `Learnify: New User Awaiting Approval - ${profile.displayName}`,
-                  html: `<p>A new user, <strong>${profile.displayName}</strong> (${profile.role}), has registered for <strong>${profile.schoolName}</strong> and is awaiting your approval.</p><p>Please log in to your admin dashboard to review their request.</p><p><a href="${process.env.NEXT_PUBLIC_APP_URL}/admin/users">Go to User Management</a></p>`,
+                  html: `<p>A new user, <strong>${profile.displayName}</strong> (${profile.role}), has registered for <strong>${profile.schoolName}</strong> and is awaiting your approval.</p><p>Please log in to your admin dashboard to review their request.</p><p><a href="${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:9002'}/admin/users">Go to User Management</a></p>`,
                 });
               }
                await addNotification({
@@ -200,6 +199,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const updateUserEmail = useCallback(async (newEmail: string, currentPassword_not_used: string): Promise<boolean> => {
     if (!auth.currentUser) return false;
+    setAuthProcessLoading(true);
     try {
       await updateFirebaseAuthEmail(auth.currentUser, newEmail); 
       const success = await UserService.updateUserEmailInFirestore(auth.currentUser.uid, newEmail);
@@ -210,17 +210,22 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     } catch (error) {
       console.error("Error updating email:", error);
       throw error;
+    } finally {
+      setAuthProcessLoading(false);
     }
   }, [currentUser, setCurrentUser]);
   
   const updateUserPassword = useCallback(async (newPassword: string, currentPassword_not_used: string): Promise<boolean> => {
     if (!auth.currentUser) return false;
+    setAuthProcessLoading(true);
     try {
       await updateFirebasePassword(auth.currentUser, newPassword);
       return true;
     } catch (error) {
       console.error("Error updating password:", error);
       throw error;
+    } finally {
+      setAuthProcessLoading(false);
     }
   }, []);
 
@@ -340,7 +345,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
                 await sendEmail({
                   to: approvedUser.email,
                   subject: `Learnify: Your Account for ${approvedUser.schoolName} is Approved!`,
-                  html: `<p>Hi ${approvedUser.displayName},</p><p>Your account to join <strong>${approvedUser.schoolName}</strong> on Learnify has been approved! You can now log in and access your dashboard.</p><p><a href="${process.env.NEXT_PUBLIC_APP_URL}/auth/login">Log in to Learnify</a></p>`
+                  html: `<p>Hi ${approvedUser.displayName},</p><p>Your account to join <strong>${approvedUser.schoolName}</strong> on Learnify has been approved! You can now log in and access your dashboard.</p><p><a href="${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:9002'}/auth/login">Log in to Learnify</a></p>`
                 });
                 await addNotification({
                     userId: approvedUser.id,
@@ -357,7 +362,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     catch (error) { return false; }
   }, [currentUser, addActivity, addNotification]);
   
-  const updateUserRoleAndSchool = useCallback(async (userId: string, data: { role?: UserRole; schoolId?: string, classIds?: string[], status?: UserStatus }): Promise<boolean> => {
+  const updateUserRoleAndSchool = useCallback(async (userId: string, data: { role?: UserRole; schoolId?: string, classIds?: string[], status?: UserStatus, subjects?: string[] }): Promise<boolean> => {
      if (!currentUser || currentUser.role !== 'admin') return false;
     try { 
         const success = await UserService.updateUserRoleAndSchoolService(userId, data); 
@@ -442,7 +447,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             await sendEmail({
               to: student.email,
               subject: `Learnify: You've been enrolled in ${cls.name}!`,
-              html: `<p>Hi ${student.displayName},</p><p>You have been enrolled in the class "<strong>${cls.name}</strong>" by ${currentUser.displayName}.</p><p><a href="${process.env.NEXT_PUBLIC_APP_URL}/student/classes/${classId}">View Class</a></p>`,
+              html: `<p>Hi ${student.displayName},</p><p>You have been enrolled in the class "<strong>${cls.name}</strong>" by ${currentUser.displayName}.</p><p><a href="${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:9002'}/student/classes/${classId}">View Class</a></p>`,
             });
             await addNotification({
                 userId: studentId,
@@ -564,7 +569,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
               await sendEmail({
                 to: teacher.email,
                 subject: `Learnify: ${currentUser.displayName} joined your class ${classDetails.name}`,
-                html: `<p>Hi ${teacher.displayName || 'Teacher'},</p><p>Student <strong>${currentUser.displayName}</strong> has joined your class "<strong>${classDetails.name}</strong>".</p><p><a href="${process.env.NEXT_PUBLIC_APP_URL}/teacher/classes/${classDetails.id}">View Class Roster</a></p>`,
+                html: `<p>Hi ${teacher.displayName || 'Teacher'},</p><p>Student <strong>${currentUser.displayName}</strong> has joined your class "<strong>${classDetails.name}</strong>".</p><p><a href="${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:9002'}/teacher/classes/${classDetails.id}">View Class Roster</a></p>`,
               });
             }
             await addNotification({
@@ -652,7 +657,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
                     await sendEmail({
                       to: student.email,
                       subject: `Learnify: New Material "${materialData.title}" for ${classInfo.name}`,
-                      html: `<p>Hi ${student.displayName},</p><p>A new learning material, "<strong>${materialData.title}</strong>", has been added to your class "<strong>${classInfo.name}</strong>" by ${currentUser.displayName}.</p><p><a href="${process.env.NEXT_PUBLIC_APP_URL}/student/classes/${materialData.classId}">View Material</a></p>`,
+                      html: `<p>Hi ${student.displayName},</p><p>A new learning material, "<strong>${materialData.title}</strong>", has been added to your class "<strong>${classInfo.name}</strong>" by ${currentUser.displayName}.</p><p><a href="${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:9002'}/student/classes/${materialData.classId}">View Material</a></p>`,
                     });
                   }
                   await addNotification({
@@ -691,24 +696,46 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }, [currentUser, addActivity]);
 
   const updateLearningMaterial = useCallback(async (
-    materialId: string, 
-    data: Partial<Pick<LearningMaterial, 'title' | 'content' | 'classId' | 'materialType' | 'subjectId' | 'attachmentUrl'>>, 
-    file?: File | null
-    ): Promise<boolean> => {
+    materialId: string,
+    data: Partial<Omit<LearningMaterial, 'id' | 'createdAt' | 'updatedAt' | 'teacherId' | 'schoolId' | 'attachmentUrl'>>,
+    file?: File | null,
+    existingAttachmentUrlForLogic?: string | null
+  ): Promise<boolean> => {
     if (!currentUser || (currentUser.role !== 'teacher' && currentUser.role !== 'admin') || !currentUser.schoolId ) return false;
-    let newAttachmentUrl = data.attachmentUrl; 
-    let newContent = data.content;
-    const editingMaterial = await MaterialService.getLearningMaterialByIdService(materialId); 
+
+    let finalAttachmentUrl = existingAttachmentUrlForLogic || null;
+    let finalContent = data.content; 
 
     try {
-      if (file && data.materialType === 'pdf_upload') {
-        const path = `schools/${currentUser.schoolId}/materials/${data.classId || editingMaterial?.classId || 'general'}`;
-        newAttachmentUrl = await uploadFileToStorageService(file, path);
-        if (!newAttachmentUrl) throw new Error("File upload failed during update.");
-        newContent = `[Uploaded File: ${file.name}]`; 
+      const materialDocBeforeUpdate = await MaterialService.getLearningMaterialByIdService(materialId);
+      if (!materialDocBeforeUpdate) {
+        console.error("Material not found for update");
+        return false;
       }
+
+      if (file && data.materialType === 'pdf_upload') {
+        const path = `schools/${currentUser.schoolId}/materials/${data.classId || materialDocBeforeUpdate.classId || 'general'}`;
+        const uploadedUrl = await uploadFileToStorageService(file, path);
+        if (uploadedUrl) {
+          finalAttachmentUrl = uploadedUrl;
+          finalContent = `[Uploaded File: ${file.name}]`; 
+        } else {
+          console.error("Material attachment upload failed during update.");
+          return false;
+        }
+      } else if (data.materialType && data.materialType !== 'pdf_upload') {
+        // If type changed away from PDF_UPLOAD and no new file, clear attachment URL.
+        // Content would be the new URL or text.
+        finalAttachmentUrl = null;
+      }
+
+
+      const updatePayload: Partial<Omit<LearningMaterial, 'id' | 'createdAt' | 'updatedAt' | 'teacherId' | 'schoolId'>> = {
+        ...data,
+        content: finalContent,
+        attachmentUrl: finalAttachmentUrl,
+      };
       
-      const updatePayload = { ...data, content: newContent, attachmentUrl: newAttachmentUrl };
       const success = await MaterialService.updateLearningMaterialService(materialId, updatePayload); 
       if (success && currentUser?.schoolId && currentUser.displayName && data.title) {
            await addActivity({
@@ -717,14 +744,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
               actorName: currentUser.displayName,
               type: 'material_updated',
               message: `${currentUser.displayName} updated material "${data.title}".`,
-              link: `/teacher/materials`
+              link: `/teacher/materials` // or link to specific material/class page
           });
       }
       return success;
     } catch (error) { 
-        console.error("Error updating material:", error);
-        return false; }
-  }, [currentUser, addActivity]);
+        console.error("Error updating learning material in AuthContext:", error);
+        return false; 
+    }
+  }, [currentUser, addActivity, addNotification]);
   
   const getLearningMaterialsByTeacher = useCallback(async (teacherId: string, classId?: string) => MaterialService.getLearningMaterialsByTeacherService(teacherId, classId), []);
   const getLearningMaterialsBySchool = useCallback(async (schoolId: string) => MaterialService.getLearningMaterialsBySchoolService(schoolId, UserService.getUserProfileService, ClassService.getClassDetailsService), []);
@@ -762,7 +790,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
               await sendEmail({
                 to: student.email,
                 subject: `Learnify: New Assignment "${assignmentData.title}" for ${className}`,
-                html: `<p>Hi ${student.displayName},</p><p>A new assignment, "<strong>${assignmentData.title}</strong>", has been posted for your class "<strong>${className}</strong>" by ${currentUser.displayName}.</p><p>Deadline: ${format(assignmentData.deadline, 'PPpp')}</p><p><a href="${process.env.NEXT_PUBLIC_APP_URL}/student/assignments/${newAssignmentId}">View Assignment</a></p>`,
+                html: `<p>Hi ${student.displayName},</p><p>A new assignment, "<strong>${assignmentData.title}</strong>", has been posted for your class "<strong>${className}</strong>" by ${currentUser.displayName}.</p><p>Deadline: ${format(assignmentData.deadline, 'PPpp')}</p><p><a href="${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:9002'}/student/assignments/${newAssignmentId}">View Assignment</a></p>`,
               });
             }
             await addNotification({
@@ -827,57 +855,80 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }, [currentUser, addActivity]);
 
   const updateAssignment = useCallback(async (
-    assignmentId: string, 
-    assignmentTitle: string, 
-    data: Partial<Omit<Assignment, 'id' | 'createdAt' | 'updatedAt' | 'teacherId' | 'totalSubmissions'>>,
-    file?: File | null
-    ): Promise<boolean> => {
+    assignmentId: string,
+    assignmentTitle: string, // For activity log consistency
+    data: Partial<Omit<Assignment, 'id' | 'createdAt' | 'updatedAt' | 'teacherId' | 'totalSubmissions' | 'attachmentUrl' | 'schoolId'>>,
+    file?: File | null,
+    existingAttachmentUrlForLogic?: string | null
+  ): Promise<boolean> => {
     if (!currentUser || (currentUser.role !== 'teacher' && currentUser.role !== 'admin') || !currentUser.schoolId) return false;
-    let newAttachmentUrl = data.attachmentUrl; 
+  
+    let finalAttachmentUrl = existingAttachmentUrlForLogic || null;
+  
     try {
-      if (file) {
-        const path = `schools/${currentUser.schoolId}/assignments/${data.classId || (await AssignmentService.getAssignmentByIdService(assignmentId, ClassService.getClassDetailsService))?.classId}`;
-        newAttachmentUrl = await uploadFileToStorageService(file, path);
-        if (!newAttachmentUrl) throw new Error("Assignment attachment upload failed during update.");
+      const assignmentDocBeforeUpdate = await AssignmentService.getAssignmentByIdService(assignmentId, ClassService.getClassDetailsService);
+      if (!assignmentDocBeforeUpdate) {
+        console.error("Assignment not found for update in AuthProvider");
+        return false;
       }
-      const updatePayload = {...data, attachmentUrl: newAttachmentUrl };
+  
+      if (file) {
+        const path = `schools/${currentUser.schoolId}/assignments/${data.classId || assignmentDocBeforeUpdate.classId}`;
+        const uploadedUrl = await uploadFileToStorageService(file, path);
+        if (uploadedUrl) {
+          finalAttachmentUrl = uploadedUrl;
+        } else {
+          console.error("Assignment attachment upload failed during update in AuthProvider.");
+          return false;
+        }
+      }
+  
+      const updatePayload: Partial<Omit<Assignment, 'id' | 'createdAt' | 'updatedAt' | 'teacherId' | 'schoolId'>> = {
+        ...data,
+        attachmentUrl: finalAttachmentUrl,
+      };
+      
       const success = await AssignmentService.updateAssignmentService(assignmentId, updatePayload);
+  
       if (success && currentUser?.schoolId && currentUser.displayName) {
-          const assignmentDoc = await AssignmentService.getAssignmentByIdService(assignmentId, ClassService.getClassDetailsService);
-          if (assignmentDoc) {
-               await addActivity({
-                  schoolId: currentUser.schoolId,
-                  actorId: currentUser.uid,
-                  actorName: currentUser.displayName,
-                  classId: assignmentDoc.classId,
-                  type: 'assignment_updated',
-                  message: `${currentUser.displayName} updated assignment "${data.title || assignmentTitle}".`,
-                  link: `/teacher/assignments/${assignmentId}`
+        const updatedAssignmentDoc = await AssignmentService.getAssignmentByIdService(assignmentId, ClassService.getClassDetailsService); // Fetch again to get potentially updated className
+        if (updatedAssignmentDoc) {
+          await addActivity({
+            schoolId: currentUser.schoolId,
+            actorId: currentUser.uid,
+            actorName: currentUser.displayName,
+            classId: updatedAssignmentDoc.classId,
+            type: 'assignment_updated',
+            message: `${currentUser.displayName} updated assignment "${data.title || assignmentTitle}".`,
+            link: `/teacher/assignments/${assignmentId}`
+          });
+          const students = await ClassService.getStudentsInClassService(updatedAssignmentDoc.classId, UserService.getUserProfileService);
+          for (const student of students) {
+            if (student.email) {
+              await sendEmail({
+                to: student.email,
+                subject: `Learnify: Assignment Updated - "${data.title || assignmentTitle}" for ${updatedAssignmentDoc.className}`,
+                html: `<p>Hi ${student.displayName},</p><p>The assignment "<strong>${data.title || assignmentTitle}</strong>" for your class "<strong>${updatedAssignmentDoc.className}</strong>" has been updated by ${currentUser.displayName}.</p><p><a href="${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:9002'}/student/assignments/${assignmentId}">View Updated Assignment</a></p>`,
               });
-              const students = await ClassService.getStudentsInClassService(assignmentDoc.classId, UserService.getUserProfileService);
-              for (const student of students) {
-                if (student.email) {
-                  await sendEmail({
-                    to: student.email,
-                    subject: `Learnify: Assignment Updated - "${data.title || assignmentTitle}" for ${assignmentDoc.className}`,
-                    html: `<p>Hi ${student.displayName},</p><p>The assignment "<strong>${data.title || assignmentTitle}</strong>" for your class "<strong>${assignmentDoc.className}</strong>" has been updated by ${currentUser.displayName}.</p><p><a href="${process.env.NEXT_PUBLIC_APP_URL}/student/assignments/${assignmentId}">View Updated Assignment</a></p>`,
-                  });
-                }
-                await addNotification({
-                    userId: student.id,
-                    schoolId: currentUser.schoolId!,
-                    message: `Assignment "${data.title || assignmentTitle}" in class "${assignmentDoc.className}" has been updated.`,
-                    type: 'assignment_updated',
-                    link: `/student/assignments/${assignmentId}`,
-                    actorName: currentUser.displayName
-                });
-              }
+            }
+             await addNotification({
+                userId: student.id,
+                schoolId: currentUser.schoolId!,
+                message: `Assignment "${data.title || assignmentTitle}" in class "${updatedAssignmentDoc.className}" has been updated.`,
+                type: 'assignment_updated',
+                link: `/student/assignments/${assignmentId}`,
+                actorName: currentUser.displayName
+            });
           }
+        }
       }
       return success;
-    } catch (error) { return false; }
+    } catch (error) {
+      console.error("Error updating assignment in AuthContext:", error);
+      return false;
+    }
   }, [currentUser, addActivity, addNotification]);
-
+  
   const getAssignmentsByTeacher = useCallback(async (teacherId: string, classId?: string) => AssignmentService.getAssignmentsByTeacherService(teacherId, ClassService.getClassDetailsService, classId), []);
   const getAssignmentsByClass = useCallback(async (classId: string) => AssignmentService.getAssignmentsByClassService(classId), []);
   
@@ -910,7 +961,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
                  await sendEmail({
                   to: student.email,
                   subject: `Learnify: Your Assignment "${assignment.title}" Has Been Graded!`,
-                  html: `<p>Hi ${student.displayName},</p><p>Your submission for the assignment "<strong>${assignment.title}</strong>" has been graded.</p><p>Grade: <strong>${grade}</strong></p>${feedback ? `<p>Feedback: <em>${feedback.replace(/\n/g, "<br>")}</em></p>` : ''}<p><a href="${process.env.NEXT_PUBLIC_APP_URL}/student/assignments/${submission.assignmentId}">View Submission Details</a></p>`,
+                  html: `<p>Hi ${student.displayName},</p><p>Your submission for the assignment "<strong>${assignment.title}</strong>" has been graded.</p><p>Grade: <strong>${grade}</strong></p>${feedback ? `<p>Feedback: <em>${feedback.replace(/\n/g, "<br>")}</em></p>` : ''}<p><a href="${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:9002'}/student/assignments/${submission.assignmentId}">View Submission Details</a></p>`,
                 });
                 await addNotification({
                     userId: student.id,
@@ -981,7 +1032,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
               await sendEmail({
                 to: teacher.email,
                 subject: `Learnify: New Submission for "${assignment.title}" by ${currentUser.displayName}`,
-                html: `<p>Hi ${teacher.displayName || 'Teacher'},</p><p>Student <strong>${currentUser.displayName}</strong> has submitted their work for the assignment "<strong>${assignment.title}</strong>" in class "<strong>${assignment.className}</strong>".</p><p><a href="${process.env.NEXT_PUBLIC_APP_URL}/teacher/assignments/${submissionData.assignmentId}">View Submission</a></p>`,
+                html: `<p>Hi ${teacher.displayName || 'Teacher'},</p><p>Student <strong>${currentUser.displayName}</strong> has submitted their work for the assignment "<strong>${assignment.title}</strong>" in class "<strong>${assignment.className}</strong>".</p><p><a href="${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:9002'}/teacher/assignments/${submissionData.assignmentId}">View Submission</a></p>`,
               });
             }
             await addNotification({
@@ -1010,18 +1061,20 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     } catch (error) { return []; }
   }, [currentUser]);
 
-  const completeStudentOnboarding = useCallback(async (userId: string, classId: string, subjectIds: string[]): Promise<boolean> => {
+  const completeStudentOnboarding = useCallback(async (userId: string, classIds: string[], subjectIds: string[]): Promise<boolean> => {
     if (!currentUser || currentUser.uid !== userId || currentUser.role !== 'student') return false;
     try {
-      const success = await UserService.completeStudentOnboardingService(userId, classId, subjectIds);
+      const success = await UserService.completeStudentOnboardingService(userId, classIds, subjectIds); // Pass classIds as array
       if (success && currentUser?.schoolId && currentUser.displayName) {
-        setCurrentUser(prev => prev ? ({ ...prev, classIds: [classId], subjects: subjectIds }) : null);
-         const cls = await ClassService.getClassDetailsService(classId, UserService.getUserProfileService);
+        setCurrentUser(prev => prev ? ({ ...prev, classIds, subjects: subjectIds }) : null);
+         // Assuming only one main class selected during onboarding for this activity log
+         const mainClassId = classIds[0];
+         const cls = await ClassService.getClassDetailsService(mainClassId, UserService.getUserProfileService);
          await addActivity({
             schoolId: currentUser.schoolId,
             actorId: currentUser.uid,
             actorName: currentUser.displayName,
-            classId: classId,
+            classId: mainClassId,
             type: 'student_onboarded',
             message: `${currentUser.displayName} completed onboarding and joined class "${cls?.name || 'N/A'}".`,
             link: `/student/dashboard`
@@ -1032,7 +1085,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
              await sendEmail({
                 to: teacher.email,
                 subject: `Learnify: ${currentUser.displayName} completed onboarding for your class ${cls.name}`,
-                html: `<p>Hi ${teacher.displayName || 'Teacher'},</p><p>Student <strong>${currentUser.displayName}</strong> has completed onboarding and joined your class "<strong>${cls.name}</strong>".</p><p><a href="${process.env.NEXT_PUBLIC_APP_URL}/teacher/classes/${cls.id}">View Class Roster</a></p>`,
+                html: `<p>Hi ${teacher.displayName || 'Teacher'},</p><p>Student <strong>${currentUser.displayName}</strong> has completed onboarding and joined your class "<strong>${cls.name}</strong>".</p><p><a href="${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:9002'}/teacher/classes/${cls.id}">View Class Roster</a></p>`,
               });
           }
             await addNotification({
@@ -1133,7 +1186,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     getSubmissionByStudentForAssignment: SubmissionService.getSubmissionByStudentForAssignmentService, 
     addSubmission, 
     getAssignmentsForStudentByClass,
-    completeStudentOnboarding: UserService.completeStudentOnboardingService,
+    completeStudentOnboarding, // Corrected reference
     updateUserDisplayName, updateUserEmail, updateUserPassword,
     getClassesByIds,
     createSubject, getSubjectsBySchool: SubjectService.getSubjectsBySchoolService, updateSubject, deleteSubject, getSubjectById: SubjectService.getSubjectByIdService,
@@ -1153,13 +1206,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     adminCreateUserInSchool, updateUserRoleAndSchool, approveUserForSchool,
     createClassInSchool, getClassesBySchool, getClassDetails, updateClassDetails, enrollStudentInClass, removeStudentFromClass, getStudentsInClass, getStudentsNotInClass, deleteClass, regenerateClassInviteCode, joinClassWithCode,
     getClassesByTeacher, getStudentsInMultipleClasses,
-    addLearningMaterial, getLearningMaterialsByTeacher, getLearningMaterialsBySchool, getLearningMaterialsByClass, deleteLearningMaterial, updateLearningMaterial, getLearningMaterialById,
+    addLearningMaterial, getLearningMaterialsByTeacher, getLearningMaterialsBySchool, getLearningMaterialsByClass, deleteLearningMaterial, updateLearningMaterial,
     createAssignment, getAssignmentsByTeacher, getAssignmentsByClass, getAssignmentById, updateAssignment, deleteAssignment,
     fetchSubmissionsForAssignment,
     gradeSubmission,
     addSubmission, 
     getAssignmentsForStudentByClass,
-    completeStudentOnboarding,
+    completeStudentOnboarding, // Corrected reference
     updateUserDisplayName, updateUserEmail, updateUserPassword,
     getClassesByIds,
     createSubject, updateSubject, deleteSubject,

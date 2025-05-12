@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useEffect, useState, useCallback } from 'react';
@@ -127,10 +126,10 @@ export default function ManageMaterialsPage() {
       teacherId: currentUser.uid,
       classId: selectedClassId === GENERAL_MATERIAL_VALUE ? null : selectedClassId,
       subjectId: selectedSubjectId === NO_SUBJECT_VALUE ? null : selectedSubjectId, 
-      attachmentUrl: null, // Will be set by AuthContext if file exists
+      attachmentUrl: null, 
     };
 
-    const materialId = await addLearningMaterial(materialData, selectedFile); // Pass selectedFile to AuthContext
+    const materialId = await addLearningMaterial(materialData, selectedFile); 
     setIsSubmitting(false);
     if (materialId) {
       toast({ title: "Material Added!", description: `"${title}" has been successfully added.` });
@@ -144,7 +143,7 @@ export default function ManageMaterialsPage() {
   const openEditDialog = (material: LearningMaterial) => {
     setEditingMaterial(material);
     setEditTitle(material.title);
-    setEditContent(material.materialType !== 'pdf_upload' ? material.content : ''); // Content empty for PDF upload if attachmentUrl is primary
+    setEditContent(material.materialType !== 'pdf_upload' ? material.content : ''); 
     setEditMaterialType(material.materialType);
     setEditSelectedClassId(material.classId || undefined); 
     setEditSelectedSubjectId(material.subjectId || undefined); 
@@ -160,16 +159,20 @@ export default function ManageMaterialsPage() {
     }
     setIsSubmitting(true);
 
-    const updatePayload: Partial<Omit<LearningMaterial, 'id' | 'createdAt' | 'updatedAt' | 'teacherId' | 'schoolId'>> = {
+    const updatePayloadForService: Partial<Omit<LearningMaterial, 'id' | 'createdAt' | 'updatedAt' | 'teacherId' | 'schoolId' | 'attachmentUrl'>> = {
       title: editTitle,
       content: editMaterialType === 'pdf_upload' ? (editSelectedFile ? `[Uploaded File: ${editSelectedFile.name}]` : editingMaterial.content) : editContent, 
       materialType: editMaterialType,
       classId: editSelectedClassId === GENERAL_MATERIAL_VALUE ? null : editSelectedClassId,
       subjectId: editSelectedSubjectId === NO_SUBJECT_VALUE ? null : editSelectedSubjectId,
-      attachmentUrl: editingMaterial.attachmentUrl, // Will be updated by AuthContext if editSelectedFile exists
     };
     
-    const success = await updateLearningMaterial(editingMaterial.id, updatePayload, editSelectedFile); // Pass editSelectedFile
+    const success = await updateLearningMaterial(
+        editingMaterial.id, 
+        updatePayloadForService, 
+        editSelectedFile, 
+        editingMaterial.attachmentUrl // Pass existing URL to AuthProvider
+    );
     setIsSubmitting(false);
     if (success) {
       toast({ title: "Material Updated!", description: "Successfully updated."});
@@ -305,7 +308,7 @@ export default function ManageMaterialsPage() {
                   onValueChange={(value) => setSelectedClassId(value === GENERAL_MATERIAL_VALUE ? undefined : value)}
                 >
                   <SelectTrigger id="selectedClassIdAdd">
-                    <SelectValue placeholder="Select a class or leave general" />
+                    <SelectValue placeholder="General Material (No Class)" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value={GENERAL_MATERIAL_VALUE}>General Material (No Class)</SelectItem>
@@ -362,8 +365,8 @@ export default function ManageMaterialsPage() {
                            <Button variant="outline" size="sm" onClick={() => openEditDialog(material)} className="button-shadow">
                               <EditLucideIcon className="mr-1 h-3 w-3"/> Edit
                             </Button>
-                           <Button variant="destructive" size="sm" onClick={() => handleDeleteMaterial(material.id, material.title)} disabled={isSubmitting && editingMaterial?.id !== material.id} className="button-shadow"> {/* Disable only if not current edit */}
-                              <Trash2 className="mr-1 h-3 w-3"/> Delete
+                           <Button variant="destructive" size="sm" onClick={() => handleDeleteMaterial(material.id, material.title)} disabled={isSubmitting && editingMaterial?.id !== material.id} className="button-shadow"> 
+                              {isSubmitting && editingMaterial?.id === material.id && material.id === editingMaterial.id ? <Loader size="small"/> :<Trash2 className="mr-1 h-3 w-3"/>} Delete
                            </Button>
                         </div>
                       </div>
@@ -377,7 +380,7 @@ export default function ManageMaterialsPage() {
                                 <Download className="mr-1 h-4 w-4"/> View Uploaded PDF: {material.content.replace("[Uploaded File: ", "").replace("]", "")}
                             </a>
                         </Button>
-                      ) : (material.materialType !== 'pdf_upload' && material.content) ? (
+                      ) : (material.materialType !== 'pdf_upload' && material.content) ? ( 
                         <Link href={material.content} target="_blank" rel="noopener noreferrer" className="text-sm text-primary hover:underline break-all">
                           {material.content} <LinkLucideIcon className="inline h-3 w-3 ml-1"/>
                         </Link>
@@ -496,3 +499,4 @@ export default function ManageMaterialsPage() {
     </div>
   );
 }
+

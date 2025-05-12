@@ -1,4 +1,3 @@
-
 "use client";
 import type { ReactNode }from 'react';
 import { createContext } from 'react';
@@ -53,12 +52,17 @@ export interface AuthContextType {
   getStudentsInMultipleClasses: (classIds: string[]) => Promise<UserProfileWithId[]>;
 
   // Teacher Material Management
-  addLearningMaterial: (material: Omit<LearningMaterial, 'id' | 'createdAt' | 'updatedAt'>, file?: File | null) => Promise<string | null>;
+  addLearningMaterial: (materialData: Omit<LearningMaterial, 'id' | 'createdAt' | 'updatedAt'>, file?: File | null) => Promise<string | null>;
   getLearningMaterialsByTeacher: (teacherId: string, classId?: string) => Promise<LearningMaterial[]>;
   getLearningMaterialsBySchool: (schoolId: string) => Promise<LearningMaterialWithTeacherInfo[]>; 
   getLearningMaterialsByClass: (classId: string) => Promise<LearningMaterial[]>;
   deleteLearningMaterial: (materialId: string, materialTitle: string) => Promise<boolean>;
-  updateLearningMaterial: (materialId: string, data: Partial<Pick<LearningMaterial, 'title' | 'content' | 'classId' | 'materialType' | 'subjectId' | 'attachmentUrl'>>, file?: File | null) => Promise<boolean>;
+  updateLearningMaterial: (
+    materialId: string,
+    data: Partial<Omit<LearningMaterial, 'id' | 'createdAt' | 'updatedAt' | 'teacherId' | 'schoolId' | 'attachmentUrl'>>,
+    file?: File | null,
+    existingAttachmentUrl?: string | null
+  ) => Promise<boolean>;
   getLearningMaterialById: (materialId: string) => Promise<LearningMaterial | null>;
 
   // Teacher Assignment Management
@@ -66,7 +70,13 @@ export interface AuthContextType {
   getAssignmentsByTeacher: (teacherId: string, classId?: string) => Promise<AssignmentWithClassInfo[]>;
   getAssignmentsByClass: (classId: string) => Promise<Assignment[]>;
   getAssignmentById: (assignmentId: string, studentId?: string) => Promise<AssignmentWithClassAndSubmissionInfo | null>;
-  updateAssignment: (assignmentId: string, assignmentTitle: string, data: Partial<Omit<Assignment, 'id' | 'createdAt' | 'updatedAt' | 'teacherId' | 'totalSubmissions'>>, file?: File | null) => Promise<boolean>;
+  updateAssignment: (
+    assignmentId: string, 
+    assignmentTitle: string, 
+    data: Partial<Omit<Assignment, 'id' | 'createdAt' | 'updatedAt' | 'teacherId' | 'totalSubmissions' | 'attachmentUrl' | 'schoolId'>>, 
+    file?: File | null,
+    existingAttachmentUrl?: string | null
+  ) => Promise<boolean>;
   deleteAssignment: (assignmentId: string, assignmentTitle: string) => Promise<boolean>;
 
   // Teacher Submission Management
@@ -79,7 +89,7 @@ export interface AuthContextType {
   getAssignmentsForStudentByClass: (classId: string, studentId: string) => Promise<AssignmentWithClassAndSubmissionInfo[]>;
   getClassesByIds: (classIds: string[]) => Promise<ClassWithTeacherInfo[]>;
   joinClassWithCode: (classCode: string, studentId: string) => Promise<boolean>;
-  completeStudentOnboarding: (userId: string, classId: string, subjectIds: string[]) => Promise<boolean>;
+  completeStudentOnboarding: (userId: string, classIds: string[], subjectIds: string[]) => Promise<boolean>;
 
   // Profile Management
   updateUserDisplayName: (userId: string, displayName: string) => Promise<boolean>;

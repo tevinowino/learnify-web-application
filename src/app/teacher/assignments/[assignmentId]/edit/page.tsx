@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useState, useEffect, useCallback } from 'react';
@@ -137,16 +136,22 @@ export default function EditAssignmentPage() {
     const deadline = new Date(values.deadlineDate);
     deadline.setHours(hours, minutes, 0, 0);
 
-    const updatedData: Partial<Omit<Assignment, 'id' | 'createdAt' | 'updatedAt' | 'teacherId' | 'totalSubmissions'>> = {
+    const updatedData: Partial<Omit<Assignment, 'id' | 'createdAt' | 'updatedAt' | 'teacherId' | 'totalSubmissions' | 'attachmentUrl' | 'schoolId'>> = {
       title: values.title,
       description: values.description,
       deadline: deadline,
       allowedSubmissionFormats: values.allowedSubmissionFormats,
       subjectId: values.subjectId === NO_SUBJECT_VALUE ? null : values.subjectId,
-      attachmentUrl: values.existingAttachmentUrl, // Default to existing, will be overridden by AuthContext if new file
+      classId: values.classId, // Ensure classId is passed if it's part of the form values to be updated (though typically not changed)
     };
 
-    const success = await updateAssignment(currentAssignment.id, currentAssignment.title, updatedData, values.attachment || undefined);
+    const success = await updateAssignment(
+        currentAssignment.id, 
+        currentAssignment.title, // For activity log
+        updatedData, 
+        values.attachment || undefined,
+        values.existingAttachmentUrl || null
+    );
     setIsSubmitting(false);
 
     if (success) {
@@ -333,3 +338,4 @@ export default function EditAssignmentPage() {
     </div>
   );
 }
+
