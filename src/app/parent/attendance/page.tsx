@@ -5,7 +5,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Loader2, CalendarCheck, Users2, Filter, AlertTriangle } from "lucide-react";
+import { Loader2, CalendarCheck, Users2, Filter, AlertTriangle, CalendarDays } from "lucide-react"; // Added CalendarDays
 import type { AttendanceRecord, UserProfileWithId } from '@/types';
 import { useToast } from '@/hooks/use-toast';
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
