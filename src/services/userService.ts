@@ -14,22 +14,23 @@ export const createUserProfileInFirestore = async (
   initialStatus?: UserStatus, // Allow passing status, e.g., 'active' for parents
   childStudentId?: string // Specifically for parents
 ): Promise<UserProfile> => {
-  const userProfileData: Omit<UserProfile, keyof FirebaseUserType | 'classIds' | 'studentAssignments'> & { uid: string, createdAt: Timestamp, classIds: string[], studentAssignments: {}, status: UserStatus, schoolId?: string, schoolName?: string, subjects?: string[], childStudentId?: string } = {
+  const userProfileData: Omit<UserProfile, keyof FirebaseUserType | 'classIds' | 'studentAssignments'> & { uid: string, createdAt: Timestamp, classIds: string[], studentAssignments: {}, status: UserStatus, schoolId?: string, schoolName?: string, subjects?: string[], childStudentId?: string, lastTestimonialSurveyAt?: Timestamp } = {
     uid: firebaseUser.uid,
     email: firebaseUser.email,
     displayName: displayName,
     role: role,
     createdAt: Timestamp.now(),
     classIds: [],
-    subjects: [], 
+    subjects: [],
     studentAssignments: {},
     status: initialStatus || ((role === 'teacher' || role === 'student') && initialSchoolId ? 'pending_verification' : 'active'),
     schoolId: initialSchoolId,
     schoolName: initialSchoolName,
     childStudentId: role === 'parent' ? childStudentId : undefined,
+    lastTestimonialSurveyAt: undefined, // Initialize
   };
 
-  if (role === 'admin' && !initialSchoolId) { 
+  if (role === 'admin' && !initialSchoolId) {
     delete userProfileData.schoolId;
     delete userProfileData.schoolName;
     userProfileData.status = 'active';
@@ -61,10 +62,10 @@ export const getUserProfileService = async (userId: string): Promise<UserProfile
     const userDocSnap = await getDoc(userDocRef);
     if (userDocSnap.exists()) {
       const data = userDocSnap.data();
-      return { 
-        id: userDocSnap.id, 
-        ...data, 
-        status: data.status || (data.role === 'admin' ? 'active' : 'pending_verification'), 
+      return {
+        id: userDocSnap.id,
+        ...data,
+        status: data.status || (data.role === 'admin' ? 'active' : 'pending_verification'),
         subjects: data.subjects || [],
         classIds: data.classIds || []
       } as UserProfileWithId;
@@ -137,7 +138,7 @@ export const adminCreateUserService = async (
     if (firebaseUser) {
       await updateFirebaseProfile(firebaseUser, { displayName });
       const userProfileData = {
-        uid: firebaseUser.uid, 
+        uid: firebaseUser.uid,
         email: firebaseUser.email,
         displayName: displayName,
         role: role,
@@ -145,9 +146,10 @@ export const adminCreateUserService = async (
         schoolName: schoolName || 'Unknown School',
         createdAt: Timestamp.now(),
         classIds: [],
-        subjects: [], 
+        subjects: [],
         studentAssignments: {},
-        status: 'active' as UserStatus, 
+        status: 'active' as UserStatus,
+        lastTestimonialSurveyAt: undefined,
       };
       await setDoc(doc(db, "users", firebaseUser.uid), userProfileData);
       return { id: firebaseUser.uid, ...userProfileData } as UserProfileWithId;
@@ -155,7 +157,7 @@ export const adminCreateUserService = async (
     return null;
   } catch (error) {
     console.error("Error in adminCreateUserService:", error);
-    throw error; 
+    throw error;
   }
 };
 
@@ -163,15 +165,15 @@ export const updateUserRoleAndSchoolService = async (userId: string, data: { rol
   try {
     const userRef = doc(db, "users", userId);
     const updateData: any = { ...data, updatedAt: Timestamp.now() };
-     if (data.classIds === null) { 
+     if (data.classIds === null) {
         updateData.classIds = [];
       }
-    if (data.role && !data.status && data.status !== 'rejected') { 
+    if (data.role && !data.status && data.status !== 'rejected') {
         updateData.status = 'active';
     }
     if (data.subjects && Array.isArray(data.subjects)) {
         updateData.subjects = data.subjects;
-    } else if (data.subjects === null) { 
+    } else if (data.subjects === null) {
         updateData.subjects = [];
     }
 
@@ -206,17 +208,17 @@ export const completeStudentOnboardingService = async (userId: string, classIds:
     if (!userSnap.exists()) return false;
 
     const userData = userSnap.data() as UserProfile;
-    let finalSubjectIds = new Set(subjectIds); 
+    let finalSubjectIds = new Set(subjectIds);
 
-    const mainClassId = classIds[0]; 
+    const mainClassId = classIds[0];
     const classDetails = await getClassDetailsService(mainClassId, getUserProfileService);
     if (classDetails?.classType === 'main' && classDetails.compulsorySubjectIds) {
       classDetails.compulsorySubjectIds.forEach(id => finalSubjectIds.add(id));
     }
-   
+
     const batch = writeBatch(db);
     batch.update(userRef, {
-      classIds: classIds, 
+      classIds: classIds,
       subjects: Array.from(finalSubjectIds),
       updatedAt: Timestamp.now(),
     });
@@ -225,7 +227,7 @@ export const completeStudentOnboardingService = async (userId: string, classIds:
         const classRef = doc(db, "classes", classId);
         batch.update(classRef, { studentIds: arrayUnion(userId), updatedAt: Timestamp.now() });
     }
-    
+
     await batch.commit();
     return true;
   } catch (error) {
@@ -234,4 +236,16 @@ export const completeStudentOnboardingService = async (userId: string, classIds:
   }
 };
 
-    
+export const updateUserLastTestimonialSurveyAtService = async (userId: string): Promise<boolean> => {
+  try {
+    const userRef = doc(db, "users", userId);
+    await updateDoc(userRef, {
+      lastTestimonialSurveyAt: Timestamp.now(),
+      updatedAt: Timestamp.now()
+    });
+    return true;
+  } catch (error) {
+    console.error("Error updating lastTestimonialSurveyAt in service:", error);
+    return false;
+  }
+};

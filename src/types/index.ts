@@ -9,12 +9,13 @@ export type UserStatus = 'pending_verification' | 'active' | 'rejected' | 'disab
 export interface UserProfile extends FirebaseUser {
   role: UserRole;
   schoolId?: string;
-  schoolName?: string; 
-  status?: UserStatus; 
-  classIds?: string[]; 
-  subjects?: string[]; 
+  schoolName?: string;
+  status?: UserStatus;
+  classIds?: string[];
+  subjects?: string[];
   studentAssignments?: Record<string, { status: 'submitted' | 'graded' | 'missing' | 'late'; grade?: string | number }>;
   childStudentId?: string; // For parent role to link to a student
+  lastTestimonialSurveyAt?: Timestamp; // New field for tracking survey
 }
 
 export interface UserProfileWithId extends UserProfile {
@@ -24,11 +25,11 @@ export interface UserProfileWithId extends UserProfile {
 export interface School {
   id:string;
   name: string;
-  adminId: string; 
+  adminId: string;
   inviteCode: string;
   createdAt?: Timestamp;
   updatedAt?: Timestamp;
-  isExamModeActive?: boolean; 
+  isExamModeActive?: boolean;
 }
 
 export interface Subject {
@@ -44,13 +45,13 @@ export type LearningMaterialType = 'text' | 'link' | 'video_link' | 'pdf_link' |
 export interface LearningMaterial {
   id: string;
   title: string;
-  content: string; 
+  content: string;
   materialType: LearningMaterialType;
   schoolId: string;
-  teacherId: string; 
-  classId?: string | null; 
-  subjectId?: string | null; 
-  attachmentUrl?: string | null; 
+  teacherId: string;
+  classId?: string | null;
+  subjectId?: string | null;
+  attachmentUrl?: string | null;
   originalFileName?: string | null;
   createdAt: Timestamp;
   updatedAt?: Timestamp;
@@ -68,22 +69,22 @@ export interface Class {
   id: string;
   name: string;
   schoolId: string;
-  teacherId?: string; 
-  studentIds?: string[]; 
-  classInviteCode?: string; 
+  teacherId?: string;
+  studentIds?: string[];
+  classInviteCode?: string;
   classType: ClassType;
-  compulsorySubjectIds?: string[]; 
-  subjectId?: string | null; 
+  compulsorySubjectIds?: string[];
+  subjectId?: string | null;
   createdAt: Timestamp;
   updatedAt?: Timestamp;
 }
 
 export interface ClassWithTeacherInfo extends Class {
   teacherDisplayName?: string;
-  submittedAssignmentsCount?: number; 
-  totalAssignmentsCount?: number;     
-  compulsorySubjectNames?: string[]; 
-  subjectName?: string; 
+  submittedAssignmentsCount?: number;
+  totalAssignmentsCount?: number;
+  compulsorySubjectNames?: string[];
+  subjectName?: string;
 }
 
 export type SubmissionFormat = 'text_entry' | 'file_link' | 'file_upload';
@@ -92,7 +93,7 @@ export interface Assignment {
   id: string;
   classId: string;
   teacherId: string;
-  schoolId: string; 
+  schoolId: string;
   title: string;
   description: string;
   deadline: Timestamp;
@@ -102,8 +103,8 @@ export interface Assignment {
   originalFileName?: string | null;
   createdAt: Timestamp;
   updatedAt?: Timestamp;
-  totalSubmissions?: number; 
-  status?: 'submitted' | 'graded' | 'missing' | 'late'; 
+  totalSubmissions?: number;
+  status?: 'submitted' | 'graded' | 'missing' | 'late';
 }
 
 export interface AssignmentWithClassInfo extends Assignment {
@@ -123,12 +124,12 @@ export interface Submission {
   classId: string;
   studentId: string;
   submittedAt: Timestamp;
-  content: string; 
+  content: string;
   submissionType: SubmissionFormat;
-  originalFileName?: string; 
+  originalFileName?: string;
   grade?: string | number;
   feedback?: string;
-  status: 'submitted' | 'graded' | 'late'; 
+  status: 'submitted' | 'graded' | 'late';
   updatedAt?: Timestamp; // Added for consistency
 }
 
@@ -137,29 +138,29 @@ export interface SubmissionWithStudentName extends Submission {
   studentEmail?: string;
 }
 
-export interface ClassStudentProgress { 
+export interface ClassStudentProgress {
   studentId: string;
   studentName: string;
   completedAssignments: number;
-  overallGrade?: string; 
+  overallGrade?: string;
 }
 
 export type ExamPeriodStatus = 'upcoming' | 'active' | 'grading' | 'completed';
 
 export interface ExamPeriod {
   id: string;
-  name: string; 
+  name: string;
   schoolId: string;
   startDate: Timestamp;
   endDate: Timestamp;
   assignedClassIds: string[];
-  status: ExamPeriodStatus; 
+  status: ExamPeriodStatus;
   createdAt: Timestamp;
   updatedAt: Timestamp;
 }
 
 export interface ExamPeriodWithClassNames extends ExamPeriod {
-    assignedClassNames?: string[]; 
+    assignedClassNames?: string[];
 }
 
 
@@ -169,10 +170,10 @@ export interface ExamResult {
   examPeriodId: string;
   classId: string;
   schoolId: string;
-  subjectId: string; 
-  marks: string | number; 
+  subjectId: string;
+  marks: string | number;
   remarks?: string;
-  teacherId: string; 
+  teacherId: string;
   createdAt: Timestamp;
   updatedAt: Timestamp;
 }
@@ -180,19 +181,19 @@ export interface ExamResult {
 export interface ExamResultWithStudentInfo extends ExamResult {
     studentName?: string;
     studentEmail?: string;
-    subjectName?: string; 
-    examPeriodName?: string; 
+    subjectName?: string;
+    examPeriodName?: string;
 }
 
 
 export interface Activity {
   id: string;
   schoolId: string;
-  classId?: string; 
-  actorId?: string; 
-  actorName?: string; 
-  targetUserId?: string; 
-  targetUserName?: string; 
+  classId?: string;
+  actorId?: string;
+  actorName?: string;
+  targetUserId?: string;
+  targetUserName?: string;
   type:
     | 'assignment_created'
     | 'assignment_updated'
@@ -211,21 +212,22 @@ export interface Activity {
     | 'subject_created'
     | 'subject_updated'
     | 'subject_deleted'
-    | 'user_registered' 
+    | 'user_registered'
     | 'user_approved'
     | 'user_rejected'
-    | 'user_profile_updated' 
-    | 'attendance_marked' 
+    | 'user_profile_updated'
+    | 'attendance_marked'
     | 'exam_period_created'
-    | 'exam_period_updated' 
+    | 'exam_period_updated'
     | 'exam_period_finalized'
     | 'exam_results_entered'
     | 'school_settings_updated'
     | 'invite_code_regenerated'
-    | 'parent_linked_child' // Added for parent linking
-    | 'general_announcement'; 
-  message: string; 
-  link?: string; 
+    | 'parent_linked_child'
+    | 'testimonial_submitted' // New activity type
+    | 'general_announcement';
+  message: string;
+  link?: string;
   timestamp: Timestamp;
 }
 
@@ -248,13 +250,25 @@ export interface AttendanceRecord {
 
 export interface Notification {
   id: string;
-  userId: string; 
+  userId: string;
   schoolId: string;
   message: string;
-  link?: string; 
+  link?: string;
   isRead: boolean;
   createdAt: Timestamp;
   type: Activity['type'] | 'general_announcement' | 'system_update';
-  actorName?: string; 
+  actorName?: string;
 }
-    
+
+export interface Testimonial {
+  id: string;
+  userId: string;
+  userName: string;
+  userRole: UserRole;
+  schoolId?: string; // Optional, if user is tied to a school
+  schoolName?: string; // Optional
+  rating: number; // e.g., 1-5
+  feedbackText: string;
+  isApprovedForDisplay: boolean;
+  submittedAt: Timestamp;
+}
