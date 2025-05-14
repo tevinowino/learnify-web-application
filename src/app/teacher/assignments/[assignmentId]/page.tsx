@@ -186,8 +186,16 @@ export default function TeacherAssignmentDetailPage() {
              <div className="mt-3">
                 <Label className="font-medium">Attachment:</Label>
                 <Button variant="link" asChild className="p-0 h-auto ml-2">
-                    <a href={assignment.attachmentUrl} target="_blank" rel="noopener noreferrer" download={assignment.attachmentUrl.startsWith('https://firebasestorage.googleapis.com/') ? assignment.attachmentUrl.split('%2F').pop()?.split('?')[0].substring(37) : undefined}>
-                         {assignment.attachmentUrl.startsWith('https://firebasestorage.googleapis.com/') ? assignment.attachmentUrl.split('%2F').pop()?.split('?')[0].substring(37) || "View File" : "View Attachment"}
+                    <a
+                        href={
+                            assignment.attachmentUrl.includes('res.cloudinary.com')
+                            ? `${assignment.attachmentUrl}${assignment.attachmentUrl.includes('?') ? '&' : '?'}fl_attachment`
+                            : assignment.attachmentUrl
+                        }
+                        download={assignment.originalFileName || "assignment_file"}
+                        rel="noopener noreferrer"
+                    >
+                         {assignment.originalFileName || "View Attachment"}
                         <Download className="inline h-4 w-4 ml-1"/>
                     </a>
                 </Button>
@@ -267,7 +275,16 @@ export default function TeacherAssignmentDetailPage() {
                   </Button>
                 ) : selectedSubmissionForGrading.submissionType === 'file_upload' && selectedSubmissionForGrading.content ? (
                   <Button variant="link" asChild className="p-0 h-auto">
-                    <a href={selectedSubmissionForGrading.content} target="_blank" rel="noopener noreferrer" download={selectedSubmissionForGrading.originalFileName || undefined}>
+                    <a 
+                        href={
+                           selectedSubmissionForGrading.content.includes('res.cloudinary.com')
+                           ? `${selectedSubmissionForGrading.content}${selectedSubmissionForGrading.content.includes('?') ? '&' : '?'}fl_attachment`
+                           : selectedSubmissionForGrading.content
+                        } 
+                        download={selectedSubmissionForGrading.originalFileName || undefined}
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                    >
                       <Download className="mr-1 h-4 w-4"/> Download File: {selectedSubmissionForGrading.originalFileName || selectedSubmissionForGrading.content.split('%2F').pop()?.split('?')[0].substring(37)}
                     </a>
                   </Button>
@@ -306,3 +323,4 @@ export default function TeacherAssignmentDetailPage() {
     </div>
   );
 }
+

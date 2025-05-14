@@ -190,8 +190,16 @@ export default function StudentAssignmentDetailPage() {
              <div className="mt-3">
                 <Label className="font-medium">Attachment:</Label>
                 <Button variant="link" asChild className="p-0 h-auto ml-2">
-                    <a href={assignment.attachmentUrl} target="_blank" rel="noopener noreferrer" download={assignment.attachmentUrl.startsWith('https://firebasestorage.googleapis.com/') ? assignment.attachmentUrl.split('%2F').pop()?.split('?')[0].substring(37) || "assignment_file" : undefined}>
-                        {assignment.attachmentUrl.startsWith('https://firebasestorage.googleapis.com/') ? assignment.attachmentUrl.split('%2F').pop()?.split('?')[0].substring(37) || "View File" : "View Attachment"}
+                    <a
+                        href={
+                            assignment.attachmentUrl.includes('res.cloudinary.com')
+                            ? `${assignment.attachmentUrl}${assignment.attachmentUrl.includes('?') ? '&' : '?'}fl_attachment`
+                            : assignment.attachmentUrl
+                        }
+                        download={assignment.originalFileName || "assignment_file"}
+                        rel="noopener noreferrer" // Good practice for external links, though download makes it less critical
+                    >
+                        {assignment.originalFileName || "View Attachment"}
                         <Download className="inline h-4 w-4 ml-1"/>
                     </a>
                 </Button>
@@ -222,7 +230,16 @@ export default function StudentAssignmentDetailPage() {
                   </Button>
             ) : submission.submissionType === 'file_upload' && submission.content ? ( 
                  <Button variant="link" asChild className="p-0 h-auto">
-                    <a href={submission.content} target="_blank" rel="noopener noreferrer" download={submission.originalFileName || undefined}>
+                    <a 
+                        href={
+                           submission.content.includes('res.cloudinary.com')
+                           ? `${submission.content}${submission.content.includes('?') ? '&' : '?'}fl_attachment`
+                           : submission.content
+                        } 
+                        download={submission.originalFileName || undefined}
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                    >
                       <Download className="mr-1 h-4 w-4"/> Download Submitted File: {submission.originalFileName || submission.content.split('%2F').pop()?.split('?')[0].substring(37)}
                     </a>
                   </Button>
@@ -318,3 +335,4 @@ export default function StudentAssignmentDetailPage() {
     </div>
   );
 }
+
