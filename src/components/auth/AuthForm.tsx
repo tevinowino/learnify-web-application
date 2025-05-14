@@ -37,7 +37,7 @@ import {
 
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
-import type { UserRole } from "@/types";
+import type { UserRole, UserStatus } from "@/types";
 
 const loginSchema = z.object({
   email: z.string().email({ message: "Invalid email address." }),
@@ -52,15 +52,15 @@ const baseSchema = z.object({
 
 const signupSchema = loginSchema.extend({
   displayName: z.string().min(2, "Display name must be at least 2 characters."),
-  role: z.enum(["admin", "teacher", "student"], {
+  role: z.enum(["admin", "teacher", "student", "parent"], { // Added "parent"
     required_error: "Please select a role.",
   }),
   schoolIdToJoin: z.string().optional(),
 }).superRefine((data, ctx) => {
-  if ((data.role === 'teacher' || data.role === 'student') && !data.schoolIdToJoin?.trim()) {
+  if ((data.role === 'teacher' || data.role === 'student' || data.role === 'parent') && !data.schoolIdToJoin?.trim()) { // Added "parent"
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
-      message: "School ID is required for teachers and students.",
+      message: "School ID is required for teachers, students, and parents.", // Updated message
       path: ["schoolIdToJoin"],
     });
   }
@@ -102,6 +102,7 @@ export default function AuthForm({ mode }: AuthFormProps) {
     if (role === "admin") return "/admin/dashboard";
     if (role === "teacher") return "/teacher/dashboard";
     if (role === "student") return "/student/dashboard";
+    if (role === "parent") return "/parent/dashboard"; // Added parent redirect
     return "/";
   }
 
@@ -114,9 +115,9 @@ export default function AuthForm({ mode }: AuthFormProps) {
       if (mode === "signup") {
         const { email, password, displayName, role, schoolIdToJoin } = values as SignupFormValues;
         let schoolName: string | undefined;
-        if (role === 'teacher' || role === 'student') {
-          if (!schoolIdToJoin) { // Should be caught by schema but as a safeguard
-            toast({ title: "School ID Missing", description: "School ID is required for teachers and students.", variant: "destructive" });
+        if (role === 'teacher' || role === 'student' || role === 'parent') { // Added parent
+          if (!schoolIdToJoin) { 
+            toast({ title: "School ID Missing", description: "School ID is required for teachers, students, and parents.", variant: "destructive" });
             setIsSubmitting(false);
             return;
           }
@@ -154,7 +155,6 @@ export default function AuthForm({ mode }: AuthFormProps) {
 
       let errorMessage = "Something went wrong. Please try again.";
       if (typeof error === "object" && error?.code) {
-        // Optional: friendly Firebase-style error messages
         const firebaseErrors: Record<string, string> = {
           "auth/email-already-in-use": "This email is already in use.",
           "auth/user-not-found": "No user found with that email.",
@@ -174,7 +174,8 @@ export default function AuthForm({ mode }: AuthFormProps) {
     }
   }
   
-  const selectedRole = form.watch("role" as keyof FormValues) as UserRole | undefined;
+  const selectedRole = form.watch("role" as keyof (SignupFormValues | LoginFormValues)) as UserRole | undefined;
+
 
   return (
     <Card className="w-full max-w-md shadow-xl">
@@ -270,6 +271,7 @@ export default function AuthForm({ mode }: AuthFormProps) {
                         <SelectContent>
                           <SelectItem value="student">Student</SelectItem>
                           <SelectItem value="teacher">Teacher</SelectItem>
+                          <SelectItem value="parent">Parent</SelectItem> 
                           <SelectItem value="admin">Admin</SelectItem>
                         </SelectContent>
                       </Select>
@@ -277,7 +279,7 @@ export default function AuthForm({ mode }: AuthFormProps) {
                     </FormItem>
                   )}
                 />
-                {(selectedRole === 'teacher' || selectedRole === 'student') && (
+                {(selectedRole === 'teacher' || selectedRole === 'student' || selectedRole === 'parent') && ( // Added parent
                    <FormField
                     control={form.control}
                     name="schoolIdToJoin"
