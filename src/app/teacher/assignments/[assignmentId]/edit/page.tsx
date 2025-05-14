@@ -11,7 +11,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Loader2, Save, CalendarIcon, CheckSquare, Square, Edit3, ArrowLeft, UploadCloud } from 'lucide-react';
+import { Loader2, Save, CalendarIcon, Edit3, ArrowLeft } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import type { ClassWithTeacherInfo, SubmissionFormat, Assignment, Subject } from '@/types';
 import {
@@ -23,7 +23,7 @@ import {
 } from "@/components/ui/select";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
-import { format, parse } from 'date-fns';
+import { format } from 'date-fns';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import Loader from '@/components/shared/Loader';
@@ -36,9 +36,7 @@ const assignmentEditSchema = z.object({
   deadlineDate: z.date({ required_error: "Deadline date is required." }),
   deadlineTime: z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)$/, "Invalid time format (HH:MM)."),
   allowedSubmissionFormats: z.array(z.enum(['text_entry', 'file_link', 'file_upload'])).min(1, "Select at least one submission format."),
-  attachment: z.instanceof(File).optional().nullable(), 
-  existingAttachmentUrl: z.string().optional().nullable(),
-  originalFileName: z.string().optional().nullable(), // Added
+  // Attachment related fields are removed as teachers now only create text-based assignments
 });
 
 type AssignmentEditFormValues = z.infer<typeof assignmentEditSchema>;
@@ -75,9 +73,6 @@ export default function EditAssignmentPage() {
       deadlineDate: undefined,
       deadlineTime: '23:59',
       allowedSubmissionFormats: ['text_entry'],
-      attachment: null, 
-      existingAttachmentUrl: null,
-      originalFileName: null, // Added
     },
   });
 
@@ -110,9 +105,6 @@ export default function EditAssignmentPage() {
           deadlineDate: deadlineDate,
           deadlineTime: format(deadlineDate, "HH:mm"),
           allowedSubmissionFormats: fetchedAssignment.allowedSubmissionFormats,
-          attachment: null, 
-          existingAttachmentUrl: fetchedAssignment.attachmentUrl || null,
-          originalFileName: fetchedAssignment.originalFileName || null, // Added
         });
       } else {
         toast({ title: "Not Found", description: "Assignment not found.", variant: "destructive" });
@@ -140,21 +132,23 @@ export default function EditAssignmentPage() {
     const deadline = new Date(values.deadlineDate);
     deadline.setHours(hours, minutes, 0, 0);
 
-    const updatedData: Partial<Omit<Assignment, 'id' | 'createdAt' | 'updatedAt' | 'teacherId' | 'totalSubmissions' | 'attachmentUrl' | 'schoolId'>> = {
+    const updatedData: Partial<Omit<Assignment, 'id' | 'createdAt' | 'updatedAt' | 'teacherId' | 'totalSubmissions' | 'schoolId'>> = {
       title: values.title,
       description: values.description,
       deadline: deadline,
       allowedSubmissionFormats: values.allowedSubmissionFormats,
       subjectId: values.subjectId === NO_SUBJECT_VALUE ? null : values.subjectId,
       classId: values.classId, 
+      attachmentUrl: null, // Teacher assignments are now text-only
+      originalFileName: null, // Teacher assignments are now text-only
     };
     
     const success = await updateAssignment(
         currentAssignment.id, 
         currentAssignment.title, 
         updatedData, 
-        values.attachment || undefined,
-        values.existingAttachmentUrl || null
+        undefined, // No new file for assignment attachment
+        null // No existing attachment URL to preserve
     );
     setIsSubmitting(false);
 
@@ -272,7 +266,7 @@ export default function EditAssignmentPage() {
             </div>
 
             <div>
-                <Label>Allowed Submission Formats</Label>
+                <Label>Allowed Submission Formats (for students)</Label>
                 <Controller
                     name="allowedSubmissionFormats"
                     control={form.control}
@@ -303,34 +297,7 @@ export default function EditAssignmentPage() {
                 />
                 {form.formState.errors.allowedSubmissionFormats && <p className="text-sm text-destructive mt-1">{form.formState.errors.allowedSubmissionFormats.message}</p>}
             </div>
-
-            <div>
-              <Label htmlFor="attachmentEdit">Attach/Replace File (Optional)</Label>
-              {form.getValues("existingAttachmentUrl") && (
-                 <p className="text-xs text-muted-foreground mt-1">
-                    Current attachment: <a href={form.getValues("existingAttachmentUrl")!} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">{form.getValues("originalFileName") || "View File"}</a>
-                 </p>
-              )}
-              <div className="flex items-center space-x-2 mt-1">
-                <UploadCloud className="h-5 w-5 text-muted-foreground" />
-                <Controller
-                  control={form.control}
-                  name="attachment"
-                   render={({ field: { onChange, value, ...restField } }) => (
-                    <Input 
-                      id="attachmentEdit" 
-                      type="file" 
-                      onChange={(e) => onChange(e.target.files ? e.target.files[0] : null)}
-                      className="flex-grow"
-                      {...restField}
-                    />
-                  )}
-                />
-              </div>
-              {form.getValues("attachment") && <p className="text-xs text-muted-foreground mt-1">New file selected: {form.getValues("attachment")?.name}</p>}
-              {form.formState.errors.attachment && <p className="text-sm text-destructive mt-1">{form.formState.errors.attachment.message}</p>}
-            </div>
-
+             {/* Removed attachment section for editing as per new requirement */}
 
             <Button type="submit" className="w-full bg-primary hover:bg-primary/90 button-shadow" disabled={isSubmitting || pageOverallLoading || !form.formState.isDirty}>
               {isSubmitting ? <Loader size="small" className="mr-2" /> : <Save className="mr-2 h-4 w-4" />}

@@ -11,7 +11,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Loader2, PlusCircle, CalendarIcon, CheckSquare, Square, Edit3, ArrowLeft, UploadCloud } from 'lucide-react';
+import { Loader2, PlusCircle, CalendarIcon, Edit3, ArrowLeft } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import type { ClassWithTeacherInfo, SubmissionFormat, Subject } from '@/types';
 import {
@@ -37,8 +37,7 @@ const assignmentSchema = z.object({
   deadlineDate: z.date({ required_error: "Deadline date is required." }),
   deadlineTime: z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)$/, "Invalid time format (HH:MM)."),
   allowedSubmissionFormats: z.array(z.enum(['text_entry', 'file_link', 'file_upload'])).min(1, "Select at least one submission format."),
-  attachment: z.instanceof(File).optional().nullable(),
-  originalFileName: z.string().optional().nullable(), // Added for Cloudinary
+  // Attachment fields are no longer directly uploaded by teacher for assignment creation
 });
 
 type AssignmentFormValues = z.infer<typeof assignmentSchema>;
@@ -74,8 +73,6 @@ export default function CreateAssignmentPage() {
       deadlineDate: undefined,
       deadlineTime: '23:59',
       allowedSubmissionFormats: ['text_entry'],
-      attachment: null, 
-      originalFileName: null,
     },
   });
 
@@ -121,11 +118,11 @@ export default function CreateAssignmentPage() {
       deadline: deadline, 
       allowedSubmissionFormats: values.allowedSubmissionFormats,
       subjectId: values.subjectId === NO_SUBJECT_VALUE ? null : values.subjectId, 
-      attachmentUrl: null, // Will be set by AuthContext if file exists
-      originalFileName: values.attachment ? values.attachment.name : null, // Store original file name
+      attachmentUrl: null, 
+      originalFileName: null, 
     };
 
-    const assignmentId = await createAssignment(assignmentData, values.attachment || undefined); 
+    const assignmentId = await createAssignment(assignmentData, undefined); // Pass undefined for file
     setIsSubmitting(false);
 
     if (assignmentId) {
@@ -155,7 +152,7 @@ export default function CreateAssignmentPage() {
       <Card className="w-full max-w-2xl mx-auto card-shadow">
         <CardHeader>
           <CardTitle className="flex items-center text-2xl"><Edit3 className="mr-2 h-6 w-6 text-primary"/>Create New Assignment</CardTitle>
-          <CardDescription>Fill in the details for the new assignment.</CardDescription>
+          <CardDescription>Fill in the details for the new assignment. Assignments are text-based (e.g., textbook exercises).</CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
@@ -167,7 +164,7 @@ export default function CreateAssignmentPage() {
 
             <div>
               <Label htmlFor="description">Description / Instructions</Label>
-              <Textarea id="description" {...form.register("description")} placeholder="Provide detailed instructions for the assignment..." rows={5} />
+              <Textarea id="description" {...form.register("description")} placeholder="Provide detailed instructions for the assignment, e.g., 'Read pages 50-55 in the textbook and complete exercises 1-5.'" rows={5} />
               {form.formState.errors.description && <p className="text-sm text-destructive mt-1">{form.formState.errors.description.message}</p>}
             </div>
 
@@ -238,7 +235,7 @@ export default function CreateAssignmentPage() {
                                 selected={field.value}
                                 onSelect={field.onChange}
                                 initialFocus
-                                disabled={(date) => date < new Date(new Date().setHours(0,0,0,0)) } // Disable past dates
+                                disabled={(date) => date < new Date(new Date().setHours(0,0,0,0)) } 
                             />
                             </PopoverContent>
                         </Popover>
@@ -254,7 +251,7 @@ export default function CreateAssignmentPage() {
             </div>
 
             <div>
-                <Label>Allowed Submission Formats</Label>
+                <Label>Allowed Submission Formats (for students)</Label>
                 <Controller
                     name="allowedSubmissionFormats"
                     control={form.control}
@@ -285,29 +282,6 @@ export default function CreateAssignmentPage() {
                 />
                 {form.formState.errors.allowedSubmissionFormats && <p className="text-sm text-destructive mt-1">{form.formState.errors.allowedSubmissionFormats.message}</p>}
             </div>
-
-            <div>
-              <Label htmlFor="attachment">Attach File (Optional)</Label>
-              <div className="flex items-center space-x-2 mt-1">
-                <UploadCloud className="h-5 w-5 text-muted-foreground" />
-                <Controller
-                  control={form.control}
-                  name="attachment"
-                   render={({ field: { onChange, value, ...restField } }) => ( 
-                    <Input 
-                      id="attachment" 
-                      type="file" 
-                      onChange={(e) => onChange(e.target.files ? e.target.files[0] : null)}
-                      className="flex-grow"
-                      {...restField} 
-                    />
-                  )}
-                />
-              </div>
-              {form.getValues("attachment") && <p className="text-xs text-muted-foreground mt-1">Selected: {form.getValues("attachment")?.name}</p>}
-              {form.formState.errors.attachment && <p className="text-sm text-destructive mt-1">{form.formState.errors.attachment.message}</p>}
-            </div>
-
 
             <Button type="submit" className="w-full bg-primary hover:bg-primary/90 button-shadow" disabled={isSubmitting || pageOverallLoading || teacherClasses.length === 0}>
               {isSubmitting ? <Loader size="small" className="mr-2" /> : <PlusCircle className="mr-2 h-4 w-4" />}
