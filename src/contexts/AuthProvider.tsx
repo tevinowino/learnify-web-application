@@ -15,7 +15,7 @@ import {
 } from 'firebase/auth';
 import { doc, getDoc, setDoc, Timestamp, updateDoc, writeBatch, arrayUnion, arrayRemove } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase';
-import type { UserProfile, UserRole, School, LearningMaterial, UserProfileWithId, Class, ClassWithTeacherInfo, LearningMaterialWithTeacherInfo, Assignment, Submission, SubmissionFormat, LearningMaterialType, AssignmentWithClassInfo, SubmissionWithStudentName, AssignmentWithClassAndSubmissionInfo, UserStatus, Activity, Subject, ExamPeriod, ExamPeriodWithClassNames, ExamResult, ExamResultWithStudentInfo, ClassType, Notification } from '@/types'; 
+import type { UserProfile, UserRole, School, LearningMaterial, UserProfileWithId, Class, ClassWithTeacherInfo, LearningMaterialWithTeacherInfo, Assignment, Submission, SubmissionFormat, LearningMaterialType, AssignmentWithClassInfo, SubmissionWithStudentName, AssignmentWithClassAndSubmissionInfo, UserStatus, Activity, Subject, ExamPeriod, ExamPeriodWithClassNames, ExamResult, ExamResultWithStudentInfo, ClassType, Notification, AttendanceRecord, AttendanceStatus } from '@/types'; 
 import { useRouter } from 'next/navigation';
 
 import * as SchoolService from '@/services/schoolService';
@@ -28,6 +28,7 @@ import * as SubjectService from '@/services/subjectService';
 import * as ActivityService from '@/services/activityService';
 import * as ExamService from '@/services/examService';
 import * as NotificationService from '@/services/notificationService'; 
+import * as AttendanceService from '@/services/attendanceService'; // Added
 import { uploadFileToCloudinaryService } from '@/services/fileUploadService'; 
 import { AuthContext, type AuthContextType } from './AuthContext';
 import { sendEmail } from '@/actions/emailActions';
@@ -91,7 +92,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     displayName: string, 
     schoolIdToJoin?: string, 
     schoolNameParam?: string,
-    childStudentId?: string // Added for parents
+    childStudentId?: string 
   ): Promise<UserProfile | null> => {
     setAuthProcessLoading(true);
     try {
@@ -109,7 +110,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         }
         finalSchoolId = childProfile.schoolId;
         finalSchoolName = childProfile.schoolName;
-        finalStatus = 'active'; // Parents are active immediately after linking
+        finalStatus = 'active'; 
       }
 
 
@@ -136,7 +137,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             type: 'user_registered',
             message: `${profile.displayName} (${profile.role}) registered for ${profile.schoolName}.`,
          });
-         if (profile.status === 'pending_verification') { // Only for teacher/student now
+         if (profile.status === 'pending_verification') { 
              await addActivity({
                 schoolId: profile.schoolId,
                 type: 'user_profile_updated', 
@@ -654,7 +655,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const getClassesByTeacher = useCallback(async (teacherId: string) => ClassService.getClassesByTeacherService(teacherId), []);
   const getStudentsInMultipleClasses = useCallback(async (classIds: string[]) => ClassService.getStudentsInMultipleClassesService(classIds), []);
 
-  const addLearningMaterial = useCallback(async (materialData: Omit<LearningMaterial, 'id' | 'createdAt' | 'updatedAt'>, file?: File | null): Promise<string | null> => {
+  const addLearningMaterial = useCallback(async (materialData: Omit<LearningMaterial, 'id' | 'createdAt' | 'updatedAt' | 'originalFileName'>, file?: File | null): Promise<string | null> => {
     if (!currentUser || (currentUser.role !== 'teacher' && currentUser.role !== 'admin') || !currentUser.schoolId ) return null;
     
     let attachmentUrl: string | null = null;
@@ -676,6 +677,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         ...materialData,
         content: finalContent,
         attachmentUrl: attachmentUrl, 
+        originalFileName: originalFileNameForMaterial,
         teacherId: materialData.teacherId || currentUser.uid,
       };
       
@@ -742,7 +744,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const updateLearningMaterial = useCallback(async (
     materialId: string,
-    data: Partial<Omit<LearningMaterial, 'id' | 'createdAt' | 'updatedAt' | 'teacherId' | 'schoolId' | 'attachmentUrl'>>,
+    data: Partial<Omit<LearningMaterial, 'id' | 'createdAt' | 'updatedAt' | 'teacherId' | 'schoolId' | 'attachmentUrl' | 'originalFileName'>>,
     file?: File | null,
     existingAttachmentUrlForLogic?: string | null 
   ): Promise<boolean> => {
@@ -758,6 +760,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         console.error("Material not found for update");
         return false;
       }
+      originalFileNameForUpdate = materialDocBeforeUpdate.originalFileName || null; // Preserve existing original filename unless new file uploaded
 
       if (file && data.materialType === 'pdf_upload') {
         const uploadResult = await uploadFileToCloudinaryService(file);
@@ -770,13 +773,16 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           return false; 
         }
       } else if (data.materialType && data.materialType !== 'pdf_upload' && materialDocBeforeUpdate.materialType === 'pdf_upload') {
+        // If changing from PDF upload to another type, nullify attachment URL and original file name
         finalAttachmentUrl = null;
+        originalFileNameForUpdate = null;
       }
       
       const updatePayload: Partial<Omit<LearningMaterial, 'id' | 'createdAt' | 'updatedAt' | 'teacherId' | 'schoolId'>> = {
         ...data,
         content: finalContent, 
-        attachmentUrl: finalAttachmentUrl, 
+        attachmentUrl: finalAttachmentUrl,
+        originalFileName: originalFileNameForUpdate, 
       };
       
       const success = await MaterialService.updateLearningMaterialService(materialId, updatePayload); 
@@ -802,7 +808,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const getLearningMaterialsByClass = useCallback(async (classId: string) => MaterialService.getLearningMaterialsByClassService(classId), []);
   const getLearningMaterialById = useCallback(async (materialId: string) => MaterialService.getLearningMaterialByIdService(materialId), []);
 
-  const createAssignment = useCallback(async (assignmentData: Omit<Assignment, 'id' | 'createdAt' | 'updatedAt' | 'totalSubmissions'>, file?: File | null): Promise<string | null> => {
+  const createAssignment = useCallback(async (assignmentData: Omit<Assignment, 'id' | 'createdAt' | 'updatedAt' | 'totalSubmissions' | 'attachmentUrl' | 'originalFileName'>, file?: File | null): Promise<string | null> => {
     if (!currentUser || (currentUser.role !== 'teacher' && currentUser.role !== 'admin') || !currentUser.schoolId) return null;
     
     const dataToSave = { 
@@ -900,7 +906,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const updateAssignment = useCallback(async (
     assignmentId: string,
     assignmentTitle: string, 
-    data: Partial<Omit<Assignment, 'id' | 'createdAt' | 'updatedAt' | 'teacherId' | 'totalSubmissions' | 'schoolId'>>, 
+    data: Partial<Omit<Assignment, 'id' | 'createdAt' | 'updatedAt' | 'teacherId' | 'totalSubmissions' | 'schoolId' | 'attachmentUrl' | 'originalFileName'>>, 
     file?: File | null, 
     existingAttachmentUrlForLogic?: string | null 
   ): Promise<boolean> => {
@@ -1010,7 +1016,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }, [currentUser, addActivity, addNotification]);
   
   const addSubmission = useCallback(async (
-    submissionData: Omit<Submission, 'id' | 'submittedAt' | 'grade' | 'feedback' | 'status' | 'originalFileName'>,
+    submissionData: Omit<Submission, 'id' | 'submittedAt' | 'grade' | 'feedback' | 'status' | 'updatedAt' | 'originalFileName'>,
     file?: File | null
   ): Promise<{ submissionId: string, newStatus: Submission['status'], existingGrade?: string | number } | null> => {
     if (!currentUser?.uid || !currentUser.schoolId) return null;
@@ -1264,6 +1270,49 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const updateExamPeriod = useCallback(async (examPeriodId: string, data: Partial<ExamPeriod>) => ExamService.updateExamPeriodService(examPeriodId, data), []);
   const addOrUpdateExamResult = useCallback(async (resultData: Omit<ExamResult, 'id' | 'createdAt' | 'updatedAt'>) => ExamService.addOrUpdateExamResultService(resultData), []);
 
+  // Attendance Functions
+  const saveAttendanceRecords = useCallback(async (records: Omit<AttendanceRecord, 'id' | 'createdAt' | 'updatedAt'>[]): Promise<boolean> => {
+    if (!currentUser || currentUser.role !== 'teacher') return false;
+    const recordsWithTeacherInfo = records.map(r => ({
+        ...r,
+        markedBy: currentUser.uid,
+        markedByName: currentUser.displayName || 'Teacher',
+        schoolId: currentUser.schoolId!,
+    }));
+    const success = await AttendanceService.saveMultipleAttendanceRecordsService(recordsWithTeacherInfo);
+    if (success && records.length > 0 && currentUser?.schoolId && currentUser.displayName) {
+        const firstRecord = records[0];
+        const classInfo = await ClassService.getClassDetailsService(firstRecord.classId, UserService.getUserProfileService);
+        await addActivity({
+            schoolId: currentUser.schoolId,
+            actorId: currentUser.uid,
+            actorName: currentUser.displayName,
+            classId: firstRecord.classId,
+            type: 'attendance_marked',
+            message: `${currentUser.displayName} marked attendance for class "${classInfo?.name || 'N/A'}" on ${format(firstRecord.date.toDate(), 'PPP')}.`,
+            link: `/teacher/attendance` // Or a more specific link if available
+        });
+    }
+    return success;
+  }, [currentUser, addActivity]);
+
+  const getAttendanceForClassDate = useCallback(async (classId: string, date: Timestamp, schoolId: string): Promise<AttendanceRecord[]> => {
+    return AttendanceService.getAttendanceForClassByDateService(classId, date, schoolId);
+  }, []);
+
+  const getAttendanceForStudent = useCallback(async (studentId: string, schoolId: string, startDate: Timestamp, endDate: Timestamp): Promise<AttendanceRecord[]> => {
+    return AttendanceService.getAttendanceForStudentByDateRangeService(studentId, schoolId, startDate, endDate);
+  }, []);
+  
+  const getAttendanceForSchoolClassRange = useCallback(async (classId: string, schoolId: string, startDate: Timestamp, endDate: Timestamp): Promise<AttendanceRecord[]> => {
+    return AttendanceService.getAttendanceForClassByDateRangeService(classId, schoolId, startDate, endDate);
+  }, []);
+
+  const getAttendanceForSchoolRange = useCallback(async (schoolId: string, startDate: Timestamp, endDate: Timestamp): Promise<AttendanceRecord[]> => {
+    return AttendanceService.getAttendanceForSchoolByDateRangeService(schoolId, startDate, endDate);
+  }, []);
+
+
 
   const value: AuthContextType = useMemo(() => ({
     currentUser, 
@@ -1295,6 +1344,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     getActivities: ActivityService.getActivitiesService, addActivity,
     addNotification,
     linkChildAccount,
+    // Attendance
+    saveAttendanceRecords,
+    getAttendanceForClassDate,
+    getAttendanceForStudent,
+    getAttendanceForSchoolClassRange,
+    getAttendanceForSchoolRange,
   }), [
     currentUser, authProcessLoading, signUp, logIn, logOut, 
     createSchool, joinSchoolWithInviteCode, checkAdminOnboardingStatus, updateSchoolDetails, regenerateInviteCode,
@@ -1312,8 +1367,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     getClassesByIds,
     createSubject, updateSubject, deleteSubject,
     createExamPeriod, getExamPeriodsBySchool, getExamPeriodById, updateExamPeriod, addOrUpdateExamResult, getExamResultsForTeacher, getExamResultsForStudent, getExamResultsByPeriodAndClass,
-    addActivity, addNotification, linkChildAccount
+    addActivity, addNotification, linkChildAccount,
+    saveAttendanceRecords, getAttendanceForClassDate, getAttendanceForStudent, getAttendanceForSchoolClassRange, getAttendanceForSchoolRange
   ]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
+

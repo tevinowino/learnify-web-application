@@ -1,11 +1,12 @@
+
 "use client";
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Loader2, UserCheck, Users2, CalendarDays } from 'lucide-react';
-import type { ClassWithTeacherInfo, UserProfileWithId, AttendanceStatus } from '@/types';
+import { Loader2, UserCheck, Users2, CalendarDays, Save } from 'lucide-react';
+import type { ClassWithTeacherInfo, UserProfileWithId, AttendanceStatus, AttendanceRecord } from '@/types';
 import { useToast } from '@/hooks/use-toast';
 import {
   Select,
@@ -16,17 +17,13 @@ import {
 } from "@/components/ui/select";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
-import { format } from 'date-fns';
+import { format, startOfDay } from 'date-fns'; // Import startOfDay
 import { Label } from '@/components/ui/label';
-
-// Mock AttendanceRecord type for UI building
-interface MockAttendanceRecord {
-  studentId: string;
-  status: AttendanceStatus;
-}
+import { Timestamp } from 'firebase/firestore';
+import Loader from '@/components/shared/Loader';
 
 export default function TeacherAttendancePage() {
-  const { currentUser, getClassesByTeacher, getStudentsInClass, loading: authLoading } = useAuth();
+  const { currentUser, getClassesByTeacher, getStudentsInClass, saveAttendanceRecords, getAttendanceForClassDate, loading: authLoading } = useAuth();
   const { toast } = useToast();
   
   const [teacherClasses, setTeacherClasses] = useState<ClassWithTeacherInfo[]>([]);
@@ -38,59 +35,77 @@ export default function TeacherAttendancePage() {
   const [isLoadingData, setIsLoadingData] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  useEffect(() => {
-    const fetchClasses = async () => {
-      if (currentUser?.uid) {
-        setIsLoadingData(true);
-        const classes = await getClassesByTeacher(currentUser.uid);
-        setTeacherClasses(classes);
-        if (classes.length > 0) {
-          // setSelectedClassId(classes[0].id); // Optionally pre-select first class
-        }
-        setIsLoadingData(false);
-      }
-    };
-    if (!authLoading) fetchClasses();
-  }, [currentUser, getClassesByTeacher, authLoading]);
+  const fetchTeacherClasses = useCallback(async () => {
+    if (currentUser?.uid) {
+      setIsLoadingData(true);
+      const classes = await getClassesByTeacher(currentUser.uid);
+      setTeacherClasses(classes);
+      setIsLoadingData(false);
+    }
+  }, [currentUser, getClassesByTeacher]);
 
   useEffect(() => {
-    const fetchStudents = async () => {
-      if (selectedClassId) {
-        setIsLoadingData(true);
-        const students = await getStudentsInClass(selectedClassId);
-        setStudentsInSelectedClass(students);
-        // Reset records when class changes
-        const initialRecords: Record<string, AttendanceStatus> = {};
-        students.forEach(s => initialRecords[s.id] = 'present'); // Default to present
-        setAttendanceRecords(initialRecords);
-        setIsLoadingData(false);
-      } else {
-        setStudentsInSelectedClass([]);
-        setAttendanceRecords({});
-      }
-    };
-    fetchStudents();
-  }, [selectedClassId, getStudentsInClass]);
+    if (!authLoading) fetchTeacherClasses();
+  }, [authLoading, fetchTeacherClasses]);
+
+  const fetchStudentsAndPrevAttendance = useCallback(async () => {
+    if (selectedClassId && attendanceDate && currentUser?.schoolId) {
+      setIsLoadingData(true);
+      const [students, prevRecords] = await Promise.all([
+        getStudentsInClass(selectedClassId),
+        getAttendanceForClassDate(selectedClassId, Timestamp.fromDate(startOfDay(attendanceDate)), currentUser.schoolId)
+      ]);
+      setStudentsInSelectedClass(students);
+      
+      const initialRecords: Record<string, AttendanceStatus> = {};
+      students.forEach(s => {
+        const existingRecord = prevRecords.find(pr => pr.studentId === s.id);
+        initialRecords[s.id] = existingRecord?.status || 'present'; // Default to present or existing
+      });
+      setAttendanceRecords(initialRecords);
+      setIsLoadingData(false);
+    } else {
+      setStudentsInSelectedClass([]);
+      setAttendanceRecords({});
+    }
+  }, [selectedClassId, attendanceDate, currentUser?.schoolId, getStudentsInClass, getAttendanceForClassDate]);
+
+  useEffect(() => {
+    fetchStudentsAndPrevAttendance();
+  }, [fetchStudentsAndPrevAttendance]);
+
 
   const handleStatusChange = (studentId: string, status: AttendanceStatus) => {
     setAttendanceRecords(prev => ({ ...prev, [studentId]: status }));
   };
 
   const handleSubmitAttendance = async () => {
-    if (!selectedClassId || !attendanceDate || Object.keys(attendanceRecords).length === 0) {
-      toast({ title: "Missing Information", description: "Please select a class, date, and mark attendance for students.", variant: "destructive" });
+    if (!selectedClassId || !attendanceDate || Object.keys(attendanceRecords).length === 0 || !currentUser?.uid || !currentUser.schoolId || !currentUser.displayName) {
+      toast({ title: "Missing Information", description: "Please select a class, date, and ensure student statuses are set.", variant: "destructive" });
       return;
     }
     setIsSubmitting(true);
-    // TODO: Implement actual service call to save attendance records
-    // For each student in attendanceRecords:
-    // await saveAttendanceRecord({ studentId, classId: selectedClassId, date: attendanceDate, status, markedBy: currentUser.uid });
-    console.log("Submitting Attendance:", { classId: selectedClassId, date: attendanceDate, records: attendanceRecords });
-    await new Promise(resolve => setTimeout(resolve, 1500)); // Simulate API call
     
-    toast({ title: "Attendance Submitted!", description: `Attendance for ${teacherClasses.find(c=>c.id===selectedClassId)?.name} on ${format(attendanceDate, 'PPP')} has been recorded.` });
+    const recordsToSave: Omit<AttendanceRecord, 'id' | 'createdAt' | 'updatedAt'>[] = studentsInSelectedClass.map(student => ({
+      studentId: student.id,
+      studentName: student.displayName || 'N/A',
+      classId: selectedClassId,
+      className: teacherClasses.find(c=>c.id===selectedClassId)?.name || 'N/A',
+      schoolId: currentUser.schoolId!,
+      date: Timestamp.fromDate(startOfDay(attendanceDate)), // Store date as Firestore Timestamp at start of day
+      status: attendanceRecords[student.id] || 'present', // Default to present if somehow missing
+      markedBy: currentUser.uid,
+      markedByName: currentUser.displayName,
+    }));
+
+    const success = await saveAttendanceRecords(recordsToSave);
+    
+    if (success) {
+      toast({ title: "Attendance Submitted!", description: `Attendance for ${teacherClasses.find(c=>c.id===selectedClassId)?.name} on ${format(attendanceDate, 'PPP')} has been recorded.` });
+    } else {
+      toast({ title: "Submission Failed", description: "Could not save attendance records.", variant: "destructive" });
+    }
     setIsSubmitting(false);
-    // Optionally reset or fetch latest attendance status for the day
   };
 
   const isLoading = authLoading || isLoadingData;
@@ -106,9 +121,9 @@ export default function TeacherAttendancePage() {
         <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <Label htmlFor="class-select">Class</Label>
-            <Select onValueChange={setSelectedClassId} value={selectedClassId} disabled={isLoading}>
+            <Select onValueChange={setSelectedClassId} value={selectedClassId} disabled={isLoading || teacherClasses.length === 0}>
               <SelectTrigger id="class-select">
-                <SelectValue placeholder="Select a class..." />
+                <SelectValue placeholder={teacherClasses.length === 0 ? "No classes assigned" : "Select a class..."} />
               </SelectTrigger>
               <SelectContent>
                 {teacherClasses.map(cls => (
@@ -152,13 +167,13 @@ export default function TeacherAttendancePage() {
             <CardDescription>Mark attendance for {teacherClasses.find(c=>c.id===selectedClassId)?.name} on {format(attendanceDate, 'PPP')}.</CardDescription>
           </CardHeader>
           <CardContent>
-            {isLoading ? <Loader2 className="mx-auto h-8 w-8 animate-spin text-primary"/> : 
+            {isLoading ? <div className="flex justify-center py-4"><Loader message="Loading students..." /></div> : 
               studentsInSelectedClass.length === 0 ? (
-                <p className="text-muted-foreground">No students in this class, or class not selected.</p>
+                <p className="text-muted-foreground text-center py-4">No students in this class, or class not selected.</p>
               ) : (
                 <div className="space-y-3">
                   {studentsInSelectedClass.map(student => (
-                    <div key={student.id} className="flex flex-col sm:flex-row items-center justify-between p-3 border rounded-md">
+                    <div key={student.id} className="flex flex-col sm:flex-row items-center justify-between p-3 border rounded-md hover:bg-muted/50 transition-colors">
                       <span className="font-medium mb-2 sm:mb-0">{student.displayName}</span>
                       <Select 
                         onValueChange={(value) => handleStatusChange(student.id, value as AttendanceStatus)} 
@@ -177,9 +192,9 @@ export default function TeacherAttendancePage() {
                       </Select>
                     </div>
                   ))}
-                  <Button onClick={handleSubmitAttendance} disabled={isSubmitting || studentsInSelectedClass.length === 0} className="w-full mt-4 button-shadow">
+                  <Button onClick={handleSubmitAttendance} disabled={isSubmitting || isLoading || studentsInSelectedClass.length === 0} className="w-full mt-4 button-shadow">
                     {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}
-                    <UserCheck className="mr-2 h-4 w-4"/> Submit Attendance
+                    <Save className="mr-2 h-4 w-4"/> Submit Attendance
                   </Button>
                 </div>
               )
@@ -190,3 +205,4 @@ export default function TeacherAttendancePage() {
     </div>
   );
 }
+

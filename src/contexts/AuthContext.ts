@@ -2,14 +2,14 @@
 "use client";
 import type { ReactNode }from 'react';
 import { createContext } from 'react';
-import type { UserProfile, UserRole, School, LearningMaterial, UserProfileWithId, Class, ClassWithTeacherInfo, LearningMaterialWithTeacherInfo, Assignment, Submission, SubmissionFormat, LearningMaterialType, AssignmentWithClassInfo, SubmissionWithStudentName, AssignmentWithClassAndSubmissionInfo, UserStatus, Activity, Subject, ExamPeriod, ExamPeriodWithClassNames, ExamResult, ExamResultWithStudentInfo, ClassType, Notification } from '@/types'; // Added Notification type
+import type { UserProfile, UserRole, School, LearningMaterial, UserProfileWithId, Class, ClassWithTeacherInfo, LearningMaterialWithTeacherInfo, Assignment, Submission, SubmissionFormat, LearningMaterialType, AssignmentWithClassInfo, SubmissionWithStudentName, AssignmentWithClassAndSubmissionInfo, UserStatus, Activity, Subject, ExamPeriod, ExamPeriodWithClassNames, ExamResult, ExamResultWithStudentInfo, ClassType, Notification, AttendanceRecord, AttendanceStatus } from '@/types'; // Added Attendance types
 import type { getClassDetailsService as GetClassDetailsServiceType } from '@/services/classService';
 
 // This will be the full type provided by the AuthProvider
 export interface AuthContextType {
   currentUser: UserProfile | null;
   loading: boolean;
-  signUp: (email: string, pass: string, role: UserRole, displayName: string, schoolIdToJoin?: string, schoolName?: string) => Promise<UserProfile | null>;
+  signUp: (email: string, pass: string, role: UserRole, displayName: string, schoolIdToJoin?: string, schoolName?: string, childStudentId?: string) => Promise<UserProfile | null>;
   logIn: (email: string, pass: string) => Promise<UserProfile | null>;
   logOut: () => Promise<void>;
   
@@ -53,28 +53,28 @@ export interface AuthContextType {
   getStudentsInMultipleClasses: (classIds: string[]) => Promise<UserProfileWithId[]>;
 
   // Teacher Material Management
-  addLearningMaterial: (materialData: Omit<LearningMaterial, 'id' | 'createdAt' | 'updatedAt'>, file?: File | null) => Promise<string | null>;
+  addLearningMaterial: (materialData: Omit<LearningMaterial, 'id' | 'createdAt' | 'updatedAt' | 'originalFileName'>, file?: File | null) => Promise<string | null>;
   getLearningMaterialsByTeacher: (teacherId: string, classId?: string) => Promise<LearningMaterial[]>;
   getLearningMaterialsBySchool: (schoolId: string) => Promise<LearningMaterialWithTeacherInfo[]>; 
   getLearningMaterialsByClass: (classId: string) => Promise<LearningMaterial[]>;
   deleteLearningMaterial: (materialId: string, materialTitle: string) => Promise<boolean>;
   updateLearningMaterial: (
     materialId: string,
-    data: Partial<Omit<LearningMaterial, 'id' | 'createdAt' | 'updatedAt' | 'teacherId' | 'schoolId' | 'attachmentUrl'>>,
+    data: Partial<Omit<LearningMaterial, 'id' | 'createdAt' | 'updatedAt' | 'teacherId' | 'schoolId' | 'attachmentUrl' | 'originalFileName'>>,
     file?: File | null,
     existingAttachmentUrl?: string | null
   ) => Promise<boolean>;
   getLearningMaterialById: (materialId: string) => Promise<LearningMaterial | null>;
 
   // Teacher Assignment Management
-  createAssignment: (assignmentData: Omit<Assignment, 'id' | 'createdAt' | 'updatedAt' | 'totalSubmissions'>, file?: File | null) => Promise<string | null>;
+  createAssignment: (assignmentData: Omit<Assignment, 'id' | 'createdAt' | 'updatedAt' | 'totalSubmissions' | 'attachmentUrl' | 'originalFileName'>, file?: File | null) => Promise<string | null>;
   getAssignmentsByTeacher: (teacherId: string, classId?: string) => Promise<AssignmentWithClassInfo[]>;
   getAssignmentsByClass: (classId: string) => Promise<Assignment[]>;
   getAssignmentById: (assignmentId: string, studentId?: string) => Promise<AssignmentWithClassAndSubmissionInfo | null>;
   updateAssignment: (
     assignmentId: string, 
     assignmentTitle: string, 
-    data: Partial<Omit<Assignment, 'id' | 'createdAt' | 'updatedAt' | 'teacherId' | 'totalSubmissions' | 'attachmentUrl' | 'schoolId'>>, 
+    data: Partial<Omit<Assignment, 'id' | 'createdAt' | 'updatedAt' | 'teacherId' | 'totalSubmissions' | 'attachmentUrl' | 'originalFileName' | 'schoolId'>>, 
     file?: File | null,
     existingAttachmentUrl?: string | null
   ) => Promise<boolean>;
@@ -86,7 +86,7 @@ export interface AuthContextType {
 
   // Student specific functions
   getSubmissionByStudentForAssignment: (assignmentId: string, studentId: string) => Promise<Submission | null>;
-  addSubmission: (submissionData: Omit<Submission, 'id' | 'submittedAt' | 'grade' | 'feedback' | 'status' | 'originalFileName'>, file?: File | null) => Promise<{ submissionId: string, newStatus: Submission['status'], existingGrade?: string | number } | null>;
+  addSubmission: (submissionData: Omit<Submission, 'id' | 'submittedAt' | 'grade' | 'feedback' | 'status' | 'updatedAt' | 'originalFileName'>, file?: File | null) => Promise<{ submissionId: string, newStatus: Submission['status'], existingGrade?: string | number } | null>;
   getAssignmentsForStudentByClass: (classId: string, studentId: string) => Promise<AssignmentWithClassAndSubmissionInfo[]>;
   getClassesByIds: (classIds: string[]) => Promise<ClassWithTeacherInfo[]>;
   joinClassWithCode: (classCode: string, studentId: string) => Promise<boolean>;
@@ -124,6 +124,13 @@ export interface AuthContextType {
 
   // Parent Specific
   linkChildAccount: (studentIdToLink: string) => Promise<boolean>;
+
+  // Attendance Management
+  saveAttendanceRecords: (records: Omit<AttendanceRecord, 'id' | 'createdAt' | 'updatedAt'>[]) => Promise<boolean>;
+  getAttendanceForClassDate: (classId: string, date: Timestamp, schoolId: string) => Promise<AttendanceRecord[]>;
+  getAttendanceForStudent: (studentId: string, schoolId: string, startDate: Timestamp, endDate: Timestamp) => Promise<AttendanceRecord[]>;
+  getAttendanceForSchoolClassRange: (classId: string, schoolId: string, startDate: Timestamp, endDate: Timestamp) => Promise<AttendanceRecord[]>; // For Admin class view
+  getAttendanceForSchoolRange: (schoolId: string, startDate: Timestamp, endDate: Timestamp) => Promise<AttendanceRecord[]>; // For Admin school-wide view
 }
 
 export const AuthContext = createContext<AuthContextType | undefined>(undefined);

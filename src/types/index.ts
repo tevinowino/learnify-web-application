@@ -51,6 +51,7 @@ export interface LearningMaterial {
   classId?: string | null; 
   subjectId?: string | null; 
   attachmentUrl?: string | null; 
+  originalFileName?: string | null;
   createdAt: Timestamp;
   updatedAt?: Timestamp;
 }
@@ -98,7 +99,7 @@ export interface Assignment {
   allowedSubmissionFormats: SubmissionFormat[];
   subjectId?: string | null;
   attachmentUrl?: string | null;
-  originalFileName?: string | null; // Added for Cloudinary
+  originalFileName?: string | null;
   createdAt: Timestamp;
   updatedAt?: Timestamp;
   totalSubmissions?: number; 
@@ -128,6 +129,7 @@ export interface Submission {
   grade?: string | number;
   feedback?: string;
   status: 'submitted' | 'graded' | 'late'; 
+  updatedAt?: Timestamp; // Added for consistency
 }
 
 export interface SubmissionWithStudentName extends Submission {
@@ -220,6 +222,7 @@ export interface Activity {
     | 'exam_results_entered'
     | 'school_settings_updated'
     | 'invite_code_regenerated'
+    | 'parent_linked_child' // Added for parent linking
     | 'general_announcement'; 
   message: string; 
   link?: string; 
@@ -229,19 +232,24 @@ export interface Activity {
 export type AttendanceStatus = 'present' | 'absent' | 'late' | 'excused';
 
 export interface AttendanceRecord {
-  id: string;
+  id: string; // Document ID
   studentId: string;
+  studentName?: string; // Denormalized for easier display
   classId: string;
+  className?: string; // Denormalized
   schoolId: string;
-  date: Timestamp; 
+  date: Timestamp; // Specific date of attendance
   status: AttendanceStatus;
-  markedBy: string; 
+  markedBy: string; // Teacher's UID
+  markedByName?: string; // Teacher's display name
   createdAt: Timestamp;
+  updatedAt: Timestamp;
 }
 
 export interface Notification {
   id: string;
   userId: string; 
+  schoolId: string;
   message: string;
   link?: string; 
   isRead: boolean;
