@@ -1,3 +1,4 @@
+
 "use client";
 import type { ReactNode }from 'react';
 import { createContext } from 'react';
@@ -119,7 +120,10 @@ export interface AuthContextType {
   addActivity: (activityData: Omit<Activity, 'id' | 'timestamp'>) => Promise<string | null>;
 
   // Notification Management
-  addNotification: (notificationData: Omit<Notification, 'id' | 'createdAt' | 'isRead'>) => Promise<string | null>; // Added
+  addNotification: (notificationData: Omit<Notification, 'id' | 'createdAt' | 'isRead'>) => Promise<string | null>; 
+
+  // Parent Specific
+  linkChildAccount: (studentIdToLink: string) => Promise<boolean>;
 }
 
 export const AuthContext = createContext<AuthContextType | undefined>(undefined);

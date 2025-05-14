@@ -2,47 +2,100 @@
 "use client";
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from './useAuth';
-// Import necessary types
-// import type { UserProfileWithId, AssignmentWithClassAndSubmissionInfo, ExamResult } from '@/types';
+import type { UserProfileWithId, AssignmentWithClassAndSubmissionInfo, ExamResultWithStudentInfo, Activity as ActivityType } from '@/types';
+import { useToast } from './use-toast'; 
 
 export function useParentDashboard() {
-  const { currentUser, loading: authLoading } = useAuth();
-  // const [childData, setChildData] = useState<UserProfileWithId | null>(null);
-  // const [childAssignments, setChildAssignments] = useState<AssignmentWithClassAndSubmissionInfo[]>([]);
-  // const [childExamResults, setChildExamResults] = useState<ExamResult[]>([]);
+  const { 
+    currentUser, 
+    getUserProfile, 
+    getAssignmentsForStudentByClass, 
+    getExamResultsForStudent,
+    getActivities,
+    getClassesByIds, 
+    loading: authLoading 
+  } = useAuth();
+  const { toast } = useToast();
+
+  const [childProfile, setChildProfile] = useState<UserProfileWithId | null>(null);
+  const [upcomingAssignmentsCount, setUpcomingAssignmentsCount] = useState(0);
+  const [recentGradesCount, setRecentGradesCount] = useState(0); 
+  const [attendanceIssuesCount, setAttendanceIssuesCount] = useState(0); 
+  const [recentActivities, setRecentActivities] = useState<ActivityType[]>([]);
   const [isLoadingData, setIsLoadingData] = useState(true);
 
   const fetchDashboardData = useCallback(async () => {
-    if (!currentUser?.childStudentId) {
+    if (!currentUser?.childStudentId || !currentUser.schoolId) {
       setIsLoadingData(false);
+      setChildProfile(null); 
+      setUpcomingAssignmentsCount(0);
+      setRecentGradesCount(0);
+      setAttendanceIssuesCount(0);
+      setRecentActivities([]);
       return;
     }
     setIsLoadingData(true);
     try {
-      // TODO: Implement fetching logic for child's data, assignments, results
-      // e.g., const child = await getStudentProfile(currentUser.childStudentId);
-      // const assignments = await getAssignmentsForStudent(currentUser.childStudentId);
-      // setChildData(child);
-      // setChildAssignments(assignments);
-      // setChildExamResults(results);
-      console.log("Fetching parent dashboard data for child:", currentUser.childStudentId);
+      const child = await getUserProfile(currentUser.childStudentId);
+      setChildProfile(child);
+
+      if (child && child.classIds && child.classIds.length > 0 && child.schoolId) {
+        const childClasses = await getClassesByIds(child.classIds);
+        let allChildAssignments: AssignmentWithClassAndSubmissionInfo[] = [];
+        for (const cls of childClasses) {
+          const classAssignments = await getAssignmentsForStudentByClass(cls.id, child.uid);
+          allChildAssignments = [...allChildAssignments, ...classAssignments];
+        }
+        
+        const now = new Date();
+        const upcoming = allChildAssignments.filter(a => 
+          a.deadline.toDate() >= now && 
+          a.submissionStatus !== 'graded' && 
+          a.submissionStatus !== 'submitted'
+        );
+        setUpcomingAssignmentsCount(upcoming.length);
+
+        const results = await getExamResultsForStudent(child.uid, child.schoolId);
+        setRecentGradesCount(results.filter(r => r.marks).length); 
+
+        // Placeholder for attendance
+        setAttendanceIssuesCount(0); 
+
+        const activities = await getActivities(child.schoolId, { targetUserId: child.uid, type: undefined }, 5); // Fetch activities targeting the child
+        setRecentActivities(activities);
+
+      } else {
+        setUpcomingAssignmentsCount(0);
+        setRecentGradesCount(0);
+        setAttendanceIssuesCount(0);
+        setRecentActivities([]);
+      }
+
     } catch (error) {
       console.error("Error fetching parent dashboard data:", error);
+      toast({ title: "Error", description: "Could not load child's dashboard data.", variant: "destructive" });
     } finally {
       setIsLoadingData(false);
     }
-  }, [currentUser]);
+  }, [currentUser, getUserProfile, getClassesByIds, getAssignmentsForStudentByClass, getExamResultsForStudent, getActivities, toast]);
 
   useEffect(() => {
     if (currentUser && !authLoading) {
       fetchDashboardData();
+    } else if (!authLoading && !currentUser?.childStudentId) {
+        // If user is loaded but no child is linked, stop loading state for dashboard data
+        setIsLoadingData(false);
+        setChildProfile(null);
     }
   }, [currentUser, authLoading, fetchDashboardData]);
 
   return {
-    // childData,
-    // childAssignments,
-    // childExamResults,
+    childProfile,
+    upcomingAssignmentsCount,
+    recentGradesCount,
+    attendanceIssuesCount,
+    recentActivities,
     isLoading: authLoading || isLoadingData,
   };
 }
+

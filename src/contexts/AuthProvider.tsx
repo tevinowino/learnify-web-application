@@ -32,12 +32,14 @@ import { uploadFileToCloudinaryService } from '@/services/fileUploadService';
 import { AuthContext, type AuthContextType } from './AuthContext';
 import { sendEmail } from '@/actions/emailActions';
 import { format } from 'date-fns';
+import { useToast } from '@/hooks/use-toast';
 
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
   const [authProcessLoading, setAuthProcessLoading] = useState(true);
   const router = useRouter(); 
+  const { toast } = useToast();
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
@@ -769,13 +771,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const createAssignment = useCallback(async (assignmentData: Omit<Assignment, 'id' | 'createdAt' | 'updatedAt' | 'totalSubmissions'>, file?: File | null): Promise<string | null> => {
     if (!currentUser || (currentUser.role !== 'teacher' && currentUser.role !== 'admin') || !currentUser.schoolId) return null;
     
-    // Teachers only create text-based assignments now
     const dataToSave = { 
       ...assignmentData, 
       teacherId: currentUser.uid, 
       schoolId: currentUser.schoolId, 
-      attachmentUrl: null, // No attachment from teacher
-      originalFileName: null, // No attachment from teacher
+      attachmentUrl: null, 
+      originalFileName: null, 
     };
 
     try {
@@ -866,13 +867,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     assignmentId: string,
     assignmentTitle: string, 
     data: Partial<Omit<Assignment, 'id' | 'createdAt' | 'updatedAt' | 'teacherId' | 'totalSubmissions' | 'schoolId'>>, 
-    file?: File | null, // This will be undefined/null due to new requirement
-    existingAttachmentUrlForLogic?: string | null // This will be null due to new requirement
+    file?: File | null, 
+    existingAttachmentUrlForLogic?: string | null 
   ): Promise<boolean> => {
     if (!currentUser || (currentUser.role !== 'teacher' && currentUser.role !== 'admin') || !currentUser.schoolId) return false;
   
     try {
-      const assignmentDocBeforeUpdate = await AssignmentService.getAssignmentByIdService(assignmentId, ClassService.getClassDetailsService);
+      const assignmentDocBeforeUpdate = await AssignmentService.getAssignmentByIdService(assignmentId, ClassService.getClassDetailsService); 
       if (!assignmentDocBeforeUpdate) {
         console.error("Assignment not found for update in AuthProvider");
         return false;
@@ -880,8 +881,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   
       const updatePayload: Partial<Omit<Assignment, 'id' | 'createdAt' | 'updatedAt' | 'teacherId' | 'schoolId'>> = {
         ...data,
-        attachmentUrl: null, // Ensure this is always null for text-only teacher assignments
-        originalFileName: null, // Ensure this is always null
+        attachmentUrl: null, 
+        originalFileName: null, 
       };
       
       const success = await AssignmentService.updateAssignmentService(assignmentId, updatePayload);
@@ -1158,6 +1159,67 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         return success;
     } catch (error) { return false; }
   }, [currentUser, addActivity]);
+
+  const linkChildAccount = useCallback(async (studentIdToLink: string): Promise<boolean> => {
+    if (!currentUser || currentUser.role !== 'parent') {
+      toast({ title: "Unauthorized", description: "Only parents can link child accounts.", variant: "destructive" });
+      return false;
+    }
+    if (!studentIdToLink.trim()) {
+        toast({ title: "Student ID Required", description: "Please enter your child's Student ID.", variant: "destructive" });
+        return false;
+    }
+    setAuthProcessLoading(true);
+    try {
+      const studentProfile = await UserService.getUserProfileService(studentIdToLink);
+      if (!studentProfile) {
+        toast({ title: "Student Not Found", description: "No student found with that ID. Please check the ID and try again.", variant: "destructive" });
+        return false;
+      }
+      if (studentProfile.role !== 'student') {
+        toast({ title: "Not a Student Account", description: "The ID provided does not belong to a student account.", variant: "destructive" });
+        return false;
+      }
+      if (!studentProfile.schoolId) {
+        toast({ title: "Student Not Enrolled", description: "This student is not yet fully enrolled in a school.", variant: "destructive" });
+        return false;
+      }
+
+      const parentRef = doc(db, "users", currentUser.uid);
+      await updateDoc(parentRef, {
+        childStudentId: studentIdToLink,
+        schoolId: studentProfile.schoolId,
+        schoolName: studentProfile.schoolName,
+        updatedAt: Timestamp.now()
+      });
+
+      setCurrentUser(prev => prev ? ({ 
+        ...prev, 
+        childStudentId: studentIdToLink,
+        schoolId: studentProfile.schoolId, 
+        schoolName: studentProfile.schoolName 
+      }) : null);
+      
+      if (studentProfile.schoolId && currentUser.displayName && studentProfile.displayName) {
+        await ActivityService.addActivityService({
+            schoolId: studentProfile.schoolId,
+            actorId: currentUser.uid,
+            actorName: currentUser.displayName,
+            targetUserId: studentIdToLink,
+            targetUserName: studentProfile.displayName,
+            type: 'parent_linked_child',
+            message: `${currentUser.displayName} linked their account to student ${studentProfile.displayName}.`
+        });
+      }
+      return true;
+    } catch (error) {
+      console.error("Error linking child account:", error);
+      toast({ title: "Linking Failed", description: "An unexpected error occurred. Please try again.", variant: "destructive" });
+      return false;
+    } finally {
+      setAuthProcessLoading(false);
+    }
+  }, [currentUser, setCurrentUser, toast, setAuthProcessLoading]);
   
   const getExamPeriodsBySchool = useCallback(async (schoolId: string) => ExamService.getExamPeriodsBySchoolService(schoolId, ClassService.getClassDetailsService), []);
   const getExamPeriodById = useCallback(async (examPeriodId: string) => ExamService.getExamPeriodByIdService(examPeriodId, ClassService.getClassDetailsService), []);
@@ -1197,7 +1259,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     getExamResultsForStudent,
     getExamResultsByPeriodAndClass,
     getActivities: ActivityService.getActivitiesService, addActivity,
-    addNotification
+    addNotification,
+    linkChildAccount,
   }), [
     currentUser, authProcessLoading, signUp, logIn, logOut, 
     createSchool, joinSchoolWithInviteCode, checkAdminOnboardingStatus, updateSchoolDetails, regenerateInviteCode,
@@ -1215,9 +1278,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     getClassesByIds,
     createSubject, updateSubject, deleteSubject,
     createExamPeriod, getExamPeriodsBySchool, getExamPeriodById, updateExamPeriod, addOrUpdateExamResult, getExamResultsForTeacher, getExamResultsForStudent, getExamResultsByPeriodAndClass,
-    addActivity, addNotification
+    addActivity, addNotification, linkChildAccount
   ]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
-

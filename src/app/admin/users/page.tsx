@@ -5,26 +5,43 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { PlusCircle, Users } from 'lucide-react';
-import type { UserProfileWithId } from '@/types';
+import { PlusCircle, Users, Filter } from 'lucide-react'; // Added Filter
+import type { UserProfileWithId, UserRole } from '@/types';
 import Link from 'next/link';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from '@/hooks/use-toast';
 import UserTable from './components/UserTable';
-import Loader from '@/components/shared/Loader'; // Import new Loader
+import Loader from '@/components/shared/Loader'; 
+import { Input } from '@/components/ui/input'; // Added Input for search
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"; // Added Select for role filter
 
 export default function ManageUsersPage() {
   const { currentUser, getUsersBySchool, approveUserForSchool, updateUserRoleAndSchool, loading: authLoading } = useAuth();
   const { toast } = useToast();
-  const [users, setUsers] = useState<UserProfileWithId[]>([]);
+  const [allSchoolUsers, setAllSchoolUsers] = useState<UserProfileWithId[]>([]);
+  const [filteredUsers, setFilteredUsers] = useState<UserProfileWithId[]>([]);
   const [isLoadingUsers, setIsLoadingUsers] = useState(true);
   const [isProcessingUser, setIsProcessingUser] = useState<string | null>(null);
+
+  const [searchTerm, setSearchTerm] = useState('');
+  const [roleFilter, setRoleFilter] = useState<UserRole | 'all'>('all');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'pending_verification' | 'rejected' | 'disabled'>('all');
+
 
   const fetchUsers = useCallback(async () => {
     if (currentUser?.schoolId) {
       setIsLoadingUsers(true);
       const schoolUsers = await getUsersBySchool(currentUser.schoolId);
-      setUsers(schoolUsers);
+      setAllSchoolUsers(schoolUsers);
+      // Apply initial filters (or no filters if 'all' is default)
+      // For now, setFilteredUsers to all users and let useEffect handle filtering
+      setFilteredUsers(schoolUsers); 
       setIsLoadingUsers(false);
     } else if (!authLoading) {
       setIsLoadingUsers(false);
@@ -36,6 +53,25 @@ export default function ManageUsersPage() {
       fetchUsers();
     }
   }, [currentUser, fetchUsers]);
+
+  // Effect for filtering based on search term, role, or status
+  useEffect(() => {
+    let tempUsers = [...allSchoolUsers];
+    if (searchTerm) {
+      tempUsers = tempUsers.filter(user =>
+        user.displayName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        user.email?.toLowerCase().includes(searchTerm.toLowerCase())
+      );
+    }
+    if (roleFilter !== 'all') {
+      tempUsers = tempUsers.filter(user => user.role === roleFilter);
+    }
+    if (statusFilter !== 'all') {
+        tempUsers = tempUsers.filter(user => (user.status || 'active') === statusFilter);
+    }
+    setFilteredUsers(tempUsers);
+  }, [searchTerm, roleFilter, statusFilter, allSchoolUsers]);
+
 
   const handleApproveUser = async (userId: string, schoolId: string) => {
     setIsProcessingUser(userId);
@@ -64,7 +100,7 @@ export default function ManageUsersPage() {
 
   const pageLoading = authLoading || isLoadingUsers;
 
-  if (pageLoading && !users.length) {
+  if (pageLoading && !allSchoolUsers.length) {
     return (
       <div className="flex h-full items-center justify-center">
         <Loader message="Loading users..." size="large" />
@@ -85,8 +121,10 @@ export default function ManageUsersPage() {
     );
   }
   
-  const activeUsers = users.filter(user => user.status === 'active' || !user.status);
-  const pendingUsers = users.filter(user => user.status === 'pending_verification');
+  const activeUsers = filteredUsers.filter(user => (user.status === 'active' || !user.status) && user.status !== 'rejected');
+  const pendingUsers = filteredUsers.filter(user => user.status === 'pending_verification');
+  const otherUsers = filteredUsers.filter(user => user.status === 'rejected' || user.status === 'disabled'); // For a potential "Others" tab
+
 
   return (
     <div className="space-y-6">
@@ -99,13 +137,48 @@ export default function ManageUsersPage() {
         </Button>
       </div>
 
+      <Card className="card-shadow">
+        <CardHeader>
+            <CardTitle className="flex items-center"><Filter className="mr-2 h-5 w-5 text-primary"/>Filter & Search Users</CardTitle>
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 pt-2">
+                <Input 
+                    placeholder="Search by name or email..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                />
+                <Select onValueChange={(value) => setRoleFilter(value as UserRole | 'all')} value={roleFilter}>
+                    <SelectTrigger><SelectValue placeholder="Filter by Role" /></SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="all">All Roles</SelectItem>
+                        <SelectItem value="admin">Admin</SelectItem>
+                        <SelectItem value="teacher">Teacher</SelectItem>
+                        <SelectItem value="student">Student</SelectItem>
+                        <SelectItem value="parent">Parent</SelectItem>
+                    </SelectContent>
+                </Select>
+                 <Select onValueChange={(value) => setStatusFilter(value as 'all' | 'active' | 'pending_verification' | 'rejected' | 'disabled')} value={statusFilter}>
+                    <SelectTrigger><SelectValue placeholder="Filter by Status" /></SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="all">All Statuses</SelectItem>
+                        <SelectItem value="active">Active</SelectItem>
+                        <SelectItem value="pending_verification">Pending Verification</SelectItem>
+                        <SelectItem value="rejected">Rejected</SelectItem>
+                        <SelectItem value="disabled">Disabled</SelectItem>
+                    </SelectContent>
+                </Select>
+            </div>
+        </CardHeader>
+      </Card>
+
+
       <Tabs defaultValue="active_users" className="w-full">
-        <TabsList className="grid w-full grid-cols-1 sm:grid-cols-2 h-auto sm:h-10">
+        <TabsList className="grid w-full grid-cols-1 sm:grid-cols-2 md:grid-cols-3 h-auto">
           <TabsTrigger value="active_users" className="py-2 sm:py-1.5">Active Users ({activeUsers.length})</TabsTrigger>
           <TabsTrigger value="pending_verification" className="py-2 sm:py-1.5">
             Pending Verification ({pendingUsers.length})
             {pendingUsers.length > 0 && <span className="ml-2 inline-flex items-center justify-center w-2 h-2 rounded-full bg-destructive"></span>}
           </TabsTrigger>
+          <TabsTrigger value="other_users" className="py-2 sm:py-1.5">Other Statuses ({otherUsers.length})</TabsTrigger>
         </TabsList>
         
         <TabsContent value="active_users">
@@ -120,7 +193,7 @@ export default function ManageUsersPage() {
               ) : activeUsers.length === 0 ? (
                 <div className="text-center py-8">
                   <Users className="mx-auto h-12 w-12 text-muted-foreground" />
-                  <p className="mt-4 text-muted-foreground">No active users found in your school yet.</p>
+                  <p className="mt-4 text-muted-foreground">No active users match your filters.</p>
                 </div>
               ) : (
                 <UserTable 
@@ -162,7 +235,33 @@ export default function ManageUsersPage() {
             </CardContent>
           </Card>
         </TabsContent>
+         <TabsContent value="other_users">
+          <Card className="card-shadow mt-4">
+            <CardHeader>
+              <CardTitle>Other User Statuses</CardTitle>
+              <CardDescription>Users who are rejected or disabled.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {pageLoading && otherUsers.length === 0 ? (
+                <div className="flex justify-center py-8"><Loader /></div>
+              ) : otherUsers.length === 0 ? (
+                <div className="text-center py-8">
+                  <Users className="mx-auto h-12 w-12 text-muted-foreground" />
+                  <p className="mt-4 text-muted-foreground">No users with 'rejected' or 'disabled' status match your filters.</p>
+                </div>
+              ) : (
+                <UserTable 
+                  users={otherUsers} 
+                  isPendingTab={false} 
+                  currentUserId={currentUser?.uid} 
+                  isProcessingUser={isProcessingUser}
+                />
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
       </Tabs>
     </div>
   );
 }
+
