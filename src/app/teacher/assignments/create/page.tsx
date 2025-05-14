@@ -37,7 +37,8 @@ const assignmentSchema = z.object({
   deadlineDate: z.date({ required_error: "Deadline date is required." }),
   deadlineTime: z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)$/, "Invalid time format (HH:MM)."),
   allowedSubmissionFormats: z.array(z.enum(['text_entry', 'file_link', 'file_upload'])).min(1, "Select at least one submission format."),
-  attachment: z.instanceof(File).optional().nullable(), 
+  attachment: z.instanceof(File).optional().nullable(),
+  originalFileName: z.string().optional().nullable(), // Added for Cloudinary
 });
 
 type AssignmentFormValues = z.infer<typeof assignmentSchema>;
@@ -74,6 +75,7 @@ export default function CreateAssignmentPage() {
       deadlineTime: '23:59',
       allowedSubmissionFormats: ['text_entry'],
       attachment: null, 
+      originalFileName: null,
     },
   });
 
@@ -120,9 +122,10 @@ export default function CreateAssignmentPage() {
       allowedSubmissionFormats: values.allowedSubmissionFormats,
       subjectId: values.subjectId === NO_SUBJECT_VALUE ? null : values.subjectId, 
       attachmentUrl: null, // Will be set by AuthContext if file exists
+      originalFileName: values.attachment ? values.attachment.name : null, // Store original file name
     };
 
-    const assignmentId = await createAssignment(assignmentData, values.attachment || undefined); // Pass file to AuthContext
+    const assignmentId = await createAssignment(assignmentData, values.attachment || undefined); 
     setIsSubmitting(false);
 
     if (assignmentId) {
@@ -290,13 +293,13 @@ export default function CreateAssignmentPage() {
                 <Controller
                   control={form.control}
                   name="attachment"
-                   render={({ field: { onChange, value, ...restField } }) => ( // `value` is managed by RHF, don't pass it to input type="file"
+                   render={({ field: { onChange, value, ...restField } }) => ( 
                     <Input 
                       id="attachment" 
                       type="file" 
                       onChange={(e) => onChange(e.target.files ? e.target.files[0] : null)}
                       className="flex-grow"
-                      {...restField} // Pass name, onBlur, ref
+                      {...restField} 
                     />
                   )}
                 />
@@ -316,3 +319,4 @@ export default function CreateAssignmentPage() {
     </div>
   );
 }
+

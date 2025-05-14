@@ -35,8 +35,6 @@ export const getAssignmentsByTeacherService = async (
     } else {
       q = query(assignmentsRef, where("teacherId", "==", teacherId));
     }
-    // Removed orderBy("deadline", "asc") to avoid needing composite index with where clauses.
-    // Sorting should be handled client-side if specific order is crucial.
     const querySnapshot = await getDocs(q);
     const assignmentsPromises = querySnapshot.docs.map(async (docSnapshot) => {
       const assignment = { id: docSnapshot.id, ...docSnapshot.data() } as Assignment;
@@ -58,8 +56,6 @@ export const getAssignmentsByClassService = async (classId: string): Promise<Ass
    if (!classId) return [];
   try {
     const assignmentsRef = collection(db, "assignments");
-    // Removed orderBy("deadline", "asc") to avoid needing composite index with where clause.
-    // Sorting should be handled client-side.
     const q = query(assignmentsRef, where("classId", "==", classId));
     const querySnapshot = await getDocs(q);
     return querySnapshot.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data(), totalSubmissions: docSnap.data().totalSubmissions || 0 } as Assignment));
@@ -95,7 +91,17 @@ export const getAssignmentByIdService = async (
 export const updateAssignmentService = async (assignmentId: string, data: Partial<Omit<Assignment, 'id' | 'createdAt' | 'updatedAt' | 'teacherId' | 'totalSubmissions'>>): Promise<boolean> => {
   try {
     const assignmentRef = doc(db, "assignments", assignmentId);
-    await updateDoc(assignmentRef, { ...data, updatedAt: Timestamp.now() });
+    const updateData: any = { ...data, updatedAt: Timestamp.now() };
+
+     // Ensure originalFileName is explicitly set or removed
+    if (data.originalFileName === undefined && data.attachmentUrl === null) {
+        updateData.originalFileName = null;
+    } else if (data.originalFileName) {
+        updateData.originalFileName = data.originalFileName;
+    }
+
+
+    await updateDoc(assignmentRef, updateData);
     return true;
   } catch (error) {
     console.error("Error updating assignment in service:", error);
@@ -125,7 +131,6 @@ export const getAssignmentsForStudentByClassService = async (
     getClassDetails: GetClassDetailsServiceType,
     studentProfile: UserProfile | null
   ): Promise<AssignmentWithClassAndSubmissionInfo[]> => {
-    // getAssignmentsByClassService no longer sorts by deadline.
     const assignments = await getAssignmentsByClassService(classId);
     const assignmentsWithStatus: AssignmentWithClassAndSubmissionInfo[] = [];
 
@@ -151,7 +156,6 @@ export const getAssignmentsForStudentByClassService = async (
         submissionGrade: grade,
       });
     }
-    // Sort client-side as service-level sort was removed.
     return assignmentsWithStatus.sort((a, b) => a.deadline.toMillis() - b.deadline.toMillis());
   };
 

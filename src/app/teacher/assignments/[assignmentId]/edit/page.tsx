@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, useEffect, useCallback } from 'react';
@@ -36,7 +37,8 @@ const assignmentEditSchema = z.object({
   deadlineTime: z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)$/, "Invalid time format (HH:MM)."),
   allowedSubmissionFormats: z.array(z.enum(['text_entry', 'file_link', 'file_upload'])).min(1, "Select at least one submission format."),
   attachment: z.instanceof(File).optional().nullable(), 
-  existingAttachmentUrl: z.string().optional().nullable(), 
+  existingAttachmentUrl: z.string().optional().nullable(),
+  originalFileName: z.string().optional().nullable(), // Added
 });
 
 type AssignmentEditFormValues = z.infer<typeof assignmentEditSchema>;
@@ -74,7 +76,8 @@ export default function EditAssignmentPage() {
       deadlineTime: '23:59',
       allowedSubmissionFormats: ['text_entry'],
       attachment: null, 
-      existingAttachmentUrl: null, 
+      existingAttachmentUrl: null,
+      originalFileName: null, // Added
     },
   });
 
@@ -108,7 +111,8 @@ export default function EditAssignmentPage() {
           deadlineTime: format(deadlineDate, "HH:mm"),
           allowedSubmissionFormats: fetchedAssignment.allowedSubmissionFormats,
           attachment: null, 
-          existingAttachmentUrl: fetchedAssignment.attachmentUrl || null, 
+          existingAttachmentUrl: fetchedAssignment.attachmentUrl || null,
+          originalFileName: fetchedAssignment.originalFileName || null, // Added
         });
       } else {
         toast({ title: "Not Found", description: "Assignment not found.", variant: "destructive" });
@@ -142,12 +146,12 @@ export default function EditAssignmentPage() {
       deadline: deadline,
       allowedSubmissionFormats: values.allowedSubmissionFormats,
       subjectId: values.subjectId === NO_SUBJECT_VALUE ? null : values.subjectId,
-      classId: values.classId, // Ensure classId is passed if it's part of the form values to be updated (though typically not changed)
+      classId: values.classId, 
     };
-
+    
     const success = await updateAssignment(
         currentAssignment.id, 
-        currentAssignment.title, // For activity log
+        currentAssignment.title, 
         updatedData, 
         values.attachment || undefined,
         values.existingAttachmentUrl || null
@@ -304,7 +308,7 @@ export default function EditAssignmentPage() {
               <Label htmlFor="attachmentEdit">Attach/Replace File (Optional)</Label>
               {form.getValues("existingAttachmentUrl") && (
                  <p className="text-xs text-muted-foreground mt-1">
-                    Current attachment: <a href={form.getValues("existingAttachmentUrl")!} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">{form.getValues("existingAttachmentUrl")!.startsWith('https://firebasestorage.googleapis.com/') ? currentAssignment?.attachmentUrl?.split('%2F').pop()?.split('?')[0].substring(37) || "View File" : currentAssignment?.attachmentUrl}</a>
+                    Current attachment: <a href={form.getValues("existingAttachmentUrl")!} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">{form.getValues("originalFileName") || "View File"}</a>
                  </p>
               )}
               <div className="flex items-center space-x-2 mt-1">

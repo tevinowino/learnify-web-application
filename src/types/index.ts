@@ -48,9 +48,9 @@ export interface LearningMaterial {
   materialType: LearningMaterialType;
   schoolId: string;
   teacherId: string; 
-  classId?: string | null; // Allow null for general material
-  subjectId?: string | null; // Allow null for no specific subject
-  attachmentUrl?: string | null; // URL to an uploaded file, e.g., for 'pdf_upload'
+  classId?: string | null; 
+  subjectId?: string | null; 
+  attachmentUrl?: string | null; 
   createdAt: Timestamp;
   updatedAt?: Timestamp;
 }
@@ -71,8 +71,8 @@ export interface Class {
   studentIds?: string[]; 
   classInviteCode?: string; 
   classType: ClassType;
-  compulsorySubjectIds?: string[]; // For 'main' class type
-  subjectId?: string | null; // For 'subject_based' class type, linking to a specific subject
+  compulsorySubjectIds?: string[]; 
+  subjectId?: string | null; 
   createdAt: Timestamp;
   updatedAt?: Timestamp;
 }
@@ -81,8 +81,8 @@ export interface ClassWithTeacherInfo extends Class {
   teacherDisplayName?: string;
   submittedAssignmentsCount?: number; 
   totalAssignmentsCount?: number;     
-  compulsorySubjectNames?: string[]; // For display
-  subjectName?: string; // For display of subject-based class
+  compulsorySubjectNames?: string[]; 
+  subjectName?: string; 
 }
 
 export type SubmissionFormat = 'text_entry' | 'file_link' | 'file_upload';
@@ -97,7 +97,8 @@ export interface Assignment {
   deadline: Timestamp;
   allowedSubmissionFormats: SubmissionFormat[];
   subjectId?: string | null;
-  attachmentUrl?: string | null; // URL to an uploaded PDF or other file for the assignment description/task
+  attachmentUrl?: string | null;
+  originalFileName?: string | null; // Added for Cloudinary
   createdAt: Timestamp;
   updatedAt?: Timestamp;
   totalSubmissions?: number; 
@@ -121,9 +122,9 @@ export interface Submission {
   classId: string;
   studentId: string;
   submittedAt: Timestamp;
-  content: string; // For text_entry, file_link (URL), or file_upload (download URL)
+  content: string; 
   submissionType: SubmissionFormat;
-  originalFileName?: string; // For file_upload to store the original name
+  originalFileName?: string; 
   grade?: string | number;
   feedback?: string;
   status: 'submitted' | 'graded' | 'late'; 
@@ -156,7 +157,7 @@ export interface ExamPeriod {
 }
 
 export interface ExamPeriodWithClassNames extends ExamPeriod {
-    assignedClassNames?: string[]; // For display purposes
+    assignedClassNames?: string[]; 
 }
 
 
@@ -171,14 +172,14 @@ export interface ExamResult {
   remarks?: string;
   teacherId: string; 
   createdAt: Timestamp;
-  updatedAt?: Timestamp;
+  updatedAt: Timestamp;
 }
 
 export interface ExamResultWithStudentInfo extends ExamResult {
     studentName?: string;
     studentEmail?: string;
-    subjectName?: string; // if subjects are fetched
-    examPeriodName?: string; // if exam periods are fetched
+    subjectName?: string; 
+    examPeriodName?: string; 
 }
 
 
@@ -188,8 +189,8 @@ export interface Activity {
   classId?: string; 
   actorId?: string; 
   actorName?: string; 
-  targetUserId?: string; // Optional: for user-specific actions like role change
-  targetUserName?: string; // Optional
+  targetUserId?: string; 
+  targetUserName?: string; 
   type:
     | 'assignment_created'
     | 'assignment_updated'
@@ -208,18 +209,18 @@ export interface Activity {
     | 'subject_created'
     | 'subject_updated'
     | 'subject_deleted'
-    | 'user_registered' // Could be self-signup or admin-created
+    | 'user_registered' 
     | 'user_approved'
     | 'user_rejected'
-    | 'user_profile_updated' // for role changes, name changes
-    | 'attendance_marked' // Placeholder for future
+    | 'user_profile_updated' 
+    | 'attendance_marked' 
     | 'exam_period_created'
-    | 'exam_period_updated' // e.g., status change
+    | 'exam_period_updated' 
     | 'exam_period_finalized'
     | 'exam_results_entered'
     | 'school_settings_updated'
     | 'invite_code_regenerated'
-    | 'general_announcement'; // Generic type for school-wide news
+    | 'general_announcement'; 
   message: string; 
   link?: string; 
   timestamp: Timestamp;
@@ -240,12 +241,12 @@ export interface AttendanceRecord {
 
 export interface Notification {
   id: string;
-  userId: string; // The user who should receive this notification
+  userId: string; 
   message: string;
-  link?: string; // Link to the relevant page (e.g., assignment, submission)
+  link?: string; 
   isRead: boolean;
   createdAt: Timestamp;
   type: Activity['type'] | 'general_announcement' | 'system_update';
-  actorName?: string; // Name of the user who triggered the notification, if applicable
+  actorName?: string; 
 }
     

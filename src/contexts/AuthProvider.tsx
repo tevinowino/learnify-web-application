@@ -1,3 +1,4 @@
+
 "use client";
 
 import type { ReactNode } from 'react';
@@ -14,7 +15,7 @@ import {
 } from 'firebase/auth';
 import { doc, getDoc, setDoc, Timestamp, updateDoc } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase';
-import type { UserProfile, UserRole, School, LearningMaterial, UserProfileWithId, Class, ClassWithTeacherInfo, LearningMaterialWithTeacherInfo, Assignment, Submission, SubmissionFormat, LearningMaterialType, AssignmentWithClassInfo, SubmissionWithStudentName, AssignmentWithClassAndSubmissionInfo, UserStatus, Activity, Subject, ExamPeriod, ExamPeriodWithClassNames, ExamResult, ExamResultWithStudentInfo, Notification } from '@/types'; // Added Notification type
+import type { UserProfile, UserRole, School, LearningMaterial, UserProfileWithId, Class, ClassWithTeacherInfo, LearningMaterialWithTeacherInfo, Assignment, Submission, SubmissionFormat, LearningMaterialType, AssignmentWithClassInfo, SubmissionWithStudentName, AssignmentWithClassAndSubmissionInfo, UserStatus, Activity, Subject, ExamPeriod, ExamPeriodWithClassNames, ExamResult, ExamResultWithStudentInfo, Notification } from '@/types';
 import { useRouter } from 'next/navigation';
 
 import * as SchoolService from '@/services/schoolService';
@@ -27,9 +28,9 @@ import * as SubjectService from '@/services/subjectService';
 import * as ActivityService from '@/services/activityService';
 import * as ExamService from '@/services/examService';
 import * as NotificationService from '@/services/notificationService'; 
-import { uploadFileToStorageService } from '@/services/fileUploadService';
+import { uploadFileToCloudinaryService } from '@/services/fileUploadService'; // Updated import
 import { AuthContext, type AuthContextType } from './AuthContext';
-import { sendEmail } from '@/actions/emailActions'; // Import email utility
+import { sendEmail } from '@/actions/emailActions';
 import { format } from 'date-fns';
 
 
@@ -345,7 +346,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
                 await sendEmail({
                   to: approvedUser.email,
                   subject: `Learnify: Your Account for ${approvedUser.schoolName} is Approved!`,
-                  html: `<p>Hi ${approvedUser.displayName},</p><p>Your account to join <strong>${approvedUser.schoolName}</strong> on Learnify has been approved! You can now log in and access your dashboard.</p><p><a href="${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:9002'}/auth/login">Log in to Learnify</a></p>`
+                  html: `<p>Hi ${approvedUser.displayName},</p><p>Your account to join <strong>${approvedUser.schoolName}</strong> on Learnify has been approved! You can now log in and access your dashboard.</p><p><a href="${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:9002'}/auth/login">Log in to Learnify</a></p>`,
                 });
                 await addNotification({
                     userId: approvedUser.id,
@@ -395,7 +396,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
                 await addNotification({
                     userId: targetUser.id,
                     schoolId: targetUser.schoolId!,
-                    message: emailSubject, // Using subject as a concise notification message
+                    message: emailSubject, 
                     type: 'user_profile_updated',
                     actorName: currentUser.displayName
                 });
@@ -619,15 +620,20 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const addLearningMaterial = useCallback(async (materialData: Omit<LearningMaterial, 'id' | 'createdAt' | 'updatedAt'>, file?: File | null): Promise<string | null> => {
     if (!currentUser || (currentUser.role !== 'teacher' && currentUser.role !== 'admin') || !currentUser.schoolId ) return null;
+    
     let attachmentUrl: string | null = null;
     let finalContent = materialData.content;
+    let originalFileNameForMaterial: string | null = null;
 
     try {
       if (file && materialData.materialType === 'pdf_upload') {
-        const path = `schools/${currentUser.schoolId}/materials/${materialData.classId || 'general'}`;
-        attachmentUrl = await uploadFileToStorageService(file, path);
-        if (!attachmentUrl) throw new Error("File upload failed.");
-        finalContent = `[Uploaded File: ${file.name}]`; 
+        const uploadResult = await uploadFileToCloudinaryService(file);
+        if (!uploadResult.url) {
+            throw new Error("Cloudinary file upload failed for material.");
+        }
+        attachmentUrl = uploadResult.url;
+        originalFileNameForMaterial = uploadResult.originalFileName;
+        finalContent = `[Uploaded File: ${originalFileNameForMaterial || file.name}]`; 
       }
 
       const dataToSave: Omit<LearningMaterial, 'id' | 'createdAt' | 'updatedAt'> = {
@@ -673,7 +679,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         }
       return newMaterialId;
     }
-    catch (error) { return null; }
+    catch (error) { 
+        console.error("Error adding learning material (AuthProvider):", error);
+        return null; 
+    }
   }, [currentUser, addActivity, addNotification]);
   
   const deleteLearningMaterial = useCallback(async (materialId: string, materialTitle: string): Promise<boolean> => {
@@ -699,12 +708,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     materialId: string,
     data: Partial<Omit<LearningMaterial, 'id' | 'createdAt' | 'updatedAt' | 'teacherId' | 'schoolId' | 'attachmentUrl'>>,
     file?: File | null,
-    existingAttachmentUrlForLogic?: string | null
+    existingAttachmentUrlForLogic?: string | null // Renamed for clarity
   ): Promise<boolean> => {
     if (!currentUser || (currentUser.role !== 'teacher' && currentUser.role !== 'admin') || !currentUser.schoolId ) return false;
 
     let finalAttachmentUrl = existingAttachmentUrlForLogic || null;
     let finalContent = data.content; 
+    let originalFileNameForUpdate: string | null = null;
 
     try {
       const materialDocBeforeUpdate = await MaterialService.getLearningMaterialByIdService(materialId);
@@ -714,26 +724,27 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       }
 
       if (file && data.materialType === 'pdf_upload') {
-        const path = `schools/${currentUser.schoolId}/materials/${data.classId || materialDocBeforeUpdate.classId || 'general'}`;
-        const uploadedUrl = await uploadFileToStorageService(file, path);
-        if (uploadedUrl) {
-          finalAttachmentUrl = uploadedUrl;
-          finalContent = `[Uploaded File: ${file.name}]`; 
+        const uploadResult = await uploadFileToCloudinaryService(file);
+        if (uploadResult.url) {
+          finalAttachmentUrl = uploadResult.url;
+          originalFileNameForUpdate = uploadResult.originalFileName;
+          finalContent = `[Uploaded File: ${originalFileNameForUpdate || file.name}]`; 
         } else {
-          console.error("Material attachment upload failed during update.");
-          return false;
+          console.error("Cloudinary material attachment upload failed during update.");
+          return false; // Stop if new file upload fails
         }
-      } else if (data.materialType && data.materialType !== 'pdf_upload') {
-        // If type changed away from PDF_UPLOAD and no new file, clear attachment URL.
+      } else if (data.materialType && data.materialType !== 'pdf_upload' && materialDocBeforeUpdate.materialType === 'pdf_upload') {
+        // If type changed away from PDF_UPLOAD, clear attachment URL.
         // Content would be the new URL or text.
         finalAttachmentUrl = null;
       }
+      // If type is not changing from pdf_upload and no new file, existingAttachmentUrlForLogic (which is finalAttachmentUrl) is kept.
 
 
       const updatePayload: Partial<Omit<LearningMaterial, 'id' | 'createdAt' | 'updatedAt' | 'teacherId' | 'schoolId'>> = {
         ...data,
-        content: finalContent,
-        attachmentUrl: finalAttachmentUrl,
+        content: finalContent, // Content is placeholder for PDF upload or actual content/URL
+        attachmentUrl: finalAttachmentUrl, // This will store the Cloudinary URL for pdf_upload
       };
       
       const success = await MaterialService.updateLearningMaterialService(materialId, updatePayload); 
@@ -744,7 +755,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
               actorName: currentUser.displayName,
               type: 'material_updated',
               message: `${currentUser.displayName} updated material "${data.title}".`,
-              link: `/teacher/materials` // or link to specific material/class page
+              link: `/teacher/materials` 
           });
       }
       return success;
@@ -752,7 +763,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         console.error("Error updating learning material in AuthContext:", error);
         return false; 
     }
-  }, [currentUser, addActivity, addNotification]);
+  }, [currentUser, addActivity]);
   
   const getLearningMaterialsByTeacher = useCallback(async (teacherId: string, classId?: string) => MaterialService.getLearningMaterialsByTeacherService(teacherId, classId), []);
   const getLearningMaterialsBySchool = useCallback(async (schoolId: string) => MaterialService.getLearningMaterialsBySchoolService(schoolId, UserService.getUserProfileService, ClassService.getClassDetailsService), []);
@@ -761,16 +772,21 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const createAssignment = useCallback(async (assignmentData: Omit<Assignment, 'id' | 'createdAt' | 'updatedAt' | 'totalSubmissions'>, file?: File | null): Promise<string | null> => {
     if (!currentUser || (currentUser.role !== 'teacher' && currentUser.role !== 'admin') || !currentUser.schoolId) return null;
+    
     let attachmentUrl: string | null = null;
+    let originalFileNameForAssignment: string | null = null;
 
     try {
-      if (file) {
-        const path = `schools/${currentUser.schoolId}/assignments/${assignmentData.classId}`;
-        attachmentUrl = await uploadFileToStorageService(file, path);
-        if (!attachmentUrl) throw new Error("Assignment attachment upload failed.");
+      if (file) { // Assignments might allow any file type, not just PDF
+        const uploadResult = await uploadFileToCloudinaryService(file);
+        if (!uploadResult.url) {
+            throw new Error("Cloudinary assignment attachment upload failed.");
+        }
+        attachmentUrl = uploadResult.url;
+        originalFileNameForAssignment = uploadResult.originalFileName; 
       }
 
-      const dataToSave = { ...assignmentData, teacherId: currentUser.uid, schoolId: currentUser.schoolId, attachmentUrl };
+      const dataToSave = { ...assignmentData, teacherId: currentUser.uid, schoolId: currentUser.schoolId, attachmentUrl, originalFileName: originalFileNameForAssignment };
       const newAssignmentId = await AssignmentService.createAssignmentService(dataToSave);
       if (newAssignmentId && currentUser?.schoolId && currentUser.displayName) {
           const classInfo = await ClassService.getClassDetailsService(assignmentData.classId, UserService.getUserProfileService);
@@ -864,6 +880,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     if (!currentUser || (currentUser.role !== 'teacher' && currentUser.role !== 'admin') || !currentUser.schoolId) return false;
   
     let finalAttachmentUrl = existingAttachmentUrlForLogic || null;
+    let originalFileNameForUpdate: string | null = null;
   
     try {
       const assignmentDocBeforeUpdate = await AssignmentService.getAssignmentByIdService(assignmentId, ClassService.getClassDetailsService);
@@ -872,26 +889,27 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         return false;
       }
   
-      if (file) {
-        const path = `schools/${currentUser.schoolId}/assignments/${data.classId || assignmentDocBeforeUpdate.classId}`;
-        const uploadedUrl = await uploadFileToStorageService(file, path);
-        if (uploadedUrl) {
-          finalAttachmentUrl = uploadedUrl;
+      if (file) { // If a new file is provided
+        const uploadResult = await uploadFileToCloudinaryService(file);
+        if (uploadResult.url) {
+          finalAttachmentUrl = uploadResult.url;
+          originalFileNameForUpdate = uploadResult.originalFileName;
         } else {
-          console.error("Assignment attachment upload failed during update in AuthProvider.");
-          return false;
+          console.error("Cloudinary assignment attachment upload failed during update in AuthProvider.");
+          return false; // Stop if new file upload fails
         }
       }
   
       const updatePayload: Partial<Omit<Assignment, 'id' | 'createdAt' | 'updatedAt' | 'teacherId' | 'schoolId'>> = {
         ...data,
         attachmentUrl: finalAttachmentUrl,
+        originalFileName: originalFileNameForUpdate || assignmentDocBeforeUpdate.originalFileName || undefined, // Keep old if no new file
       };
       
       const success = await AssignmentService.updateAssignmentService(assignmentId, updatePayload);
   
       if (success && currentUser?.schoolId && currentUser.displayName) {
-        const updatedAssignmentDoc = await AssignmentService.getAssignmentByIdService(assignmentId, ClassService.getClassDetailsService); // Fetch again to get potentially updated className
+        const updatedAssignmentDoc = await AssignmentService.getAssignmentByIdService(assignmentId, ClassService.getClassDetailsService); 
         if (updatedAssignmentDoc) {
           await addActivity({
             schoolId: currentUser.schoolId,
@@ -983,24 +1001,27 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     file?: File | null
   ): Promise<{ submissionId: string, newStatus: Submission['status'], existingGrade?: string | number } | null> => {
     if (!currentUser?.uid || !currentUser.schoolId) return null;
-    let attachmentUrl: string | null = null;
-    let originalFileName: string | undefined = undefined;
+    
+    let finalContent = submissionData.content;
+    let submissionOriginalFileName: string | null = null;
 
     try {
       if (file && submissionData.submissionType === 'file_upload') {
-        const path = `schools/${currentUser.schoolId}/submissions/${submissionData.assignmentId}/${currentUser.uid}`;
-        attachmentUrl = await uploadFileToStorageService(file, path);
-        if (!attachmentUrl) throw new Error("Submission file upload failed.");
-        originalFileName = file.name;
+        const uploadResult = await uploadFileToCloudinaryService(file);
+        if (!uploadResult.url) {
+          throw new Error("Cloudinary submission file upload failed.");
+        }
+        finalContent = uploadResult.url; // Store Cloudinary URL in content for file_upload
+        submissionOriginalFileName = uploadResult.originalFileName;
       }
       
       const assignment = await AssignmentService.getAssignmentByIdService(submissionData.assignmentId, ClassService.getClassDetailsService);
-      if (!assignment) throw new Error("Assignment not found");
+      if (!assignment) throw new Error("Assignment not found for submission.");
 
       const submissionPayload = {
         ...submissionData,
-        content: submissionData.submissionType === 'file_upload' ? attachmentUrl || '' : submissionData.content,
-        originalFileName: submissionData.submissionType === 'file_upload' ? originalFileName : undefined,
+        content: finalContent,
+        originalFileName: submissionOriginalFileName || undefined, // Save original name if it was a file upload
       };
       
       const result = await SubmissionService.addSubmissionService(submissionPayload, currentUser.uid, assignment.deadline);
@@ -1064,10 +1085,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const completeStudentOnboarding = useCallback(async (userId: string, classIds: string[], subjectIds: string[]): Promise<boolean> => {
     if (!currentUser || currentUser.uid !== userId || currentUser.role !== 'student') return false;
     try {
-      const success = await UserService.completeStudentOnboardingService(userId, classIds, subjectIds); // Pass classIds as array
+      const success = await UserService.completeStudentOnboardingService(userId, classIds, subjectIds); 
       if (success && currentUser?.schoolId && currentUser.displayName) {
         setCurrentUser(prev => prev ? ({ ...prev, classIds, subjects: subjectIds }) : null);
-         // Assuming only one main class selected during onboarding for this activity log
          const mainClassId = classIds[0];
          const cls = await ClassService.getClassDetailsService(mainClassId, UserService.getUserProfileService);
          await addActivity({
@@ -1186,7 +1206,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     getSubmissionByStudentForAssignment: SubmissionService.getSubmissionByStudentForAssignmentService, 
     addSubmission, 
     getAssignmentsForStudentByClass,
-    completeStudentOnboarding, // Corrected reference
+    completeStudentOnboarding,
     updateUserDisplayName, updateUserEmail, updateUserPassword,
     getClassesByIds,
     createSubject, getSubjectsBySchool: SubjectService.getSubjectsBySchoolService, updateSubject, deleteSubject, getSubjectById: SubjectService.getSubjectByIdService,
@@ -1208,11 +1228,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     getClassesByTeacher, getStudentsInMultipleClasses,
     addLearningMaterial, getLearningMaterialsByTeacher, getLearningMaterialsBySchool, getLearningMaterialsByClass, deleteLearningMaterial, updateLearningMaterial,
     createAssignment, getAssignmentsByTeacher, getAssignmentsByClass, getAssignmentById, updateAssignment, deleteAssignment,
-    fetchSubmissionsForAssignment,
+    fetchSubmissionsForAssignment, // Renamed
     gradeSubmission,
     addSubmission, 
     getAssignmentsForStudentByClass,
-    completeStudentOnboarding, // Corrected reference
+    completeStudentOnboarding,
     updateUserDisplayName, updateUserEmail, updateUserPassword,
     getClassesByIds,
     createSubject, updateSubject, deleteSubject,
@@ -1222,4 +1242,3 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
-
