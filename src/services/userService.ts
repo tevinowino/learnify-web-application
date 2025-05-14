@@ -9,10 +9,12 @@ export const createUserProfileInFirestore = async (
   firebaseUser: FirebaseUserType,
   role: UserRole,
   displayName: string,
-  schoolIdToJoin?: string,
-  schoolName?: string
+  initialSchoolId?: string, // Can be undefined for admins creating a new school or parents linking
+  initialSchoolName?: string,
+  initialStatus?: UserStatus, // Allow passing status, e.g., 'active' for parents
+  childStudentId?: string // Specifically for parents
 ): Promise<UserProfile> => {
-  const userProfileData: Omit<UserProfile, keyof FirebaseUserType | 'classIds' | 'studentAssignments'> & { uid: string, createdAt: Timestamp, classIds: string[], studentAssignments: {}, status: UserStatus, schoolId?: string, schoolName?: string, subjects?: string[] } = {
+  const userProfileData: Omit<UserProfile, keyof FirebaseUserType | 'classIds' | 'studentAssignments'> & { uid: string, createdAt: Timestamp, classIds: string[], studentAssignments: {}, status: UserStatus, schoolId?: string, schoolName?: string, subjects?: string[], childStudentId?: string } = {
     uid: firebaseUser.uid,
     email: firebaseUser.email,
     displayName: displayName,
@@ -21,16 +23,16 @@ export const createUserProfileInFirestore = async (
     classIds: [],
     subjects: [], 
     studentAssignments: {},
-    status: (role === 'teacher' || role === 'student' || role === 'parent') && schoolIdToJoin ? 'pending_verification' : 'active',
-    schoolId: schoolIdToJoin,
-    schoolName: schoolName,
-    childStudentId: role === 'parent' ? '' : undefined, // Initialize for parent
+    status: initialStatus || ((role === 'teacher' || role === 'student') && initialSchoolId ? 'pending_verification' : 'active'),
+    schoolId: initialSchoolId,
+    schoolName: initialSchoolName,
+    childStudentId: role === 'parent' ? childStudentId : undefined,
   };
 
-  if (role === 'admin' && !schoolIdToJoin) { // Admin creating new school has no schoolId initially
+  if (role === 'admin' && !initialSchoolId) { 
     delete userProfileData.schoolId;
     delete userProfileData.schoolName;
-    userProfileData.status = 'active'; // Admins creating schools are active
+    userProfileData.status = 'active';
   }
 
 
@@ -168,7 +170,6 @@ export const updateUserRoleAndSchoolService = async (userId: string, data: { rol
         updateData.status = 'active';
     }
     if (data.subjects && Array.isArray(data.subjects)) {
-        // For simplicity, this replaces subjects. If additive behavior is needed, use arrayUnion with getDoc first.
         updateData.subjects = data.subjects;
     } else if (data.subjects === null) { 
         updateData.subjects = [];
@@ -214,14 +215,12 @@ export const completeStudentOnboardingService = async (userId: string, classIds:
     }
    
     const batch = writeBatch(db);
-    // Update student's profile
     batch.update(userRef, {
-      classIds: classIds, // Set the main class and any others if logic changes
+      classIds: classIds, 
       subjects: Array.from(finalSubjectIds),
       updatedAt: Timestamp.now(),
     });
 
-    // Add student to the studentIds array of each class they are being enrolled in
     for (const classId of classIds) {
         const classRef = doc(db, "classes", classId);
         batch.update(classRef, { studentIds: arrayUnion(userId), updatedAt: Timestamp.now() });

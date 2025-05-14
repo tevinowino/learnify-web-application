@@ -84,15 +84,49 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     return notificationId;
   }, []);
 
-  const signUp = useCallback(async (email: string, pass: string, role: UserRole, displayName: string, schoolIdToJoin?: string, schoolName?: string): Promise<UserProfile | null> => {
+  const signUp = useCallback(async (
+    email: string, 
+    pass: string, 
+    role: UserRole, 
+    displayName: string, 
+    schoolIdToJoin?: string, 
+    schoolNameParam?: string,
+    childStudentId?: string // Added for parents
+  ): Promise<UserProfile | null> => {
     setAuthProcessLoading(true);
     try {
+      let finalSchoolId = schoolIdToJoin;
+      let finalSchoolName = schoolNameParam;
+      let finalStatus: UserStatus = (role === 'teacher' || role === 'student') && schoolIdToJoin ? 'pending_verification' : 'active';
+
+      if (role === 'parent') {
+        if (!childStudentId) {
+          throw new Error("Child's Student ID is required for parent registration.");
+        }
+        const childProfile = await UserService.getUserProfileService(childStudentId);
+        if (!childProfile || childProfile.role !== 'student' || !childProfile.schoolId) {
+          throw new Error("Invalid Child's Student ID or child is not an active student in a school.");
+        }
+        finalSchoolId = childProfile.schoolId;
+        finalSchoolName = childProfile.schoolName;
+        finalStatus = 'active'; // Parents are active immediately after linking
+      }
+
+
       const userCredential = await createUserWithEmailAndPassword(auth, email, pass);
       const firebaseUser = userCredential.user;
       if (!firebaseUser) return null;
 
       await updateFirebaseProfile(firebaseUser, { displayName });
-      const profile = await UserService.createUserProfileInFirestore(firebaseUser, role, displayName, schoolIdToJoin, schoolName);
+      const profile = await UserService.createUserProfileInFirestore(
+        firebaseUser, 
+        role, 
+        displayName, 
+        finalSchoolId, 
+        finalSchoolName, 
+        finalStatus,
+        role === 'parent' ? childStudentId : undefined
+      );
       
       if (profile && profile.schoolId && profile.displayName && profile.schoolName) {
          await addActivity({
@@ -102,7 +136,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             type: 'user_registered',
             message: `${profile.displayName} (${profile.role}) registered for ${profile.schoolName}.`,
          });
-         if (profile.status === 'pending_verification') {
+         if (profile.status === 'pending_verification') { // Only for teacher/student now
              await addActivity({
                 schoolId: profile.schoolId,
                 type: 'user_profile_updated', 
@@ -356,7 +390,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
                     message: `Your account for ${approvedUser.schoolName} has been approved! You can now log in.`,
                     type: 'user_approved',
                     actorName: currentUser.displayName,
-                    link: approvedUser.role === 'student' ? '/student/dashboard' : '/teacher/dashboard'
+                    link: approvedUser.role === 'student' ? '/student/dashboard' : (approvedUser.role === 'teacher' ? '/teacher/dashboard' : '/parent/dashboard')
                 });
             }
         }
@@ -641,7 +675,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       const dataToSave: Omit<LearningMaterial, 'id' | 'createdAt' | 'updatedAt'> = {
         ...materialData,
         content: finalContent,
-        attachmentUrl: attachmentUrl,
+        attachmentUrl: attachmentUrl, 
         teacherId: materialData.teacherId || currentUser.uid,
       };
       
@@ -1067,7 +1101,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       const success = await UserService.completeStudentOnboardingService(userId, classIds, subjectIds); 
       if (success && currentUser?.schoolId && currentUser.displayName) {
         setCurrentUser(prev => prev ? ({ ...prev, classIds, subjects: subjectIds }) : null);
-         const mainClassId = classIds[0];
+         const mainClassId = classIds[0]; 
          const cls = await ClassService.getClassDetailsService(mainClassId, UserService.getUserProfileService);
          await addActivity({
             schoolId: currentUser.schoolId,

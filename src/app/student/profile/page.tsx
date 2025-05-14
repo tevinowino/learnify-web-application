@@ -6,12 +6,13 @@ import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { UserCircle, Save } from 'lucide-react';
+import { UserCircle, Save, ShieldCheck, Copy } from 'lucide-react'; // Added ShieldCheck, Copy
 import { useToast } from '@/hooks/use-toast';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import Loader from '@/components/shared/Loader'; // Import new Loader
+import Loader from '@/components/shared/Loader'; 
+import { Label } from '@/components/ui/label'; // Added Label
 
 const profileSchema = z.object({
   displayName: z.string().min(2, "Display name must be at least 2 characters."),
@@ -24,6 +25,7 @@ export default function StudentProfilePage() {
   const { toast } = useToast();
   
   const [isSubmittingName, setIsSubmittingName] = useState(false);
+  const [copiedStudentId, setCopiedStudentId] = useState(false);
 
   const form = useForm<ProfileFormValues>({
     resolver: zodResolver(profileSchema),
@@ -50,6 +52,15 @@ export default function StudentProfilePage() {
     }
     setIsSubmittingName(false);
   };
+
+  const handleCopyStudentId = () => {
+    if (currentUser?.uid) {
+        navigator.clipboard.writeText(currentUser.uid);
+        setCopiedStudentId(true);
+        toast({ title: "Copied!", description: "Student ID copied to clipboard." });
+        setTimeout(() => setCopiedStudentId(false), 2000);
+    }
+  };
   
   if (authLoading && !currentUser) {
     return <div className="flex h-full items-center justify-center"><Loader message="Loading profile..." size="large" /></div>;
@@ -66,17 +77,17 @@ export default function StudentProfilePage() {
       <Card className="card-shadow">
         <CardHeader>
           <CardTitle className="flex items-center"><UserCircle className="mr-2 h-5 w-5 text-primary"/> Personal Information</CardTitle>
-          <CardDescription>Update your display name.</CardDescription>
+          <CardDescription>Update your display name. Your Student ID is shown below.</CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-6">
           <form onSubmit={form.handleSubmit(handleUpdateDisplayName)} className="space-y-4">
             <div className="space-y-2">
-              <label htmlFor="displayName" className="block text-sm font-medium text-foreground">Display Name</label>
+              <Label htmlFor="displayName">Display Name</Label>
               <Input id="displayName" {...form.register("displayName")} />
               {form.formState.errors.displayName && <p className="text-sm text-destructive">{form.formState.errors.displayName.message}</p>}
             </div>
             <div className="space-y-2">
-                <label htmlFor="email_display" className="block text-sm font-medium text-foreground">Email (Display Only)</label>
+                <Label htmlFor="email_display">Email (Display Only)</Label>
                 <Input id="email_display" value={currentUser.email || ""} readOnly className="bg-muted/50"/>
             </div>
             <Button type="submit" disabled={isSubmittingName || !form.formState.isDirty} className="button-shadow">
@@ -84,6 +95,16 @@ export default function StudentProfilePage() {
               <Save className="mr-2 h-4 w-4" /> Save Display Name
             </Button>
           </form>
+          
+          <div className="space-y-2 pt-4 border-t">
+            <Label htmlFor="studentIdDisplay">Your Student ID (Share with Parent)</Label>
+            <div className="flex items-center gap-2">
+                <Input id="studentIdDisplay" value={currentUser.uid} readOnly className="bg-muted/50 flex-grow font-mono text-sm"/>
+                <Button variant="outline" size="icon" onClick={handleCopyStudentId} disabled={copiedStudentId} title="Copy Student ID">
+                    {copiedStudentId ? <ShieldCheck className="h-4 w-4 text-green-500"/> : <Copy className="h-4 w-4"/>}
+                </Button>
+            </div>
+          </div>
         </CardContent>
       </Card>
 

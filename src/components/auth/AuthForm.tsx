@@ -44,24 +44,28 @@ const loginSchema = z.object({
   password: z.string().min(6, { message: "Password must be at least 6 characters." }),
 });
 
-
-const baseSchema = z.object({
+const signupSchema = z.object({
   email: z.string().email({ message: "Invalid email address." }),
   password: z.string().min(6, { message: "Password must be at least 6 characters." }),
-});
-
-const signupSchema = loginSchema.extend({
   displayName: z.string().min(2, "Display name must be at least 2 characters."),
-  role: z.enum(["admin", "teacher", "student", "parent"], { // Added "parent"
+  role: z.enum(["admin", "teacher", "student", "parent"], {
     required_error: "Please select a role.",
   }),
   schoolIdToJoin: z.string().optional(),
+  childStudentId: z.string().optional(),
 }).superRefine((data, ctx) => {
-  if ((data.role === 'teacher' || data.role === 'student' || data.role === 'parent') && !data.schoolIdToJoin?.trim()) { // Added "parent"
+  if ((data.role === 'teacher' || data.role === 'student') && !data.schoolIdToJoin?.trim()) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
-      message: "School ID is required for teachers, students, and parents.", // Updated message
+      message: "School ID is required for teachers and students.",
       path: ["schoolIdToJoin"],
+    });
+  }
+  if (data.role === 'parent' && !data.childStudentId?.trim()) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "Child's Student ID is required for parents.",
+      path: ["childStudentId"],
     });
   }
 });
@@ -88,21 +92,22 @@ export default function AuthForm({ mode }: AuthFormProps) {
     defaultValues: {
       email: "",
       password: "",
-      ...(mode === "signup" && { displayName: "", role: undefined, schoolIdToJoin: "" }),
+      ...(mode === "signup" && { displayName: "", role: undefined, schoolIdToJoin: "", childStudentId: "" }),
     },
   });
 
   const isLoading = authLoading || isSubmitting;
 
-  function getRedirectPath(role: UserRole, schoolId?: string, status?: UserStatus) {
+  function getRedirectPath(role: UserRole, schoolId?: string, status?: UserStatus, classIds?: string[]) {
     if (status === 'pending_verification') {
       return '/auth/pending-verification';
     }
     if (role === "admin" && !schoolId) return "/admin/onboarding";
     if (role === "admin") return "/admin/dashboard";
     if (role === "teacher") return "/teacher/dashboard";
+    if (role === "student" && (!classIds || classIds.length === 0) && status === 'active') return "/student/onboarding";
     if (role === "student") return "/student/dashboard";
-    if (role === "parent") return "/parent/dashboard"; // Added parent redirect
+    if (role === "parent") return "/parent/dashboard";
     return "/";
   }
 
@@ -113,11 +118,19 @@ export default function AuthForm({ mode }: AuthFormProps) {
       let userProfile;
 
       if (mode === "signup") {
-        const { email, password, displayName, role, schoolIdToJoin } = values as SignupFormValues;
-        let schoolName: string | undefined;
-        if (role === 'teacher' || role === 'student' || role === 'parent') { // Added parent
+        const { email, password, displayName, role, schoolIdToJoin, childStudentId } = values as SignupFormValues;
+        
+        if (role === 'parent') {
+          if (!childStudentId) {
+            toast({ title: "Child's Student ID Missing", description: "Please enter your child's Student ID.", variant: "destructive" });
+            setIsSubmitting(false);
+            return;
+          }
+          // `signUp` will handle fetching child's school details and validating
+          userProfile = await signUp(email, password, role, displayName, undefined, undefined, childStudentId);
+        } else if (role === 'teacher' || role === 'student') {
           if (!schoolIdToJoin) { 
-            toast({ title: "School ID Missing", description: "School ID is required for teachers, students, and parents.", variant: "destructive" });
+            toast({ title: "School ID Missing", description: "School ID is required for teachers and students.", variant: "destructive" });
             setIsSubmitting(false);
             return;
           }
@@ -127,9 +140,11 @@ export default function AuthForm({ mode }: AuthFormProps) {
             setIsSubmitting(false);
             return;
           }
-          schoolName = school.name;
+          userProfile = await signUp(email, password, role, displayName, schoolIdToJoin, school.name);
+        } else { // Admin
+            userProfile = await signUp(email, password, role, displayName);
         }
-        userProfile = await signUp(email, password, role, displayName, schoolIdToJoin, schoolName);
+
       } else {
         const { email, password } = values as LoginFormValues;
         userProfile = await logIn(email, password);
@@ -138,10 +153,11 @@ export default function AuthForm({ mode }: AuthFormProps) {
       if (userProfile) {
         toast({
           title: mode === "signup" ? "Signup Successful!" : "Login Successful!",
-          description: userProfile.status === 'pending_verification' ? "Your account is pending admin approval." : "Redirecting...",
+          description: userProfile.status === 'pending_verification' ? "Your account is pending admin approval." : 
+                       userProfile.role === 'parent' && userProfile.childStudentId ? "Successfully linked to child. Redirecting..." : "Redirecting...",
         });
         
-        const redirectTo = searchParams.get("redirectTo") || getRedirectPath(userProfile.role, userProfile.schoolId, userProfile.status);
+        const redirectTo = searchParams.get("redirectTo") || getRedirectPath(userProfile.role, userProfile.schoolId, userProfile.status, userProfile.classIds);
         router.push(redirectTo);
       } else {
         toast({
@@ -161,8 +177,11 @@ export default function AuthForm({ mode }: AuthFormProps) {
           "auth/wrong-password": "Incorrect password.",
           "auth/invalid-email": "Invalid email address.",
         };
-        errorMessage = firebaseErrors[error.code] || errorMessage;
+        errorMessage = firebaseErrors[error.code] || error.message || errorMessage;
+      } else if (error.message) {
+        errorMessage = error.message;
       }
+
 
       toast({
         title: "Error",
@@ -244,7 +263,7 @@ export default function AuthForm({ mode }: AuthFormProps) {
                       id="password"
                       type="password"
                       placeholder="••••••••"
-                      autoComplete="current-password"
+                      autoComplete={isSignup ? "new-password" : "current-password"}
                       aria-invalid={!!form.formState.errors.password}
                       {...field}
                     />
@@ -279,7 +298,7 @@ export default function AuthForm({ mode }: AuthFormProps) {
                     </FormItem>
                   )}
                 />
-                {(selectedRole === 'teacher' || selectedRole === 'student' || selectedRole === 'parent') && ( // Added parent
+                {(selectedRole === 'teacher' || selectedRole === 'student') && (
                    <FormField
                     control={form.control}
                     name="schoolIdToJoin"
@@ -291,6 +310,22 @@ export default function AuthForm({ mode }: AuthFormProps) {
                         </FormControl>
                         <FormMessage />
                         <p className="text-xs text-muted-foreground">Ask your school administrator for this ID.</p>
+                      </FormItem>
+                    )}
+                  />
+                )}
+                {selectedRole === 'parent' && (
+                  <FormField
+                    control={form.control}
+                    name="childStudentId"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel htmlFor="childStudentId">Child's Student ID</FormLabel>
+                        <FormControl>
+                          <Input id="childStudentId" placeholder="Enter your Child's Student ID" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                        <p className="text-xs text-muted-foreground">This ID is provided by the school or found on the student's profile.</p>
                       </FormItem>
                     )}
                   />
@@ -324,4 +359,3 @@ export default function AuthForm({ mode }: AuthFormProps) {
     </Card>
   );
 }
-
