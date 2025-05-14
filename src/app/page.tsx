@@ -1,3 +1,4 @@
+
 import HeroSection from '@/components/landing/HeroSection';
 import WhyLearnifySection from '@/components/landing/HowItWorksSection'; // Renamed from HowItWorksSection
 import FeaturesSection from '@/components/landing/AboutSection'; // Renamed from AboutSection
@@ -13,7 +14,7 @@ export default function HomePage() {
       <WhyLearnifySection />
       <FeaturesSection />
       <WhySetApartSection />
-      {/* <TestimonialsSection /> */}
+      <TestimonialsSection />
       <ContactUsSection /> {/* This section now includes the "Get Started Today" content */}
       <Footer />
     </>
