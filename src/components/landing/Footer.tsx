@@ -1,3 +1,4 @@
+
 import Link from 'next/link';
 import Logo from '@/components/shared/Logo';
 import { siteConfig } from '@/config/site';
@@ -16,16 +17,17 @@ export default function Footer() {
           </p>
            <div className="space-y-1">
             <p className="text-sm font-semibold text-foreground">Contact Info:</p>
-            <a href="mailto:support@learnifyapp.com" className="text-sm text-muted-foreground hover:text-primary block">
-              support@learnifyapp.com
+            <a href="mailto:learnifyke@gmail.com" className="text-sm text-muted-foreground hover:text-primary block">
+              learnifyke@gmail.com
             </a>
+             <p className="text-sm text-muted-foreground">+254794830280</p> {/* Added phone number here if desired */}
           </div>
         </div>
         <div className="grid grid-cols-2 gap-8 sm:grid-cols-3 md:col-span-2 md:grid-cols-3">
           <div>
             <h3 className="text-sm font-semibold text-foreground">Platform</h3>
             <ul className="mt-4 space-y-2">
-              {siteConfig.mainNav.map((item) => ( // Changed to mainNav for consistency if pricing is removed from mainNav
+              {siteConfig.mainNav.map((item) => ( 
                 <li key={item.title}>
                   <Link href={item.href} className="text-sm text-muted-foreground hover:text-primary">
                     {item.title}

@@ -1,3 +1,4 @@
+
 'use server';
 
 import { z } from 'zod';
@@ -48,7 +49,7 @@ export async function submitContactForm(
     </ul>
   `;
 
-  const recipientEmail = 'tevinowino65@gmail.com'; // Hardcoded as per user request
+  const recipientEmail = 'learnifyke@gmail.com'; // Updated recipient email
 
   const emailResult = await sendEmail({
     to: recipientEmail,

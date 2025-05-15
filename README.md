@@ -127,4 +127,5 @@ Here's a general overview of the user flow for different roles:
 
 ## Contact Information
 
-For any inquiries, please contact us at: **support@learnifyapp.com**
+For any inquiries, please contact us at: **learnifyke@gmail.com**
+Phone: **+254794830280**
