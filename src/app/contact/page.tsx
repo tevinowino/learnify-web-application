@@ -1,8 +1,8 @@
 
 'use client';
 
-import React, { useEffect } from 'react';
-import { useActionState, useFormStatus } from 'react-dom'; // Corrected: useFormStatus from react-dom
+import React, { useEffect, useRef } from 'react';
+import { useFormState, useFormStatus } from 'react-dom'; // Changed import for useFormState
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -25,7 +25,8 @@ function SubmitButton() {
 export default function ContactPage() {
   const { toast } = useToast();
   const initialState: ContactFormState = { message: '', success: false };
-  const [state, formAction] = useActionState(submitContactForm, initialState);
+  // Reverted to useFormState from react-dom
+  const [state, formAction] = useFormState(submitContactForm, initialState);
   const formRef = React.useRef<HTMLFormElement>(null);
 
   useEffect(() => {
