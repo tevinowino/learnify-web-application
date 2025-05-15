@@ -62,23 +62,26 @@ export default function Navbar() {
   };
   
   const mainNavLinks = siteConfig.mainNav.map(item => {
-    let icon: React.ReactNode = <HomeIcon className="mr-2 h-4 w-4" />;
+    let icon: React.ReactNode;
     switch (item.title) {
+        case "Home": icon = <HomeIcon className="mr-2 h-4 w-4" />; break;
         case "About": icon = <InfoIcon className="mr-2 h-4 w-4" />; break;
         case "Contact Us": icon = <MessageSquareIcon className="mr-2 h-4 w-4" />; break;
+        default: icon = <span className="mr-2 h-4 w-4" />; // Placeholder
     }
-    return { ...item, icon };
+    return { ...item, label: item.title, icon };
   });
 
-  const isOnHomepage = pathname === '/';
-
   const mobileNavLinksToDisplay = [];
-  if (isOnHomepage) {
-    mobileNavLinksToDisplay.push(...mainNavLinks);
-  }
+  // Always add About and Contact Us to mobile menu
+  mainNavLinks.forEach(item => {
+    if (item.title === "About" || item.title === "Contact Us") {
+      mobileNavLinksToDisplay.push(item);
+    }
+  });
 
   if (currentUser) {
-    mobileNavLinksToDisplay.push({ href: getDashboardPath(), label: "Dashboard", icon: <LayoutDashboard className="mr-2 h-4 w-4" /> });
+    mobileNavLinksToDisplay.unshift({ href: getDashboardPath(), label: "Dashboard", icon: <LayoutDashboard className="mr-2 h-4 w-4" /> });
     if (currentUser.role === 'student') {
       mobileNavLinksToDisplay.push({ href: "/student/akili", label: "Akili Chat", icon: <Sparkles className="mr-2 h-4 w-4" /> });
     }
@@ -86,6 +89,10 @@ export default function Navbar() {
       mobileNavLinksToDisplay.push({ href: "/teacher/mwalimu", label: "Mwalimu AI", icon: <Brain className="mr-2 h-4 w-4" /> });
     }
   } else {
+    // If not logged in, add Home, Login, Signup to mobile menu
+    const homeLink = mainNavLinks.find(link => link.title === "Home");
+    if (homeLink) mobileNavLinksToDisplay.unshift(homeLink); // Add Home to the beginning
+    
     mobileNavLinksToDisplay.push({ href: "/auth/login", label: "Login", icon: <LogInIcon className="mr-2 h-4 w-4" /> });
     mobileNavLinksToDisplay.push({ href: "/auth/signup", label: "Sign Up", icon: <UserPlus className="mr-2 h-4 w-4" /> });
   }
@@ -94,10 +101,11 @@ export default function Navbar() {
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <div className="container flex h-16 items-center justify-between px-4 md:px-6">
-        <Logo /> {/* Logo itself is a Link */}
+        <Logo onClick={() => setIsMobileMenuOpen(false)} /> 
         
         <nav className="hidden md:flex items-center space-x-1">
-          {isOnHomepage && mainNavLinks.map(item => (
+          {/* Always show main navigation links on desktop */}
+          {mainNavLinks.map(item => (
             <Button variant="ghost" asChild key={item.href}>
               <Link href={item.href}>{item.label}</Link>
             </Button>
@@ -197,7 +205,7 @@ export default function Navbar() {
             <SheetContent side="right" className="w-[280px] sm:w-[320px] p-0">
             <SheetHeader className="p-4 border-b">
               <SheetTitle>
-                 <Logo onClick={() => setIsMobileMenuOpen(false)} /> {/* Logo itself is a Link and handles closing */}
+                 <Logo onClick={() => setIsMobileMenuOpen(false)} /> 
               </SheetTitle>
               </SheetHeader>
               <nav className="flex flex-col space-y-1 p-2">
