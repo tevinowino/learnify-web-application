@@ -38,24 +38,29 @@ export async function submitContactForm(
 
   const { firstName, lastName, email, subject, message } = validatedFields.data;
 
-  const htmlContent = `
-    <p>You have a new contact form submission from Learnify:</p>
-    <ul>
-      <li><strong>Name:</strong> ${firstName} ${lastName}</li>
-      <li><strong>Email:</strong> ${email}</li>
-      <li><strong>Subject:</strong> ${subject}</li>
-      <li><strong>Message:</strong></p>
-      <p>${message.replace(/\n/g, "<br>")}</p>
-    </ul>
-  `;
+  const contactTemplateId = process.env.NEXT_PUBLIC_EMAILJS_CONTACT_TEMPLATE_ID;
+  const adminEmail = 'learnifyke@gmail.com';
 
-  const recipientEmail = 'learnifyke@gmail.com'; // Updated recipient email
+  if (!contactTemplateId) {
+    return {
+        message: 'Contact form email template is not configured.',
+        fields: validatedFields.data,
+        success: false,
+    };
+  }
+
+  const templateParams = {
+    from_name: `${firstName} ${lastName}`,
+    from_email: email, // This could be used as 'reply_to' in your EmailJS template
+    contact_subject: subject, // Use a distinct name if 'subject' is generic
+    contact_message: message, // Use a distinct name if 'message' is generic
+    to_email: adminEmail, // EmailJS template should be configured to send to this, or use a {{to_email}} param
+    // Add any other params your EmailJS contact template expects
+  };
 
   const emailResult = await sendEmail({
-    to: recipientEmail,
-    subject: `Learnify Contact: ${subject}`,
-    html: htmlContent,
-    reply_to: email, // Set Reply-To to the sender's email
+    templateId: contactTemplateId,
+    templateParams: templateParams,
   });
 
   if (emailResult.success) {
