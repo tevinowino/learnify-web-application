@@ -130,9 +130,9 @@ export default function DashboardLayout({ children, userRole }: DashboardLayoutP
                 <PanelLeft />
                 <span className="sr-only">Toggle sidebar</span>
               </SidebarTrigger>
-              <div className={`md:hidden ${currentUser?.schoolName ? 'hidden xs:flex' : 'flex'}`}>
+              {/* <div className={`md:hidden ${currentUser?.schoolName ? 'hidden xs:flex' : 'flex'}`}>
                 <Logo />
-              </div>
+              </div> */}
             </div>
 
              <div className="flex-1 text-left sm:text-center md:text-left md:pl-0"> 
@@ -142,10 +142,10 @@ export default function DashboardLayout({ children, userRole }: DashboardLayoutP
                 </span>
               )}
             </div>
-            <div className="flex items-center gap-2">
+            {/* <div className="flex items-center gap-2">
                 <NotificationBell />
                 <ThemeToggle />
-            </div>
+            </div> */}
           </header>
           
           <main className="flex-1 overflow-y-auto p-4 sm:p-6 md:p-8">
