@@ -32,7 +32,8 @@ import * as AttendanceService from '@/services/attendanceService';
 import * as TestimonialService from '@/services/testimonialService';
 import { uploadFileToCloudinaryService } from '@/services/fileUploadService';
 import { AuthContext, type AuthContextType } from './AuthContext';
-import { sendEmail } from '@/actions/emailActions'; // Updated import
+// EmailJS is now only used for the contact form, so sendEmail is not directly called from AuthProvider.
+// import { sendEmail } from '@/actions/emailActions'; 
 import { format } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
 
@@ -73,29 +74,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const addNotification = useCallback(async (notificationData: Omit<Notification, 'id' | 'createdAt' | 'isRead'>): Promise<string | null> => {
     const notificationId = await NotificationService.addNotificationService(notificationData);
-    if (notificationId && notificationData.userId) {
-      const recipient = await UserService.getUserProfileService(notificationData.userId);
-      if (recipient?.email) {
-        const notificationTemplateId = process.env.NEXT_PUBLIC_EMAILJS_NOTIFICATION_TEMPLATE_ID;
-        if (notificationTemplateId) {
-            await sendEmail({
-                templateId: notificationTemplateId,
-                templateParams: {
-                    to_email: recipient.email,
-                    subject_line: `Learnify Notification: ${notificationData.type.replace(/_/g, ' ')}`,
-                    greeting: `Hi ${recipient.displayName || 'User'},`,
-                    message_body: notificationData.message,
-                    action_link_text: notificationData.link ? "View Details" : "",
-                    action_link_url: notificationData.link ? `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:9002'}${notificationData.link}` : "",
-                    sender_name: notificationData.actorName || 'Learnify System',
-                    app_name: "Learnify"
-                },
-            });
-        } else {
-            console.warn("EmailJS Notification Template ID is not configured. Skipping email notification.");
-        }
-      }
-    }
+    // Email sending logic removed from here.
     return notificationId;
   }, []);
 
@@ -124,10 +103,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         }
         finalSchoolId = childProfile.schoolId;
         finalSchoolName = childProfile.schoolName;
-        finalStatus = 'active';
+        finalStatus = 'active'; 
       } else if ((role === 'teacher' || role === 'student') && schoolIdToJoin) {
         finalStatus = 'pending_verification';
       }
+
 
       const userCredential = await createUserWithEmailAndPassword(auth, email, pass);
       const firebaseUser = userCredential.user;
@@ -154,39 +134,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
                 message: `${profile.displayName} (${profile.role}) registered for ${profile.schoolName}.`,
             });
          }
-
-         const notificationTemplateId = process.env.NEXT_PUBLIC_EMAILJS_NOTIFICATION_TEMPLATE_ID;
-         if (notificationTemplateId) {
-            await sendEmail({
-                templateId: notificationTemplateId,
-                templateParams: {
-                    to_email: profile.email,
-                    subject_line: "Welcome to Learnify!",
-                    greeting: `Hi ${profile.displayName},`,
-                    message_body: `Welcome to Learnify! Your account as a ${profile.role} has been created. ${profile.status === 'pending_verification' ? `Your request to join ${profile.schoolName || 'your school'} is now pending administrator approval.` : ''}`,
-                    app_name: "Learnify"
-                }
-            });
-         }
-
+         // Removed welcome email to user
          if (profile.status === 'pending_verification' && profile.schoolId && profile.schoolName) {
             const schoolAdmins = await UserService.getUsersBySchoolAndRoleService(profile.schoolId, 'admin');
             for (const admin of schoolAdmins) {
-              if (admin.email && notificationTemplateId) {
-                await sendEmail({
-                  templateId: notificationTemplateId,
-                  templateParams: {
-                    to_email: admin.email,
-                    subject_line: `Learnify: New User Awaiting Approval - ${profile.displayName}`,
-                    greeting: `Hi ${admin.displayName || 'Admin'},`,
-                    message_body: `A new user, <strong>${profile.displayName}</strong> (${profile.role}), has registered for <strong>${profile.schoolName}</strong> and is awaiting your approval.`,
-                    action_link_text: "Go to User Management",
-                    action_link_url: `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:9002'}/admin/users`,
-                    app_name: "Learnify"
-                  }
-                });
-              }
-               await addNotification({
+               // Removed email notification to admin
+               await addNotification({ // Platform notification to admin
                   userId: admin.id,
                   schoolId: profile.schoolId!,
                   message: `New user ${profile.displayName} (${profile.role}) requires approval to join ${profile.schoolName}.`,
@@ -388,22 +341,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
                 targetUserName: displayName,
                 link: `/admin/users/${newUser.id}/edit`
             });
-
-            const notificationTemplateId = process.env.NEXT_PUBLIC_EMAILJS_NOTIFICATION_TEMPLATE_ID;
-            if (notificationTemplateId) {
-                await sendEmail({
-                    templateId: notificationTemplateId,
-                    templateParams: {
-                        to_email: newUser.email,
-                        subject_line: `Welcome to ${currentUser.schoolName}!`,
-                        greeting: `Hi ${displayName},`,
-                        message_body: `Your account as a ${role} has been created for ${currentUser.schoolName} by an administrator. Your initial password is the one set during creation. Please change it upon first login.`,
-                        action_link_text: "Login to Learnify",
-                        action_link_url: `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:9002'}/auth/login`,
-                        app_name: "Learnify"
-                    }
-                });
-            }
+            // Removed welcome email to new user
             await addNotification({
                 userId: newUser.id,
                 schoolId: schoolId,
@@ -436,21 +374,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
                     targetUserName: approvedUser.displayName,
                     link: `/admin/users`
                 });
-                 const notificationTemplateId = process.env.NEXT_PUBLIC_EMAILJS_NOTIFICATION_TEMPLATE_ID;
-                 if (notificationTemplateId) {
-                    await sendEmail({
-                        templateId: notificationTemplateId,
-                        templateParams: {
-                            to_email: approvedUser.email,
-                            subject_line: `Learnify: Your Account for ${approvedUser.schoolName} is Approved!`,
-                            greeting: `Hi ${approvedUser.displayName},`,
-                            message_body: `Your account to join <strong>${approvedUser.schoolName}</strong> on Learnify has been approved! You can now log in and access your dashboard.`,
-                            action_link_text: "Log in to Learnify",
-                            action_link_url: `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:9002'}/auth/login`,
-                            app_name: "Learnify"
-                        }
-                    });
-                 }
+                 // Removed approval email
                 await addNotification({
                     userId: approvedUser.id,
                     schoolId: schoolId,
@@ -475,15 +399,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             if (targetUser && targetUser.email) {
                 let activityMessage = `${currentUser.displayName} updated profile for ${targetUser.displayName}.`;
                 let emailSubject = "Learnify: Your Account Details Updated";
-                let emailBody = `<p>Hi ${targetUser.displayName},</p><p>Your Learnify account details have been updated by an administrator at ${targetUser.schoolName}.</p>`;
 
                 if (data.status === 'rejected') {
                     activityMessage = `${currentUser.displayName} rejected user request for ${targetUser.displayName}.`;
-                    emailSubject = `Learnify: Account Request for ${targetUser.schoolName} Rejected`;
-                    emailBody = `<p>Hi ${targetUser.displayName},</p><p>Your request to join ${targetUser.schoolName} on Learnify has been rejected. Please contact your school administrator for more information.</p>`;
+                    emailSubject = `Account Request for ${targetUser.schoolName} Rejected`;
                 } else if (data.role) {
                     activityMessage = `${currentUser.displayName} updated ${targetUser.displayName}'s role to ${data.role}.`;
-                    emailBody += `<p>Your role has been changed to: ${data.role}.</p>`;
                 }
                 await addActivity({
                     schoolId: currentUser.schoolId,
@@ -495,19 +416,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
                     targetUserName: targetUser.displayName,
                     link: `/admin/users/${targetUser.id}/edit`
                 });
-                const notificationTemplateId = process.env.NEXT_PUBLIC_EMAILJS_NOTIFICATION_TEMPLATE_ID;
-                if (notificationTemplateId) {
-                    await sendEmail({
-                        templateId: notificationTemplateId,
-                        templateParams: {
-                            to_email: targetUser.email,
-                            subject_line: emailSubject,
-                            greeting: `Hi ${targetUser.displayName},`,
-                            message_body: emailBody.replace(/<p>|<\/p>/g, "\n").replace(/<strong>|<\/strong>/g, "*"), // Basic markdown-like for EmailJS
-                            app_name: "Learnify"
-                        }
-                    });
-                }
+                // Removed email notification logic
                 await addNotification({
                     userId: targetUser.id,
                     schoolId: targetUser.schoolId!,
@@ -560,21 +469,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
                 message: `${currentUser.displayName} enrolled ${student.displayName} in class "${cls.name}".`,
                 link: `/admin/classes`
             });
-            const notificationTemplateId = process.env.NEXT_PUBLIC_EMAILJS_NOTIFICATION_TEMPLATE_ID;
-            if (notificationTemplateId) {
-                await sendEmail({
-                    templateId: notificationTemplateId,
-                    templateParams: {
-                        to_email: student.email,
-                        subject_line: `Learnify: You've been enrolled in ${cls.name}!`,
-                        greeting: `Hi ${student.displayName},`,
-                        message_body: `You have been enrolled in the class "<strong>${cls.name}</strong>" by ${currentUser.displayName}.`,
-                        action_link_text: "View Class",
-                        action_link_url: `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:9002'}/student/classes/${classId}`,
-                        app_name: "Learnify"
-                    }
-                });
-            }
+            // Removed email notification
             await addNotification({
                 userId: studentId,
                 schoolId: currentUser.schoolId,
@@ -609,19 +504,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
                     message: `${currentUser.displayName} removed ${student.displayName} from class "${cls.name}".`,
                     link: `/admin/classes`
                 });
-                const notificationTemplateId = process.env.NEXT_PUBLIC_EMAILJS_NOTIFICATION_TEMPLATE_ID;
-                if (notificationTemplateId) {
-                    await sendEmail({
-                        templateId: notificationTemplateId,
-                        templateParams: {
-                            to_email: student.email,
-                            subject_line: `Learnify: Removed from class ${cls.name}`,
-                            greeting: `Hi ${student.displayName},`,
-                            message_body: `You have been removed from the class "<strong>${cls.name}</strong>" by ${currentUser.displayName}.`,
-                            app_name: "Learnify"
-                        }
-                    });
-                }
+                // Removed email notification
                 await addNotification({
                     userId: studentId,
                     schoolId: currentUser.schoolId,
@@ -671,7 +554,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
                     classId: classId,
                     type: 'invite_code_regenerated',
                     message: `${currentUser.displayName} regenerated invite code for class "${cls.name}".`,
-                    link: `/admin/classes` // Or specific class edit page if available
+                    link: `/admin/classes` 
                 });
             }
         }
@@ -698,24 +581,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
               link: `/student/classes/${classDetails.id}`
           });
           if (classDetails.teacherId) {
-            const teacher = await UserService.getUserProfileService(classDetails.teacherId);
-            if (teacher?.email) {
-                const notificationTemplateId = process.env.NEXT_PUBLIC_EMAILJS_NOTIFICATION_TEMPLATE_ID;
-                if (notificationTemplateId) {
-                    await sendEmail({
-                        templateId: notificationTemplateId,
-                        templateParams: {
-                            to_email: teacher.email,
-                            subject_line: `Learnify: ${currentUser.displayName} joined your class ${classDetails.name}`,
-                            greeting: `Hi ${teacher.displayName || 'Teacher'},`,
-                            message_body: `Student <strong>${currentUser.displayName}</strong> has joined your class "<strong>${classDetails.name}</strong>" using an invite code.`,
-                            action_link_text: "View Class Roster",
-                            action_link_url: `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:9002'}/teacher/classes/${classDetails.id}`,
-                            app_name: "Learnify"
-                        }
-                    });
-                }
-            }
+            // Removed email notification to teacher
             await addNotification({
                 userId: classDetails.teacherId,
                 schoolId: currentUser.schoolId,
@@ -802,22 +668,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             });
             if (materialData.classId && classInfo) {
                 const students = await ClassService.getStudentsInClassService(materialData.classId, UserService.getUserProfileService);
-                const notificationTemplateId = process.env.NEXT_PUBLIC_EMAILJS_NOTIFICATION_TEMPLATE_ID;
                 for (const student of students) {
-                  if (student.email && notificationTemplateId) {
-                    await sendEmail({
-                        templateId: notificationTemplateId,
-                        templateParams: {
-                            to_email: student.email,
-                            subject_line: `Learnify: New Material "${materialData.title}" for ${classInfo.name}`,
-                            greeting: `Hi ${student.displayName},`,
-                            message_body: `A new learning material, "<strong>${materialData.title}</strong>", has been added to your class "<strong>${classInfo.name}</strong>" by ${currentUser.displayName}.`,
-                            action_link_text: "View Material",
-                            action_link_url: `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:9002'}/student/classes/${materialData.classId}`,
-                            app_name: "Learnify"
-                        }
-                    });
-                  }
+                  // Removed email notification
                   await addNotification({
                       userId: student.id,
                       schoolId: currentUser.schoolId!,
@@ -928,8 +780,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       ...assignmentData,
       teacherId: currentUser.uid,
       schoolId: currentUser.schoolId,
-      attachmentUrl: null, // Assignments are text-based
-      originalFileName: null, // Assignments are text-based
+      attachmentUrl: null, 
+      originalFileName: null, 
     };
 
     try {
@@ -947,22 +799,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
               link: `/teacher/assignments/${newAssignmentId}`
           });
           const students = await ClassService.getStudentsInClassService(assignmentData.classId, UserService.getUserProfileService);
-          const notificationTemplateId = process.env.NEXT_PUBLIC_EMAILJS_NOTIFICATION_TEMPLATE_ID;
           for (const student of students) {
-            if (student.email && notificationTemplateId) {
-              await sendEmail({
-                templateId: notificationTemplateId,
-                templateParams: {
-                    to_email: student.email,
-                    subject_line: `Learnify: New Assignment "${assignmentData.title}" for ${className}`,
-                    greeting: `Hi ${student.displayName},`,
-                    message_body: `A new assignment, "<strong>${assignmentData.title}</strong>", has been posted for your class "<strong>${className}</strong>" by ${currentUser.displayName}.<br>Deadline: ${format(assignmentData.deadline, 'PPpp')}`,
-                    action_link_text: "View Assignment",
-                    action_link_url: `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:9002'}/student/assignments/${newAssignmentId}`,
-                    app_name: "Learnify"
-                }
-              });
-            }
+            // Removed email notification to student
             await addNotification({
                 userId: student.id,
                 schoolId: currentUser.schoolId!,
@@ -1028,8 +866,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     assignmentId: string,
     assignmentTitle: string,
     data: Partial<Omit<Assignment, 'id' | 'createdAt' | 'updatedAt' | 'teacherId' | 'totalSubmissions' | 'schoolId' | 'attachmentUrl' | 'originalFileName'>>,
-    file?: File | null, // Kept for signature consistency, but not used for assignment attachments
-    existingAttachmentUrlForLogic?: string | null // Kept for signature consistency
+    file?: File | null, 
+    existingAttachmentUrlForLogic?: string | null
   ): Promise<boolean> => {
     if (!currentUser || (currentUser.role !== 'teacher' && currentUser.role !== 'admin') || !currentUser.schoolId) return false;
 
@@ -1040,11 +878,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         return false;
       }
       
-      // Assignments are now text-based, so attachmentUrl and originalFileName are always null
       const updatePayload: Partial<Omit<Assignment, 'id' | 'createdAt' | 'updatedAt' | 'teacherId' | 'schoolId'>> = {
         ...data,
-        attachmentUrl: null,
-        originalFileName: null,
+        attachmentUrl: null, // Assignment attachments are now text-based
+        originalFileName: null, // Assignment attachments are now text-based
       };
 
       const success = await AssignmentService.updateAssignmentService(assignmentId, updatePayload);
@@ -1062,22 +899,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             link: `/teacher/assignments/${assignmentId}`
           });
           const students = await ClassService.getStudentsInClassService(updatedAssignmentDoc.classId, UserService.getUserProfileService);
-          const notificationTemplateId = process.env.NEXT_PUBLIC_EMAILJS_NOTIFICATION_TEMPLATE_ID;
           for (const student of students) {
-            if (student.email && notificationTemplateId) {
-              await sendEmail({
-                templateId: notificationTemplateId,
-                templateParams: {
-                    to_email: student.email,
-                    subject_line: `Learnify: Assignment Updated - "${data.title || assignmentTitle}" for ${updatedAssignmentDoc.className}`,
-                    greeting: `Hi ${student.displayName},`,
-                    message_body: `The assignment "<strong>${data.title || assignmentTitle}</strong>" for your class "<strong>${updatedAssignmentDoc.className}</strong>" has been updated by ${currentUser.displayName}.`,
-                    action_link_text: "View Updated Assignment",
-                    action_link_url: `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:9002'}/student/assignments/${assignmentId}`,
-                    app_name: "Learnify"
-                }
-              });
-            }
+            // Removed email notification
              await addNotification({
                 userId: student.id,
                 schoolId: currentUser.schoolId!,
@@ -1125,21 +948,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
                     message: `${currentUser.displayName} graded ${student.displayName}'s submission for "${assignment.title}". Grade: ${grade}.`,
                     link: `/student/assignments/${submission.assignmentId}`
                 });
-                const notificationTemplateId = process.env.NEXT_PUBLIC_EMAILJS_NOTIFICATION_TEMPLATE_ID;
-                if (notificationTemplateId) {
-                    await sendEmail({
-                        templateId: notificationTemplateId,
-                        templateParams: {
-                            to_email: student.email,
-                            subject_line: `Learnify: Your Assignment "${assignment.title}" Has Been Graded!`,
-                            greeting: `Hi ${student.displayName},`,
-                            message_body: `Your submission for the assignment "<strong>${assignment.title}</strong>" has been graded.<br>Grade: <strong>${grade}</strong>${feedback ? `<br>Feedback: <em>${feedback.replace(/\n/g, "<br>")}</em>` : ''}`,
-                            action_link_text: "View Submission Details",
-                            action_link_url: `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:9002'}/student/assignments/${submission.assignmentId}`,
-                            app_name: "Learnify"
-                        }
-                    });
-                }
+                // Removed email notification
                 await addNotification({
                     userId: student.id,
                     schoolId: currentUser.schoolId,
@@ -1207,24 +1016,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             return {...prev, studentAssignments: updatedAssignments };
         });
         if (assignment.teacherId) {
-            const teacher = await UserService.getUserProfileService(assignment.teacherId);
-            if (teacher?.email) {
-                const notificationTemplateId = process.env.NEXT_PUBLIC_EMAILJS_NOTIFICATION_TEMPLATE_ID;
-                if (notificationTemplateId) {
-                    await sendEmail({
-                        templateId: notificationTemplateId,
-                        templateParams: {
-                            to_email: teacher.email,
-                            subject_line: `Learnify: New Submission for "${assignment.title}" by ${currentUser.displayName}`,
-                            greeting: `Hi ${teacher.displayName || 'Teacher'},`,
-                            message_body: `Student <strong>${currentUser.displayName}</strong> has submitted their work for the assignment "<strong>${assignment.title}</strong>" in class "<strong>${assignment.className}</strong>".`,
-                            action_link_text: "View Submission",
-                            action_link_url: `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:9002'}/teacher/assignments/${submissionData.assignmentId}`,
-                            app_name: "Learnify"
-                        }
-                    });
-                }
-            }
+            // Removed email notification to teacher
             await addNotification({
                 userId: assignment.teacherId,
                 schoolId: currentUser.schoolId,
@@ -1269,24 +1061,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             link: `/student/dashboard`
         });
         if (cls?.teacherId) {
-          const teacher = await UserService.getUserProfileService(cls.teacherId);
-          if (teacher?.email) {
-            const notificationTemplateId = process.env.NEXT_PUBLIC_EMAILJS_NOTIFICATION_TEMPLATE_ID;
-            if (notificationTemplateId) {
-                await sendEmail({
-                    templateId: notificationTemplateId,
-                    templateParams: {
-                        to_email: teacher.email,
-                        subject_line: `Learnify: ${currentUser.displayName} completed onboarding for your class ${cls.name}`,
-                        greeting: `Hi ${teacher.displayName || 'Teacher'},`,
-                        message_body: `Student <strong>${currentUser.displayName}</strong> has completed onboarding and joined your class "<strong>${cls.name}</strong>".`,
-                        action_link_text: "View Class Roster",
-                        action_link_url: `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:9002'}/teacher/classes/${cls.id}`,
-                        app_name: "Learnify"
-                    }
-                });
-            }
-          }
+            // Removed email notification to teacher
             await addNotification({
                 userId: cls.teacherId,
                 schoolId: currentUser.schoolId,
@@ -1476,12 +1251,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     const result = await TestimonialService.addTestimonialService(testimonialData);
     if (result && currentUser.schoolId && currentUser.displayName) {
       await addActivity({
-        schoolId: currentUser.schoolId,
+        schoolId: currentUser.schoolId, 
         actorId: currentUser.uid,
         actorName: currentUser.displayName,
         type: 'testimonial_submitted',
         message: `${currentUser.displayName} submitted a testimonial.`,
-        link: '/admin/testimonials' 
+        link: '/admin/testimonials'
       });
     }
     return result;
@@ -1561,3 +1336,4 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
+
