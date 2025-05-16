@@ -1,8 +1,8 @@
-'use client'; // Make Logo a client component
 
+'use client';
 import Image from 'next/image';
-import React, { useState, useEffect } from 'react'; // Import useState, useEffect
 import Link from 'next/link';
+import React from 'react'; // Removed useState, useEffect
 
 interface LogoProps {
   className?: string;
@@ -10,12 +10,6 @@ interface LogoProps {
 }
 
 export default function Logo({ className, onClick }: LogoProps) {
-  const [hasMounted, setHasMounted] = useState(false);
-
-  useEffect(() => {
-    setHasMounted(true);
-  }, []);
-
   return (
     <Link
       href="/"
@@ -23,12 +17,7 @@ export default function Logo({ className, onClick }: LogoProps) {
       onClick={onClick}
       aria-label="Learnify Homepage"
     >
-      {hasMounted ? (
-        <Image src="/logo-icon.png" width={32} height={32} alt="Learnify Logo Icon" />
-      ) : (
-        // Placeholder to match dimensions, prevent layout shift and hydration mismatch for Image
-        <div style={{ width: 32, height: 32 }} aria-hidden="true"></div>
-      )}
+      <Image src="/logo-icon.png" width={32} height={32} alt="Learnify Logo Icon" priority />
       <span>Learnify</span>
     </Link>
   );
