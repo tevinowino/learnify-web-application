@@ -31,7 +31,7 @@ export const uploadFileToCloudinaryService = async (
 
   try {
     const response = await fetch(
-      `https://api.cloudinary.com/v1_1/${cloudName}/upload`,
+      `https://api.cloudinary.com/v1_1/${cloudName}/raw/upload`,
       {
         method: 'POST',
         body: formData,
