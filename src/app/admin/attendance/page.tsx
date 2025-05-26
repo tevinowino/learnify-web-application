@@ -5,8 +5,8 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Loader2, Users2, CalendarDays, Filter } from "lucide-react";
-import type { ClassWithTeacherInfo, AttendanceRecord, UserProfileWithId } from '@/types';
+import { Loader2, Users2, CalendarDays, Filter, AlertTriangle } from "lucide-react";
+import type { ClassWithTeacherInfo, AttendanceRecord } from '@/types'; // Removed UserProfileWithId as it's not directly used for display list here
 import { useToast } from '@/hooks/use-toast';
 import {
   Select,
@@ -17,11 +17,12 @@ import {
 } from "@/components/ui/select";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
-import { format, startOfDay, endOfDay, subDays } from 'date-fns';
+import { format, startOfDay, endOfDay } from 'date-fns'; // Removed subDays as default range isn't used here
 import { Timestamp } from 'firebase/firestore';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
 import Loader from '@/components/shared/Loader';
+import { Label } from '@/components/ui/label'; // Added Label
 
 export default function AdminAttendancePage() {
   const { currentUser, getClassesBySchool, getAttendanceForSchoolClassRange, loading: authLoading } = useAuth();
@@ -39,7 +40,7 @@ export default function AdminAttendancePage() {
       if (currentUser?.schoolId) {
         setIsLoadingData(true);
         const classes = await getClassesBySchool(currentUser.schoolId);
-        setSchoolClasses(classes);
+        setSchoolClasses(classes.sort((a,b) => a.name.localeCompare(b.name)));
         setIsLoadingData(false);
       }
     };
@@ -50,15 +51,17 @@ export default function AdminAttendancePage() {
     if (selectedClassId && attendanceDate && currentUser?.schoolId) {
       setIsLoadingData(true);
       const startDate = Timestamp.fromDate(startOfDay(attendanceDate));
-      const endDate = Timestamp.fromDate(endOfDay(attendanceDate)); // query for the whole day
+      const endDate = Timestamp.fromDate(endOfDay(attendanceDate)); 
       
       const records = await getAttendanceForSchoolClassRange(selectedClassId, currentUser.schoolId, startDate, endDate);
-      // Sort by student name for display
       records.sort((a, b) => (a.studentName || '').localeCompare(b.studentName || ''));
       setAttendanceRecords(records);
       setIsLoadingData(false);
     } else {
       setAttendanceRecords([]);
+      if (selectedClassId && attendanceDate) { // If filters are set but no schoolId, clear loading
+        setIsLoadingData(false);
+      }
     }
   }, [selectedClassId, attendanceDate, currentUser?.schoolId, getAttendanceForSchoolClassRange]);
 
@@ -71,17 +74,16 @@ export default function AdminAttendancePage() {
       case 'present': return 'default' as const;
       case 'absent': return 'destructive' as const;
       case 'late': return 'secondary' as const;
-      case 'excused': return 'outline' as const; // Or a specific 'info' variant if you add one
+      case 'excused': return 'outline' as const; 
       default: return 'outline' as const;
     }
   };
-
 
   const isLoading = authLoading || isLoadingData;
 
   return (
     <div className="space-y-6">
-      <h1 className="text-3xl font-bold">Attendance Records</h1>
+      <h1 className="text-3xl font-bold">View Attendance Records</h1>
       
       <Card className="card-shadow">
         <CardHeader>
@@ -132,20 +134,23 @@ export default function AdminAttendancePage() {
       {selectedClassId && attendanceDate && (
         <Card className="card-shadow">
           <CardHeader>
-            <CardTitle className="flex items-center"><Users2 className="mr-2 h-5 w-5 text-primary"/>Attendance for {schoolClasses.find(c=>c.id===selectedClassId)?.name}</CardTitle>
+            <CardTitle className="flex items-center"><Users2 className="mr-2 h-5 w-5 text-primary"/>Attendance for {schoolClasses.find(c=>c.id===selectedClassId)?.name || 'Selected Class'}</CardTitle>
             <CardDescription>Showing records for {format(attendanceDate, 'PPP')}.</CardDescription>
           </CardHeader>
           <CardContent>
             {isLoading ? <div className="flex justify-center py-4"><Loader message="Loading attendance..." /></div> : 
               attendanceRecords.length === 0 ? (
-                <p className="text-muted-foreground text-center py-8">No attendance records found for this class on this date.</p>
+                 <div className="text-center py-12 text-muted-foreground">
+                    <AlertTriangle className="mx-auto h-12 w-12 mb-4"/>
+                    <p>No attendance records found for this class on this date.</p>
+                </div>
               ) : (
-                <ScrollArea className="h-[60vh]">
-                  <div className="space-y-2 pr-2">
+                <ScrollArea className="h-[60vh] border rounded-md">
+                  <div className="space-y-0"> {/* Removed space-y-2 to make it look more like a table */}
                     {attendanceRecords.map(record => (
-                      <div key={record.id} className="flex items-center justify-between p-3 border rounded-md">
-                        <span className="font-medium">{record.studentName || 'Unknown Student'}</span>
-                        <Badge variant={getStatusBadgeVariant(record.status)} className="capitalize">
+                      <div key={record.id} className="flex items-center justify-between p-3 border-b last:border-b-0">
+                        <span className="font-medium text-sm">{record.studentName || 'Unknown Student'}</span>
+                        <Badge variant={getStatusBadgeVariant(record.status)} className="capitalize text-xs px-2 py-0.5">
                           {record.status}
                         </Badge>
                       </div>
@@ -161,3 +166,4 @@ export default function AdminAttendancePage() {
   );
 }
 
+    

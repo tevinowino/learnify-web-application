@@ -5,7 +5,7 @@ import React from 'react';
 import { useAuth } from '@/hooks/useAuth'; 
 import { useParentDashboard } from '@/hooks/useParentDashboard'; 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { User, BookOpen, BarChart2, Bell, LinkIcon, UserCircle } from 'lucide-react';
+import { User, BookOpen, BarChart2, Bell, LinkIcon, UserCircle, CalendarCheck } from 'lucide-react'; // Added CalendarCheck
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import Loader from '@/components/shared/Loader'; 
@@ -17,7 +17,7 @@ export default function ParentDashboardPage() {
     childProfile,
     upcomingAssignmentsCount,
     recentGradesCount,
-    attendanceIssuesCount,
+    attendanceIssuesCount, // Now this will have a value
     recentActivities,
     isLoading 
   } = useParentDashboard();
@@ -89,15 +89,15 @@ export default function ParentDashboardPage() {
 
             <Card className="card-shadow hover:border-primary transition-colors">
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Attendance Overview</CardTitle>
-                <User className="h-5 w-5 text-muted-foreground" />
+                <CardTitle className="text-sm font-medium">Attendance (Last 7 Days)</CardTitle>
+                <CalendarCheck className="h-5 w-5 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{attendanceIssuesCount > 0 ? `${attendanceIssuesCount} issues` : 'N/A'}</div> 
+                <div className="text-2xl font-bold">{attendanceIssuesCount > 0 ? `${attendanceIssuesCount} issue(s)` : 'All Good!'}</div> 
                 <Button variant="link" asChild className="px-0 pt-2 text-sm">
                   <Link href="/parent/attendance">View Attendance Details</Link>
                 </Button>
-                 <p className="text-xs text-muted-foreground mt-1">Feature coming soon</p>
+                 {attendanceIssuesCount > 0 && <p className="text-xs text-destructive mt-1">Check for absences or lates.</p>}
               </CardContent>
             </Card>
           </div>
@@ -131,3 +131,4 @@ export default function ParentDashboardPage() {
   );
 }
 
+    

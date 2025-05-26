@@ -2,8 +2,9 @@
 "use client";
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from './useAuth';
-import type { UserProfileWithId, AssignmentWithClassAndSubmissionInfo, ExamResultWithStudentInfo, Activity as ActivityType } from '@/types';
+import type { UserProfileWithId, AssignmentWithClassAndSubmissionInfo, ExamResultWithStudentInfo, Activity as ActivityType, AttendanceRecord } from '@/types';
 import { useToast } from './use-toast'; 
+import { Timestamp, startOfDay, subDays, endOfDay } from 'firebase/firestore'; // Import Timestamp and date functions
 
 export function useParentDashboard() {
   const { 
@@ -13,6 +14,7 @@ export function useParentDashboard() {
     getExamResultsForStudent,
     getActivities,
     getClassesByIds, 
+    getAttendanceForStudent, // Add this
     loading: authLoading 
   } = useAuth();
   const { toast } = useToast();
@@ -58,10 +60,19 @@ export function useParentDashboard() {
         const results = await getExamResultsForStudent(child.uid, child.schoolId);
         setRecentGradesCount(results.filter(r => r.marks).length); 
 
-        // Placeholder for attendance
-        setAttendanceIssuesCount(0); 
+        // Fetch attendance for the last 7 days
+        const sevenDaysAgo = startOfDay(subDays(now, 7));
+        const todayEnd = endOfDay(now);
+        const attendance = await getAttendanceForStudent(
+          child.uid, 
+          child.schoolId, 
+          Timestamp.fromDate(sevenDaysAgo), 
+          Timestamp.fromDate(todayEnd)
+        );
+        const issues = attendance.filter(record => record.status === 'absent' || record.status === 'late').length;
+        setAttendanceIssuesCount(issues); 
 
-        const activities = await getActivities(child.schoolId, { targetUserId: child.uid, type: undefined }, 5); // Fetch activities targeting the child
+        const activities = await getActivities(child.schoolId, { targetUserId: child.uid, type: undefined }, 5); 
         setRecentActivities(activities);
 
       } else {
@@ -77,13 +88,12 @@ export function useParentDashboard() {
     } finally {
       setIsLoadingData(false);
     }
-  }, [currentUser, getUserProfile, getClassesByIds, getAssignmentsForStudentByClass, getExamResultsForStudent, getActivities, toast]);
+  }, [currentUser, getUserProfile, getClassesByIds, getAssignmentsForStudentByClass, getExamResultsForStudent, getActivities, getAttendanceForStudent, toast]);
 
   useEffect(() => {
     if (currentUser && !authLoading) {
       fetchDashboardData();
     } else if (!authLoading && !currentUser?.childStudentId) {
-        // If user is loaded but no child is linked, stop loading state for dashboard data
         setIsLoadingData(false);
         setChildProfile(null);
     }
@@ -99,3 +109,4 @@ export function useParentDashboard() {
   };
 }
 
+    
