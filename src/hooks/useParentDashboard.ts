@@ -4,7 +4,8 @@ import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from './useAuth';
 import type { UserProfileWithId, AssignmentWithClassAndSubmissionInfo, ExamResultWithStudentInfo, Activity as ActivityType, AttendanceRecord } from '@/types';
 import { useToast } from './use-toast'; 
-import { Timestamp, startOfDay, subDays, endOfDay } from 'firebase/firestore'; // Import Timestamp and date functions
+import { Timestamp } from 'firebase/firestore';
+import { startOfDay, subDays, endOfDay, isValid } from 'date-fns'; // Correctly import date functions from date-fns
 
 export function useParentDashboard() {
   const { 
@@ -14,7 +15,7 @@ export function useParentDashboard() {
     getExamResultsForStudent,
     getActivities,
     getClassesByIds, 
-    getAttendanceForStudent, // Add this
+    getAttendanceForStudent,
     loading: authLoading 
   } = useAuth();
   const { toast } = useToast();
@@ -60,7 +61,6 @@ export function useParentDashboard() {
         const results = await getExamResultsForStudent(child.uid, child.schoolId);
         setRecentGradesCount(results.filter(r => r.marks).length); 
 
-        // Fetch attendance for the last 7 days
         const sevenDaysAgo = startOfDay(subDays(now, 7));
         const todayEnd = endOfDay(now);
         const attendance = await getAttendanceForStudent(
@@ -108,5 +108,3 @@ export function useParentDashboard() {
     isLoading: authLoading || isLoadingData,
   };
 }
-
-    
