@@ -15,6 +15,13 @@ import { Label } from '@/components/ui/label';
 import { Timestamp } from 'firebase/firestore';
 import Loader from '@/components/shared/Loader';
 import { cn } from '@/lib/utils';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"; // Added this import
 
 export default function TeacherAttendancePage() {
   const { currentUser, getClassesByTeacher, getStudentsInClass, saveAttendanceRecords, getAttendanceForClassDate, loading: authLoading } = useAuth();
@@ -203,4 +210,3 @@ export default function TeacherAttendancePage() {
     </div>
   );
 }
-
