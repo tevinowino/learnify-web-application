@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useEffect, useState, useCallback } from 'react';
@@ -6,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { Loader2, PlusCircle, BookOpen, UploadCloud, Link as LinkLucideIcon, FileTextIcon, VideoIcon, Trash2, EditIcon as EditLucideIcon, Download } from 'lucide-react'; 
+import { PlusCircle, BookOpen, UploadCloud, Link as LinkLucideIcon, FileTextIcon, VideoIcon, Trash2, EditIcon as EditLucideIcon, Download, Search } from 'lucide-react'; 
 import type { LearningMaterial, LearningMaterialType, ClassWithTeacherInfo, Subject } from '@/types';
 import { useToast } from '@/hooks/use-toast';
 import { formatDistanceToNow } from 'date-fns';
@@ -21,7 +22,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import Link from 'next/link'; 
 import { Label } from '@/components/ui/label';
 import Loader from '@/components/shared/Loader';
-
+import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip'; // Import Tooltip components
 
 const materialTypeIcons: Record<LearningMaterialType, React.ReactNode> = {
   text: <FileTextIcon className="h-4 w-4 mr-2" />,
@@ -51,6 +52,7 @@ export default function ManageMaterialsPage() {
     deleteLearningMaterial,
     updateLearningMaterial,
     getSubjectsBySchool, 
+    getSubjectById,
     loading: authLoading 
   } = useAuth();
   const { toast } = useToast();
@@ -81,19 +83,29 @@ export default function ManageMaterialsPage() {
   const fetchMaterialsAndClassesAndSubjects = useCallback(async () => { 
     if (currentUser?.uid && currentUser.schoolId) {
       setIsLoadingPage(true);
-      const [fetchedMaterials, fetchedClasses, fetchedSubjects] = await Promise.all([ 
+      const [fetchedMaterialsRaw, fetchedClasses, fetchedSubjects] = await Promise.all([ 
         getLearningMaterialsByTeacher(currentUser.uid),
         getClassesByTeacher(currentUser.uid),
         getSubjectsBySchool(currentUser.schoolId) 
       ]);
-      setMaterials(fetchedMaterials.sort((a,b) => b.createdAt.toMillis() - a.createdAt.toMillis()));
+      const enrichedMaterials = await Promise.all(
+        fetchedMaterialsRaw.map(async (material) => {
+          let subjectName = 'N/A';
+          if (material.subjectId && getSubjectById) {
+            const subject = await getSubjectById(material.subjectId);
+            subjectName = subject?.name || 'N/A';
+          }
+          return { ...material, subjectName };
+        })
+      );
+      setMaterials(enrichedMaterials.sort((a,b) => b.createdAt.toMillis() - a.createdAt.toMillis()));
       setTeacherClasses(fetchedClasses);
       setSchoolSubjects(fetchedSubjects); 
       setIsLoadingPage(false);
     } else if (!authLoading) {
       setIsLoadingPage(false);
     }
-  }, [currentUser, getLearningMaterialsByTeacher, getClassesByTeacher, getSubjectsBySchool, authLoading]); 
+  }, [currentUser, getLearningMaterialsByTeacher, getClassesByTeacher, getSubjectsBySchool, getSubjectById, authLoading]); 
 
   useEffect(() => {
     fetchMaterialsAndClassesAndSubjects();
@@ -118,9 +130,9 @@ export default function ManageMaterialsPage() {
     }
     setIsSubmitting(true);
     
-    const materialData: Omit<LearningMaterial, 'id' | 'createdAt' | 'updatedAt'> = {
+    const materialData: Omit<LearningMaterial, 'id' | 'createdAt' | 'updatedAt' | 'originalFileName'> = {
       title,
-      content: materialType === 'pdf_upload' ? `[Uploaded File: ${selectedFile?.name}]` : content, // Content is placeholder for PDF upload
+      content: materialType === 'pdf_upload' ? `[Uploaded File: ${selectedFile?.name}]` : content,
       materialType,
       schoolId: currentUser.schoolId,
       teacherId: currentUser.uid,
@@ -159,7 +171,7 @@ export default function ManageMaterialsPage() {
     }
     setIsSubmitting(true);
 
-    const updatePayloadForService: Partial<Omit<LearningMaterial, 'id' | 'createdAt' | 'updatedAt' | 'teacherId' | 'schoolId' | 'attachmentUrl'>> = {
+    const updatePayloadForService: Partial<Omit<LearningMaterial, 'id' | 'createdAt' | 'updatedAt' | 'teacherId' | 'schoolId' | 'attachmentUrl' | 'originalFileName'>> = {
       title: editTitle,
       content: editMaterialType === 'pdf_upload' ? (editSelectedFile ? `[Uploaded File: ${editSelectedFile.name}]` : editingMaterial.content) : editContent, 
       materialType: editMaterialType,
@@ -171,7 +183,7 @@ export default function ManageMaterialsPage() {
         editingMaterial.id, 
         updatePayloadForService, 
         editSelectedFile, 
-        editingMaterial.attachmentUrl // Pass existing URL to AuthProvider
+        editingMaterial.attachmentUrl 
     );
     setIsSubmitting(false);
     if (success) {
@@ -220,6 +232,7 @@ export default function ManageMaterialsPage() {
   }
 
   return (
+    <TooltipProvider>
     <div className="space-y-8">
       <h1 className="text-2xl sm:text-3xl font-bold">Manage Learning Materials</h1>
 
@@ -335,9 +348,10 @@ export default function ManageMaterialsPage() {
         </CardHeader>
         <CardContent>
           {materials.length === 0 ? (
-            <div className="text-center py-8">
-              <BookOpen className="mx-auto h-12 w-12 text-muted-foreground" />
-              <p className="mt-4 text-muted-foreground">No learning materials found. Add some above!</p>
+            <div className="text-center py-12">
+              <BookOpen className="mx-auto h-16 w-16 text-muted-foreground mb-4" />
+              <p className="text-xl font-semibold text-muted-foreground">No learning materials uploaded yet.</p>
+              <p className="text-muted-foreground mt-1">Click "Add New Material" above to get started.</p>
             </div>
           ) : (
             <div className="space-y-4">
@@ -356,18 +370,30 @@ export default function ManageMaterialsPage() {
                           <CardDescription className="text-xs">
                             Type: {materialTypeLabels[material.materialType]} | 
                             Class: {assignedClass?.name || 'General'} |
-                            Subject: {assignedSubject?.name || 'N/A'} 
+                            Subject: {(material as any).subjectName || 'N/A'} {/* Access enriched subjectName */}
                             <br />
                             Uploaded {material.createdAt ? formatDistanceToNow(material.createdAt.toDate(), { addSuffix: true }) : 'recently'}
                           </CardDescription>
                         </div>
                         <div className="flex gap-2 mt-2 sm:mt-0 self-start sm:self-auto flex-shrink-0">
-                           <Button variant="outline" size="sm" onClick={() => openEditDialog(material)} className="button-shadow">
-                              <EditLucideIcon className="mr-1 h-3 w-3"/> Edit
-                            </Button>
-                           <Button variant="destructive" size="sm" onClick={() => handleDeleteMaterial(material.id, material.title)} disabled={isSubmitting && editingMaterial?.id !== material.id} className="button-shadow"> 
-                              {isSubmitting && editingMaterial?.id === material.id && material.id === editingMaterial.id ? <Loader size="small"/> :<Trash2 className="mr-1 h-3 w-3"/>} Delete
-                           </Button>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button variant="outline" size="icon" onClick={() => openEditDialog(material)} className="button-shadow">
+                                <EditLucideIcon className="h-4 w-4" />
+                                <span className="sr-only">Edit Material</span>
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent><p>Edit Material</p></TooltipContent>
+                          </Tooltip>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button variant="destructive" size="icon" onClick={() => handleDeleteMaterial(material.id, material.title)} disabled={isSubmitting && editingMaterial?.id !== material.id} className="button-shadow"> 
+                                {isSubmitting && editingMaterial?.id === material.id && material.id === editingMaterial.id ? <Loader size="small"/> :<Trash2 className="h-4 w-4"/>}
+                                <span className="sr-only">Delete Material</span>
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent><p>Delete Material</p></TooltipContent>
+                          </Tooltip>
                         </div>
                       </div>
                     </CardHeader>
@@ -495,8 +521,7 @@ export default function ManageMaterialsPage() {
           </DialogContent>
         </Dialog>
       )}
-
     </div>
+    </TooltipProvider>
   );
 }
-

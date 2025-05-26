@@ -12,7 +12,8 @@ import CreateClassDialog from './components/CreateClassDialog';
 import EditClassDialog from './components/EditClassDialog';
 import ManageStudentsDialog from './components/ManageStudentsDialog';
 import { Badge } from '@/components/ui/badge';
-import Loader from '@/components/shared/Loader'; // Import new Loader
+import Loader from '@/components/shared/Loader';
+import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
 
 export default function ManageClassesPage() {
   const { 
@@ -96,98 +97,113 @@ export default function ManageClassesPage() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <h1 className="text-2xl sm:text-3xl font-bold">Manage Classes</h1>
-        <CreateClassDialog 
-          teachers={teachers} 
-          schoolId={currentUser.schoolId}
-          onCreateClass={createClassInSchool}
-          onSuccess={fetchClassesAndTeachers}
-        />
+    <TooltipProvider>
+      <div className="space-y-6">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+          <h1 className="text-2xl sm:text-3xl font-bold">Manage Classes</h1>
+          <CreateClassDialog 
+            teachers={teachers} 
+            schoolId={currentUser.schoolId}
+            onCreateClass={createClassInSchool}
+            onSuccess={fetchClassesAndTeachers}
+          />
+        </div>
+
+        <Card className="card-shadow">
+          <CardHeader>
+            <CardTitle className="flex items-center"><BookCopy className="mr-2 h-5 w-5 text-primary" />School Classes ({classes.length})</CardTitle>
+            <CardDescription>List of all classes in your school. You can edit details or delete them.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {classes.length === 0 ? (
+              <div className="text-center py-12">
+                <BookCopy className="mx-auto h-16 w-16 text-muted-foreground mb-4" />
+                <p className="text-xl font-semibold text-muted-foreground">No classes created yet.</p>
+                <p className="text-muted-foreground mt-1">Click "Create New Class" to add your first class.</p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {classes.map(classItem => (
+                  <Card key={classItem.id} className="hover:border-primary/50 transition-colors">
+                    <CardHeader className="flex flex-col sm:flex-row justify-between items-start">
+                      <div className="mb-2 sm:mb-0 flex-grow">
+                        <div className="flex items-center gap-2 mb-1">
+                          <CardTitle>{classItem.name}</CardTitle>
+                          <Badge variant={classItem.classType === 'main' ? 'default' : 'secondary'} className="text-xs">
+                            {classItem.classType === 'main' ? 'Main Class' : 'Subject Class'}
+                          </Badge>
+                        </div>
+                        <CardDescription className="text-xs">
+                          Teacher: {classItem.teacherDisplayName || 'Not Assigned'} <br />
+                          Students: {classItem.studentIds?.length || 0} <br />
+                          Invite Code: {classItem.classInviteCode || 'N/A'} <br />
+                          {classItem.classType === 'subject_based' && classItem.subjectName && (
+                            <>Subject: {classItem.subjectName} <br /></>
+                          )}
+                          {classItem.classType === 'main' && classItem.compulsorySubjectNames && classItem.compulsorySubjectNames.length > 0 && (
+                            <>Compulsory: {classItem.compulsorySubjectNames.join(', ')} <br /></>
+                          )}
+                        </CardDescription>
+                      </div>
+                      <div className="flex gap-2 flex-wrap sm:flex-nowrap w-full sm:w-auto self-start sm:self-center">
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button variant="outline" size="icon" onClick={() => setEditingClass(classItem)} className="button-shadow">
+                                  <Edit className="h-4 w-4"/>
+                                  <span className="sr-only">Edit Class</span>
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent><p>Edit Class Details</p></TooltipContent>
+                          </Tooltip>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button variant="destructive" size="icon" onClick={() => handleDeleteClass(classItem.id, classItem.name)} disabled={isSubmitting} className="button-shadow">
+                                {isSubmitting ? <Loader size="small" /> : <Trash2 className="h-4 w-4"/>}
+                                <span className="sr-only">Delete Class</span>
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent><p>Delete Class</p></TooltipContent>
+                          </Tooltip>
+                        </div>
+                    </CardHeader>
+                    <CardFooter>
+                      <Button variant="secondary" size="sm" onClick={() => setManagingStudentsClass(classItem)} className="button-shadow w-full sm:w-auto">
+                          <Users className="mr-2 h-4 w-4"/> Manage Students
+                        </Button>
+                    </CardFooter>
+                  </Card>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {editingClass && (
+          <EditClassDialog
+            classItem={editingClass}
+            teachers={teachers}
+            isOpen={!!editingClass}
+            onOpenChange={(open) => !open && setEditingClass(null)}
+            onUpdateClass={updateClassDetails}
+            onRegenerateCode={regenerateClassInviteCode}
+            onSuccess={fetchClassesAndTeachers}
+          />
+        )}
+
+        {managingStudentsClass && currentUser?.schoolId && (
+          <ManageStudentsDialog
+            classItem={managingStudentsClass}
+            schoolId={currentUser.schoolId}
+            isOpen={!!managingStudentsClass}
+            onOpenChange={(open) => !open && setManagingStudentsClass(null)}
+            onEnrollStudent={enrollStudentInClass}
+            onRemoveStudent={removeStudentFromClass}
+            getStudentsInClass={getStudentsInClass}
+            getStudentsNotInClass={getStudentsNotInClass}
+            onSuccess={fetchClassesAndTeachers}
+          />
+        )}
       </div>
-
-      <Card className="card-shadow">
-        <CardHeader>
-          <CardTitle className="flex items-center"><BookCopy className="mr-2 h-5 w-5 text-primary" />School Classes ({classes.length})</CardTitle>
-          <CardDescription>List of all classes in your school. You can edit details or delete them.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          {classes.length === 0 ? (
-            <div className="text-center py-8">
-              <BookCopy className="mx-auto h-12 w-12 text-muted-foreground" />
-              <p className="mt-4 text-muted-foreground">No classes found. Create one to get started!</p>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {classes.map(classItem => (
-                <Card key={classItem.id} className="hover:border-primary/50 transition-colors">
-                  <CardHeader className="flex flex-col sm:flex-row justify-between items-start">
-                    <div className="mb-2 sm:mb-0 flex-grow">
-                      <div className="flex items-center gap-2 mb-1">
-                        <CardTitle>{classItem.name}</CardTitle>
-                        <Badge variant={classItem.classType === 'main' ? 'default' : 'secondary'} className="text-xs">
-                          {classItem.classType === 'main' ? 'Main Class' : 'Subject Class'}
-                        </Badge>
-                      </div>
-                      <CardDescription className="text-xs">
-                        Teacher: {classItem.teacherDisplayName || 'Not Assigned'} <br />
-                        Students: {classItem.studentIds?.length || 0} <br />
-                        Invite Code: {classItem.classInviteCode || 'N/A'} <br />
-                        {classItem.classType === 'subject_based' && classItem.subjectName && (
-                          <>Subject: {classItem.subjectName} <br /></>
-                        )}
-                        {classItem.classType === 'main' && classItem.compulsorySubjectNames && classItem.compulsorySubjectNames.length > 0 && (
-                           <>Compulsory: {classItem.compulsorySubjectNames.join(', ')} <br /></>
-                        )}
-                      </CardDescription>
-                    </div>
-                     <div className="flex gap-2 flex-wrap sm:flex-nowrap w-full sm:w-auto self-start sm:self-center">
-                        <Button variant="outline" size="sm" onClick={() => setEditingClass(classItem)} className="button-shadow flex-grow sm:flex-grow-0">
-                            <Edit className="mr-1 h-3 w-3"/> Edit
-                        </Button>
-                        <Button variant="destructive" size="sm" onClick={() => handleDeleteClass(classItem.id, classItem.name)} disabled={isSubmitting} className="button-shadow flex-grow sm:flex-grow-0">
-                          {isSubmitting ? <Loader size="small" /> : <Trash2 className="mr-1 h-3 w-3"/>} Delete
-                        </Button>
-                      </div>
-                  </CardHeader>
-                  <CardFooter>
-                     <Button variant="secondary" size="sm" onClick={() => setManagingStudentsClass(classItem)} className="button-shadow w-full sm:w-auto">
-                        <Users className="mr-2 h-4 w-4"/> Manage Students
-                      </Button>
-                  </CardFooter>
-                </Card>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      {editingClass && (
-        <EditClassDialog
-          classItem={editingClass}
-          teachers={teachers}
-          isOpen={!!editingClass}
-          onOpenChange={(open) => !open && setEditingClass(null)}
-          onUpdateClass={updateClassDetails}
-          onRegenerateCode={regenerateClassInviteCode}
-          onSuccess={fetchClassesAndTeachers}
-        />
-      )}
-
-      {managingStudentsClass && currentUser?.schoolId && (
-        <ManageStudentsDialog
-          classItem={managingStudentsClass}
-          schoolId={currentUser.schoolId}
-          isOpen={!!managingStudentsClass}
-          onOpenChange={(open) => !open && setManagingStudentsClass(null)}
-          onEnrollStudent={enrollStudentInClass}
-          onRemoveStudent={removeStudentFromClass}
-          getStudentsInClass={getStudentsInClass}
-          getStudentsNotInClass={getStudentsNotInClass}
-          onSuccess={fetchClassesAndTeachers}
-        />
-      )}
-    </div>
+    </TooltipProvider>
   );
 }

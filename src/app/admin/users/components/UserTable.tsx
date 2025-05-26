@@ -9,6 +9,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Loader2, Edit, ShieldCheck, Briefcase, GraduationCap, UserCheck, UserX } from 'lucide-react';
 import Link from 'next/link';
 import type { UserProfileWithId, UserStatus } from '@/types';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'; // Import Tooltip components
 
 interface UserTableProps {
   users: UserProfileWithId[];
@@ -99,38 +100,62 @@ export default function UserTable({
               <TableCell className="text-right space-x-2">
                 {isPendingTab && currentSchoolId && onApproveUser && onRejectUser ? (
                   <>
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
-                      onClick={() => onApproveUser(user.id, currentSchoolId)} 
-                      disabled={isProcessingUser === user.id}
-                      className="button-shadow text-green-600 border-green-600 hover:bg-green-50"
-                    >
-                      {isProcessingUser === user.id ? <Loader2 className="h-3 w-3 animate-spin"/> : <UserCheck className="mr-1 h-3 w-3"/>} Approve
-                    </Button>
-                     <Button 
-                      variant="destructive" 
-                      size="sm" 
-                      onClick={() => onRejectUser(user.id)}
-                      disabled={isProcessingUser === user.id}
-                      className="button-shadow"
-                    >
-                       {isProcessingUser === user.id ? <Loader2 className="h-3 w-3 animate-spin"/> : <UserX className="mr-1 h-3 w-3"/>} Reject
-                    </Button>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button 
+                          variant="outline" 
+                          size="icon" 
+                          onClick={() => onApproveUser(user.id, currentSchoolId)} 
+                          disabled={isProcessingUser === user.id}
+                          className="button-shadow text-green-600 border-green-600 hover:bg-green-50"
+                        >
+                          {isProcessingUser === user.id ? <Loader2 className="h-4 w-4 animate-spin"/> : <UserCheck className="h-4 w-4"/>}
+                          <span className="sr-only">Approve User</span>
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent><p>Approve User</p></TooltipContent>
+                    </Tooltip>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button 
+                          variant="destructive" 
+                          size="icon" 
+                          onClick={() => onRejectUser(user.id)}
+                          disabled={isProcessingUser === user.id}
+                          className="button-shadow"
+                        >
+                          {isProcessingUser === user.id ? <Loader2 className="h-4 w-4 animate-spin"/> : <UserX className="h-4 w-4"/>}
+                          <span className="sr-only">Reject User</span>
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent><p>Reject User</p></TooltipContent>
+                    </Tooltip>
                   </>
                 ) : (
-                  currentUserId !== user.id && user.role !== 'admin' && user.status === 'active' && (
-                   <Button variant="outline" size="sm" asChild className="button-shadow">
-                     <Link href={`/admin/users/${user.id}/edit`}>
-                       <Edit className="mr-1 h-3 w-3"/> Edit
-                     </Link>
-                   </Button>
+                  currentUserId !== user.id && user.role !== 'admin' && (user.status === 'active' || user.status === 'disabled') && (
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button variant="outline" size="icon" asChild className="button-shadow">
+                          <Link href={`/admin/users/${user.id}/edit`}>
+                            <Edit className="h-4 w-4"/>
+                            <span className="sr-only">Edit User</span>
+                          </Link>
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent><p>Edit User</p></TooltipContent>
+                    </Tooltip>
                   )
                 )}
-                {(!isPendingTab && (currentUserId === user.id || user.role === 'admin')) && user.status === 'active' && (
-                    <Button variant="outline" size="sm" disabled className="opacity-50">
-                        <Edit className="mr-1 h-3 w-3"/> Edit
-                    </Button>
+                {(!isPendingTab && (currentUserId === user.id || user.role === 'admin')) && (user.status === 'active' || user.status === 'disabled') && (
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button variant="outline" size="icon" disabled className="opacity-50">
+                            <Edit className="h-4 w-4"/>
+                             <span className="sr-only">Edit User (Disabled)</span>
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent><p>Cannot edit own admin account or other admins</p></TooltipContent>
+                    </Tooltip>
                 )}
               </TableCell>
             </TableRow>

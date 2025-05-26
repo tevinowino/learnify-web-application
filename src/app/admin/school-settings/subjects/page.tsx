@@ -6,7 +6,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { PlusCircle, BookText, Trash2, Edit } from 'lucide-react';
+import { PlusCircle, BookText, Trash2, Edit, Search } from 'lucide-react';
 import type { Subject } from '@/types';
 import { useToast } from '@/hooks/use-toast';
 import {
@@ -20,7 +20,8 @@ import {
   DialogClose,
 } from "@/components/ui/dialog";
 import { ScrollArea } from '@/components/ui/scroll-area';
-import Loader from '@/components/shared/Loader'; // Import new Loader
+import Loader from '@/components/shared/Loader';
+import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip'; // Import Tooltip components
 
 export default function ManageSubjectsPage() {
   const { currentUser, createSubject, getSubjectsBySchool, updateSubject, deleteSubject, loading: authLoading } = useAuth();
@@ -96,7 +97,7 @@ export default function ManageSubjectsPage() {
 
   const handleDeleteSubject = async (subjectId: string, subjectName: string) => {
     if (!confirm(`Are you sure you want to delete the subject "${subjectName}"? This action cannot be undone and might affect existing class configurations or student records if the subject is in use.`)) return;
-    setIsSubmitting(true); // Use general isSubmitting for delete as well
+    setIsSubmitting(true); 
     const success = await deleteSubject(subjectId, subjectName);
     setIsSubmitting(false);
     if (success) {
@@ -129,103 +130,116 @@ export default function ManageSubjectsPage() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <h1 className="text-2xl sm:text-3xl font-bold">Manage School Subjects</h1>
-        <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
-          <DialogTrigger asChild>
-            <Button className="bg-primary hover:bg-primary/90 button-shadow w-full sm:w-auto">
-              <PlusCircle className="mr-2 h-4 w-4" /> Add New Subject
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="sm:max-w-[425px]">
-            <DialogHeader>
-              <DialogTitle>Add New Subject</DialogTitle>
-              <DialogDescription>Enter the name for the new subject.</DialogDescription>
-            </DialogHeader>
-            <div className="grid gap-4 py-4">
-              <Label htmlFor="new-subject-name" className="sr-only">Subject Name</Label>
-              <Input
-                id="new-subject-name"
-                value={newSubjectName}
-                onChange={(e) => setNewSubjectName(e.target.value)}
-                placeholder="e.g., Mathematics, History"
-                disabled={isSubmitting}
-              />
-            </div>
-            <DialogFooter>
-              <DialogClose asChild><Button variant="outline" disabled={isSubmitting}>Cancel</Button></DialogClose>
-              <Button onClick={handleCreateSubject} disabled={isSubmitting || !newSubjectName.trim()}>
-                {isSubmitting && <Loader size="small" className="mr-2" />}
-                Add Subject
+    <TooltipProvider>
+      <div className="space-y-6">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+          <h1 className="text-2xl sm:text-3xl font-bold">Manage School Subjects</h1>
+          <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+            <DialogTrigger asChild>
+              <Button className="bg-primary hover:bg-primary/90 button-shadow w-full sm:w-auto">
+                <PlusCircle className="mr-2 h-4 w-4" /> Add New Subject
               </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      </div>
-
-      <Card className="card-shadow">
-        <CardHeader>
-          <CardTitle className="flex items-center"><BookText className="mr-2 h-5 w-5 text-primary" />School Subjects ({subjects.length})</CardTitle>
-          <CardDescription>List of all subjects offered in your school. These can be assigned to classes or chosen by students.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          {subjects.length === 0 ? (
-            <div className="text-center py-8">
-              <BookText className="mx-auto h-12 w-12 text-muted-foreground" />
-              <p className="mt-4 text-muted-foreground">No subjects defined yet. Add some to get started!</p>
-            </div>
-          ) : (
-            <ScrollArea className="h-[60vh]">
-              <div className="space-y-3 pr-4">
-                {subjects.map(subject => (
-                  <Card key={subject.id} className="flex justify-between items-center p-4 hover:border-primary/50 transition-colors">
-                    <span className="font-medium">{subject.name}</span>
-                    <div className="space-x-2">
-                      <Button variant="outline" size="icon" onClick={() => openEditDialog(subject)} className="button-shadow" disabled={isSubmitting}>
-                        <Edit className="h-4 w-4" />
-                        <span className="sr-only">Edit</span>
-                      </Button>
-                      <Button variant="destructive" size="icon" onClick={() => handleDeleteSubject(subject.id, subject.name)} disabled={isSubmitting} className="button-shadow">
-                         {isSubmitting && editingSubject?.id !== subject.id ? <Loader size="small" /> : <Trash2 className="h-4 w-4" />}
-                        <span className="sr-only">Delete</span>
-                      </Button>
-                    </div>
-                  </Card>
-                ))}
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-[425px]">
+              <DialogHeader>
+                <DialogTitle>Add New Subject</DialogTitle>
+                <DialogDescription>Enter the name for the new subject.</DialogDescription>
+              </DialogHeader>
+              <div className="grid gap-4 py-4">
+                <Label htmlFor="new-subject-name" className="sr-only">Subject Name</Label>
+                <Input
+                  id="new-subject-name"
+                  value={newSubjectName}
+                  onChange={(e) => setNewSubjectName(e.target.value)}
+                  placeholder="e.g., Mathematics, History"
+                  disabled={isSubmitting}
+                />
               </div>
-            </ScrollArea>
-          )}
-        </CardContent>
-      </Card>
+              <DialogFooter>
+                <DialogClose asChild><Button variant="outline" disabled={isSubmitting}>Cancel</Button></DialogClose>
+                <Button onClick={handleCreateSubject} disabled={isSubmitting || !newSubjectName.trim()}>
+                  {isSubmitting && <Loader size="small" className="mr-2" />}
+                  Add Subject
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        </div>
 
-      {editingSubject && (
-        <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-          <DialogContent className="sm:max-w-[425px]">
-            <DialogHeader>
-              <DialogTitle>Edit Subject: {editingSubject.name}</DialogTitle>
-              <DialogDescription>Update the subject name.</DialogDescription>
-            </DialogHeader>
-            <div className="grid gap-4 py-4">
-              <Label htmlFor="edit-subject-name" className="sr-only">Subject Name</Label>
-              <Input
-                id="edit-subject-name"
-                value={editSubjectName}
-                onChange={(e) => setEditSubjectName(e.target.value)}
-                placeholder="e.g., Advanced Mathematics"
-                disabled={isSubmitting}
-              />
-            </div>
-            <DialogFooter>
-              <DialogClose asChild><Button variant="outline" disabled={isSubmitting}>Cancel</Button></DialogClose>
-              <Button onClick={handleUpdateSubject} disabled={isSubmitting || !editSubjectName.trim() || editSubjectName === editingSubject.name}>
-                {isSubmitting && <Loader size="small" className="mr-2" />}
-                Save Changes
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      )}
-    </div>
+        <Card className="card-shadow">
+          <CardHeader>
+            <CardTitle className="flex items-center"><BookText className="mr-2 h-5 w-5 text-primary" />School Subjects ({subjects.length})</CardTitle>
+            <CardDescription>List of all subjects offered in your school. These can be assigned to classes or chosen by students.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {subjects.length === 0 ? (
+              <div className="text-center py-12">
+                <Search className="mx-auto h-16 w-16 text-muted-foreground mb-4" />
+                <p className="text-xl font-semibold text-muted-foreground">No subjects defined yet.</p>
+                <p className="text-muted-foreground mt-1">Click "Add New Subject" to create the first one.</p>
+              </div>
+            ) : (
+              <ScrollArea className="h-[60vh]">
+                <div className="space-y-3 pr-4">
+                  {subjects.map(subject => (
+                    <Card key={subject.id} className="flex justify-between items-center p-4 hover:border-primary/50 transition-colors">
+                      <span className="font-medium">{subject.name}</span>
+                      <div className="space-x-2">
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button variant="outline" size="icon" onClick={() => openEditDialog(subject)} className="button-shadow" disabled={isSubmitting}>
+                              <Edit className="h-4 w-4" />
+                              <span className="sr-only">Edit Subject</span>
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent><p>Edit Subject</p></TooltipContent>
+                        </Tooltip>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button variant="destructive" size="icon" onClick={() => handleDeleteSubject(subject.id, subject.name)} disabled={isSubmitting && editingSubject?.id !== subject.id} className="button-shadow"> 
+                              {isSubmitting && editingSubject?.id === subject.id ? <Loader size="small"/> :<Trash2 className="h-4 w-4" />}
+                              <span className="sr-only">Delete Subject</span>
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent><p>Delete Subject</p></TooltipContent>
+                        </Tooltip>
+                      </div>
+                    </Card>
+                  ))}
+                </div>
+              </ScrollArea>
+            )}
+          </CardContent>
+        </Card>
+
+        {editingSubject && (
+          <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+            <DialogContent className="sm:max-w-[425px]">
+              <DialogHeader>
+                <DialogTitle>Edit Subject: {editingSubject.name}</DialogTitle>
+                <DialogDescription>Update the subject name.</DialogDescription>
+              </DialogHeader>
+              <div className="grid gap-4 py-4">
+                <Label htmlFor="edit-subject-name" className="sr-only">Subject Name</Label>
+                <Input
+                  id="edit-subject-name"
+                  value={editSubjectName}
+                  onChange={(e) => setEditSubjectName(e.target.value)}
+                  placeholder="e.g., Advanced Mathematics"
+                  disabled={isSubmitting}
+                />
+              </div>
+              <DialogFooter>
+                <DialogClose asChild><Button variant="outline" disabled={isSubmitting}>Cancel</Button></DialogClose>
+                <Button onClick={handleUpdateSubject} disabled={isSubmitting || !editSubjectName.trim() || editSubjectName === editingSubject.name}>
+                  {isSubmitting && <Loader size="small" className="mr-2" />}
+                  Save Changes
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        )}
+      </div>
+    </TooltipProvider>
   );
 }

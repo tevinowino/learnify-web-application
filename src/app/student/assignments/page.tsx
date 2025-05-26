@@ -5,7 +5,7 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
-import { ListChecks, CheckSquare, Clock, AlertTriangle, Filter } from 'lucide-react';
+import { ListChecks, CheckSquare, Clock, AlertTriangle, Filter, Search } from 'lucide-react';
 import type { AssignmentWithClassAndSubmissionInfo, ClassWithTeacherInfo } from '@/types';
 import Link from 'next/link';
 import { format } from 'date-fns';
@@ -18,7 +18,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import Loader from '@/components/shared/Loader'; // Import new Loader
+import Loader from '@/components/shared/Loader'; 
 
 export default function StudentAllAssignmentsPage() {
   const { currentUser, getClassesByIds, getAssignmentsForStudentByClass, loading: authLoading } = useAuth();
@@ -134,11 +134,14 @@ export default function StudentAllAssignmentsPage() {
             <div className="text-center py-12">
               <ListChecks className="mx-auto h-16 w-16 text-muted-foreground mb-4" />
               <p className="text-xl font-semibold text-muted-foreground">
-                {allAssignments.length === 0 ? "You have no assignments yet." : "No assignments match your current filters."}
+                {allAssignments.length === 0 ? "Great job, no assignments pending or you're all caught up!" : "No assignments match your current filters."}
               </p>
               {allAssignments.length > 0 && (
-                <p className="text-muted-foreground mt-2">Try adjusting the filters or check back later.</p>
+                <p className="text-muted-foreground mt-2">Try adjusting the filters or check back later for new tasks.</p>
               )}
+              <Button asChild className="mt-4 button-shadow">
+                <Link href="/student/resources">Explore Learning Resources</Link>
+              </Button>
             </div>
           ) : (
             <div className="space-y-4">
