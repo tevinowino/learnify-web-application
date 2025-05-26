@@ -5,22 +5,16 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Loader2, UserCheck, Users2, CalendarDays, Save } from 'lucide-react';
+import { Loader2, UserCheck, Users2, CalendarDays, Save, Check, X } from 'lucide-react';
 import type { ClassWithTeacherInfo, UserProfileWithId, AttendanceStatus, AttendanceRecord } from '@/types';
 import { useToast } from '@/hooks/use-toast';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
-import { format, startOfDay } from 'date-fns'; // Import startOfDay
+import { format, startOfDay } from 'date-fns';
 import { Label } from '@/components/ui/label';
 import { Timestamp } from 'firebase/firestore';
 import Loader from '@/components/shared/Loader';
+import { cn } from '@/lib/utils';
 
 export default function TeacherAttendancePage() {
   const { currentUser, getClassesByTeacher, getStudentsInClass, saveAttendanceRecords, getAttendanceForClassDate, loading: authLoading } = useAuth();
@@ -55,12 +49,12 @@ export default function TeacherAttendancePage() {
         getStudentsInClass(selectedClassId),
         getAttendanceForClassDate(selectedClassId, Timestamp.fromDate(startOfDay(attendanceDate)), currentUser.schoolId)
       ]);
-      setStudentsInSelectedClass(students);
+      setStudentsInSelectedClass(students.sort((a,b) => (a.displayName || "").localeCompare(b.displayName || "")));
       
       const initialRecords: Record<string, AttendanceStatus> = {};
       students.forEach(s => {
         const existingRecord = prevRecords.find(pr => pr.studentId === s.id);
-        initialRecords[s.id] = existingRecord?.status || 'present'; // Default to present or existing
+        initialRecords[s.id] = existingRecord?.status || 'present'; 
       });
       setAttendanceRecords(initialRecords);
       setIsLoadingData(false);
@@ -92,8 +86,8 @@ export default function TeacherAttendancePage() {
       classId: selectedClassId,
       className: teacherClasses.find(c=>c.id===selectedClassId)?.name || 'N/A',
       schoolId: currentUser.schoolId!,
-      date: Timestamp.fromDate(startOfDay(attendanceDate)), // Store date as Firestore Timestamp at start of day
-      status: attendanceRecords[student.id] || 'present', // Default to present if somehow missing
+      date: Timestamp.fromDate(startOfDay(attendanceDate)), 
+      status: attendanceRecords[student.id] || 'present', 
       markedBy: currentUser.uid,
       markedByName: currentUser.displayName,
     }));
@@ -102,6 +96,7 @@ export default function TeacherAttendancePage() {
     
     if (success) {
       toast({ title: "Attendance Submitted!", description: `Attendance for ${teacherClasses.find(c=>c.id===selectedClassId)?.name} on ${format(attendanceDate, 'PPP')} has been recorded.` });
+      fetchStudentsAndPrevAttendance(); // Refresh to show submitted data if needed, or clear form
     } else {
       toast({ title: "Submission Failed", description: "Could not save attendance records.", variant: "destructive" });
     }
@@ -174,22 +169,25 @@ export default function TeacherAttendancePage() {
                 <div className="space-y-3">
                   {studentsInSelectedClass.map(student => (
                     <div key={student.id} className="flex flex-col sm:flex-row items-center justify-between p-3 border rounded-md hover:bg-muted/50 transition-colors">
-                      <span className="font-medium mb-2 sm:mb-0">{student.displayName}</span>
-                      <Select 
-                        onValueChange={(value) => handleStatusChange(student.id, value as AttendanceStatus)} 
-                        value={attendanceRecords[student.id] || 'present'}
-                        disabled={isSubmitting}
-                      >
-                        <SelectTrigger className="w-full sm:w-[150px]">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="present">Present</SelectItem>
-                          <SelectItem value="absent">Absent</SelectItem>
-                          <SelectItem value="late">Late</SelectItem>
-                          <SelectItem value="excused">Excused</SelectItem>
-                        </SelectContent>
-                      </Select>
+                      <span className="font-medium mb-2 sm:mb-0 flex-grow">{student.displayName}</span>
+                      <div className="flex gap-2">
+                        <Button
+                          variant={attendanceRecords[student.id] === 'present' ? 'default' : 'outline'}
+                          onClick={() => handleStatusChange(student.id, 'present')}
+                          disabled={isSubmitting}
+                          className={cn("w-full sm:w-auto", attendanceRecords[student.id] === 'present' && "bg-primary hover:bg-primary/90")}
+                        >
+                          <Check className="mr-1 h-4 w-4"/> Present
+                        </Button>
+                        <Button
+                          variant={attendanceRecords[student.id] === 'absent' ? 'destructive' : 'outline'}
+                          onClick={() => handleStatusChange(student.id, 'absent')}
+                          disabled={isSubmitting}
+                          className="w-full sm:w-auto"
+                        >
+                         <X className="mr-1 h-4 w-4"/> Absent
+                        </Button>
+                      </div>
                     </div>
                   ))}
                   <Button onClick={handleSubmitAttendance} disabled={isSubmitting || isLoading || studentsInSelectedClass.length === 0} className="w-full mt-4 button-shadow">
