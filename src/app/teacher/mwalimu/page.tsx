@@ -112,7 +112,7 @@ export default function MwalimuChatPage() {
                     </Avatar>
                   )}
                   <div
-                    className={`max-w-[70%] rounded-lg px-3 py-2 text-sm sm:text-base break-words ${
+                    className={`max-w-[70%] rounded-lg px-3 py-2 text-sm sm:text-base break-words whitespace-pre-wrap ${
                       msg.sender === 'user'
                         ? 'bg-primary text-primary-foreground'
                         : 'bg-muted text-muted-foreground'
