@@ -4,18 +4,30 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Loader2, Trophy, CalendarDays, BookOpen, User, AlertTriangle } from "lucide-react";
-import type { ExamResultWithStudentInfo, UserProfile } from '@/types';
+import { Loader2, Trophy, CalendarDays, BookOpen, User, AlertTriangle, ArrowLeft } from "lucide-react";
+import type { ExamResultWithStudentInfo, UserProfileWithId } from '@/types'; // Updated UserProfile to UserProfileWithId
 import { format } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
+import Loader from '@/components/shared/Loader'; // Import new Loader
+import { useRouter } from 'next/navigation';
 
 export default function ParentChildResultsPage() {
-  const { currentUser, getExamResultsForStudent, getSubjectById, getExamPeriodById, getClassDetails, getUserProfile, loading: authLoading } = useAuth();
+  const { 
+    currentUser, 
+    getExamResultsForStudent, 
+    getSubjectById, 
+    getExamPeriodById, 
+    getClassDetails, 
+    getUserProfile, 
+    loading: authLoading 
+  } = useAuth();
   const { toast } = useToast();
-  const [childProfile, setChildProfile] = useState<UserProfile | null>(null);
+  const router = useRouter();
+
+  const [childProfile, setChildProfile] = useState<UserProfileWithId | null>(null); // Use UserProfileWithId
   const [resultsByPeriod, setResultsByPeriod] = useState<Record<string, ExamResultWithStudentInfo[]>>({});
   const [isLoading, setIsLoading] = useState(true);
 
@@ -29,12 +41,10 @@ export default function ParentChildResultsPage() {
       const child = await getUserProfile(currentUser.childStudentId);
       setChildProfile(child);
 
-      if (child) {
+      if (child && child.uid) { // child.uid should exist if child is UserProfileWithId
         const fetchedResults = await getExamResultsForStudent(
-          currentUser.childStudentId, 
-          currentUser.schoolId, // Pass schoolId here
-          getSubjectById, 
-          (examPeriodId) => getExamPeriodById(examPeriodId, getClassDetails)
+          child.uid, 
+          currentUser.schoolId
         );
 
         const grouped: Record<string, ExamResultWithStudentInfo[]> = {};
@@ -52,7 +62,7 @@ export default function ParentChildResultsPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [currentUser, getUserProfile, getExamResultsForStudent, getSubjectById, getExamPeriodById, getClassDetails, authLoading, toast]);
+  }, [currentUser, getUserProfile, getExamResultsForStudent, authLoading, toast]); // Removed getSubjectById etc. as they are handled inside getExamResultsForStudent
 
   useEffect(() => {
     fetchChildAndResults();
@@ -61,7 +71,7 @@ export default function ParentChildResultsPage() {
   if (authLoading || isLoading) {
     return (
       <div className="flex h-full items-center justify-center">
-        <Loader2 className="h-12 w-12 animate-spin text-primary" />
+        <Loader message="Loading results..." size="large" />
       </div>
     );
   }
@@ -71,12 +81,10 @@ export default function ParentChildResultsPage() {
       <Card className="card-shadow">
         <CardHeader>
           <CardTitle className="flex items-center"><AlertTriangle className="mr-2 h-5 w-5 text-destructive"/>Child Not Linked</CardTitle>
-          <CardDescription>
-            Please link your child's account to view their exam results.
-          </CardDescription>
         </CardHeader>
         <CardContent>
-            <Button asChild className="button-shadow">
+            <p>Please link your child's account on your profile page to view their exam results.</p>
+            <Button asChild className="mt-4 button-shadow">
                 <Link href="/parent/profile">Go to Profile to Link Child</Link>
             </Button>
         </CardContent>
@@ -88,6 +96,9 @@ export default function ParentChildResultsPage() {
 
   return (
     <div className="space-y-6">
+       <Button variant="outline" onClick={() => router.push('/parent/dashboard')} className="mb-4 button-shadow">
+            <ArrowLeft className="mr-2 h-4 w-4" /> Back to Dashboard
+        </Button>
       <h1 className="text-3xl font-bold">Child's Exam Results</h1>
       {childProfile && <p className="text-muted-foreground">Viewing results for: {childProfile.displayName}</p>}
 
@@ -98,7 +109,7 @@ export default function ParentChildResultsPage() {
             Exam Performance
           </CardTitle>
           <CardDescription>
-            Review your child's exam results and teacher remarks.
+            Review your child's exam results and teacher remarks for completed exam periods.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -106,7 +117,7 @@ export default function ParentChildResultsPage() {
             <div className="flex flex-col items-center justify-center h-64 border-2 border-dashed rounded-lg">
               <Trophy className="h-16 w-16 text-muted-foreground mb-4" />
               <p className="text-xl font-semibold text-muted-foreground">No Exam Results Found</p>
-              <p className="text-muted-foreground">Your child's exam results will appear here once published.</p>
+              <p className="text-muted-foreground">Your child's exam results will appear here once published by the school.</p>
             </div>
           ) : (
             <Accordion type="multiple" className="w-full space-y-2">
@@ -146,3 +157,4 @@ export default function ParentChildResultsPage() {
     </div>
   );
 }
+

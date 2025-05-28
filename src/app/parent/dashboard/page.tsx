@@ -5,7 +5,7 @@ import React from 'react';
 import { useAuth } from '@/hooks/useAuth'; 
 import { useParentDashboard } from '@/hooks/useParentDashboard'; 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { User, BookOpen, BarChart2, Bell, LinkIcon, UserCircle, CalendarCheck } from 'lucide-react'; // Added CalendarCheck
+import { User, BookOpen, BarChart2, Bell, LinkIcon, UserCircle, CalendarCheck } from 'lucide-react'; 
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import Loader from '@/components/shared/Loader'; 
@@ -17,7 +17,7 @@ export default function ParentDashboardPage() {
     childProfile,
     upcomingAssignmentsCount,
     recentGradesCount,
-    attendanceIssuesCount, // Now this will have a value
+    attendanceIssuesCount, 
     recentActivities,
     isLoading 
   } = useParentDashboard();
@@ -76,7 +76,7 @@ export default function ParentDashboardPage() {
 
             <Card className="card-shadow hover:border-primary transition-colors">
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Recent Grades/Results</CardTitle>
+                <CardTitle className="text-sm font-medium">Published Exam Results</CardTitle>
                 <BarChart2 className="h-5 w-5 text-muted-foreground" />
               </CardHeader>
               <CardContent>
@@ -130,5 +130,4 @@ export default function ParentDashboardPage() {
     </div>
   );
 }
-
     
