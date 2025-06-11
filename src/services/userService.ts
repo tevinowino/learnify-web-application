@@ -12,9 +12,9 @@ export const createUserProfileInFirestore = async (
   initialSchoolId?: string,
   initialSchoolName?: string,
   initialStatus?: UserStatus,
-  childStudentId?: string
+  childStudentId?: string,
+  initialOnboardingStep?: number | null
 ): Promise<UserProfile> => {
-  // Base object with guaranteed fields
   const userProfileData: any = {
     uid: firebaseUser.uid,
     email: firebaseUser.email,
@@ -26,34 +26,30 @@ export const createUserProfileInFirestore = async (
     subjects: [],
     studentAssignments: {},
     status: initialStatus || ((role === 'teacher' || role === 'student') && initialSchoolId ? 'pending_verification' : 'active'),
-    onboardingStep: (role === 'admin' && !initialSchoolId) ? 0 : null,
-    // lastTestimonialSurveyAt will be set when they first interact with the survey
+    onboardingStep: (role === 'admin' && !initialSchoolId) ? (initialOnboardingStep !== undefined ? initialOnboardingStep : 0) : null,
   };
 
-  // Conditionally add optional fields only if they have a value
-  if (initialSchoolId) {
-    userProfileData.schoolId = initialSchoolId;
-  }
-  if (initialSchoolName) {
-    userProfileData.schoolName = initialSchoolName;
-  }
-  if (role === 'parent' && childStudentId) {
-    userProfileData.childStudentId = childStudentId;
-  }
+  if (initialSchoolId) userProfileData.schoolId = initialSchoolId;
+  if (initialSchoolName) userProfileData.schoolName = initialSchoolName;
+  if (role === 'parent' && childStudentId) userProfileData.childStudentId = childStudentId;
+  if (userProfileData.lastTestimonialSurveyAt === undefined) userProfileData.lastTestimonialSurveyAt = null;
 
-  // If admin is new and creating a school (onboardingStep 0), schoolId/Name are not set yet.
+
+  // If admin is new and creating a school (onboardingStep 0), schoolId/Name are not set yet on the user profile explicitly by this function call.
+  // They will be set later when the school is actually created.
   if (role === 'admin' && userProfileData.onboardingStep === 0) {
-    delete userProfileData.schoolId;
-    delete userProfileData.schoolName;
+    delete userProfileData.schoolId; // Omit if undefined
+    delete userProfileData.schoolName; // Omit if undefined
   }
+  if (childStudentId === undefined) delete userProfileData.childStudentId;
+
 
   await setDoc(doc(db, "users", firebaseUser.uid), userProfileData);
 
-  // Construct the return object matching UserProfile type by spreading firebaseUser and then our Firestore data
   const completeProfile: UserProfile = {
-    ...firebaseUser, // Spreads properties from FirebaseUser like photoURL, emailVerified etc.
-    ...userProfileData, // Spreads properties we just defined for Firestore
-    uid: firebaseUser.uid, // Ensure uid is correctly part of the returned object
+    ...firebaseUser, 
+    ...userProfileData, 
+    uid: firebaseUser.uid, 
   };
   return completeProfile;
 };
@@ -70,7 +66,8 @@ export const getUserProfileService = async (userId: string): Promise<UserProfile
         status: data.status || (data.role === 'admin' ? 'active' : 'pending_verification'),
         subjects: data.subjects || [],
         classIds: data.classIds || [],
-        onboardingStep: data.onboardingStep === undefined ? null : data.onboardingStep, // Ensure default
+        onboardingStep: data.onboardingStep === undefined ? null : data.onboardingStep, 
+        lastTestimonialSurveyAt: data.lastTestimonialSurveyAt || null,
       } as UserProfileWithId;
     }
     return null;
@@ -140,7 +137,7 @@ export const adminCreateUserService = async (
 
     if (firebaseUser) {
       await updateFirebaseProfile(firebaseUser, { displayName });
-      const userProfileData: any = { // Use any to build the object conditionally
+      const userProfileData: any = { 
         uid: firebaseUser.uid,
         email: firebaseUser.email,
         displayName: displayName,
@@ -154,6 +151,7 @@ export const adminCreateUserService = async (
         studentAssignments: {},
         status: 'active' as UserStatus,
         onboardingStep: null,
+        lastTestimonialSurveyAt: null,
       };
       await setDoc(doc(db, "users", firebaseUser.uid), userProfileData);
       return { id: firebaseUser.uid, ...userProfileData } as UserProfileWithId;
@@ -165,7 +163,7 @@ export const adminCreateUserService = async (
   }
 };
 
-export const updateUserRoleAndSchoolService = async (userId: string, data: { role?: UserRole; schoolId?: string, classIds?: string[], status?: UserStatus, subjects?: string[], onboardingStep?: number | null }): Promise<boolean> => {
+export const updateUserRoleAndSchoolService = async (userId: string, data: { role?: UserRole; schoolId?: string, schoolName?: string, classIds?: string[], status?: UserStatus, subjects?: string[], onboardingStep?: number | null }): Promise<boolean> => {
   try {
     const userRef = doc(db, "users", userId);
     const updateData: any = { ...data, updatedAt: Timestamp.now() };
@@ -180,10 +178,21 @@ export const updateUserRoleAndSchoolService = async (userId: string, data: { rol
     } else if (data.subjects === null) {
         updateData.subjects = [];
     }
-    if (data.onboardingStep === undefined && data.onboardingStep !== null) { // If onboardingStep is not explicitly passed as null or a number, don't change it.
+    if (data.onboardingStep === undefined && data.onboardingStep !== null) { 
         delete updateData.onboardingStep;
     } else if (data.onboardingStep === null) {
         updateData.onboardingStep = null;
+    }
+
+    // Ensure schoolName is updated if schoolId is updated and schoolName is provided
+    if(data.schoolId && data.schoolName){
+      updateData.schoolName = data.schoolName;
+    } else if (data.schoolId && !data.schoolName) {
+      // If schoolId is updated but schoolName is not, attempt to fetch it
+      const schoolDetails = await getDoc(doc(db, "schools", data.schoolId));
+      if(schoolDetails.exists()){
+        updateData.schoolName = schoolDetails.data().name;
+      }
     }
 
 
@@ -220,8 +229,8 @@ export const completeStudentOnboardingService = async (userId: string, classIds:
     const userData = userSnap.data() as UserProfile;
     let finalSubjectIds = new Set(subjectIds);
 
-    const mainClassId = classIds[0]; // Assuming the first classId is the main class
-    const classDetails = await getClassDetailsService(mainClassId, getUserProfileService); // Pass getUserProfileService
+    const mainClassId = classIds[0]; 
+    const classDetails = await getClassDetailsService(mainClassId, getUserProfileService); 
     if (classDetails?.classType === 'main' && classDetails.compulsorySubjectIds) {
       classDetails.compulsorySubjectIds.forEach(id => finalSubjectIds.add(id));
     }
@@ -261,7 +270,7 @@ export const updateUserLastTestimonialSurveyAtService = async (userId: string): 
 };
 
 export const onboardingInviteUsersService = async (
-  authInstance: FirebaseAuthType, // Not used for creating Auth accounts here
+  authInstance: FirebaseAuthType, 
   schoolId: string,
   schoolName: string,
   usersToInvite: Array<{ email: string; displayName: string; role: 'teacher' | 'student' }>
@@ -269,9 +278,25 @@ export const onboardingInviteUsersService = async (
   try {
     const batch = writeBatch(db);
     for (const user of usersToInvite) {
+      // Check if a user with this email already exists in Firestore to prevent re-creating a profile for an existing Firebase Auth user
+      const usersRef = collection(db, "users");
+      const q = query(usersRef, where("email", "==", user.email));
+      const existingUserSnap = await getDocs(q);
+
+      if (!existingUserSnap.empty) {
+          // User profile already exists, perhaps update their status or school if applicable
+          // For now, we'll assume if they exist, we don't re-create or significantly alter them here.
+          // This logic might need refinement based on how you want to handle existing users being "invited".
+          console.warn(`User profile for ${user.email} already exists. Skipping profile creation.`);
+          continue; 
+      }
+
+
       const newUserRef = doc(collection(db, "users")); 
       const userProfileData: any = {
-        uid: newUserRef.id, 
+        uid: newUserRef.id, // This will be a new ID, which is problematic if an Auth account exists for this email.
+                           // The ideal flow would be to check Firebase Auth first.
+                           // For simplicity in this onboarding step, we're focusing on Firestore profiles.
         email: user.email,
         displayName: user.displayName,
         role: user.role,
@@ -283,6 +308,7 @@ export const onboardingInviteUsersService = async (
         classIds: [],
         subjects: [],
         onboardingStep: null,
+        lastTestimonialSurveyAt: null,
       };
       batch.set(newUserRef, userProfileData);
     }
@@ -293,4 +319,3 @@ export const onboardingInviteUsersService = async (
     return false;
   }
 };
-
