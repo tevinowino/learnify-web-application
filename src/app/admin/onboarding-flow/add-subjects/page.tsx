@@ -2,7 +2,7 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
-import { useForm, useFieldArray } from 'react-hook-form';
+import { useForm, useFieldArray, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { useRouter } from 'next/navigation';
@@ -16,6 +16,7 @@ import { useToast } from '@/hooks/use-toast';
 import { BookText, PlusCircle, Trash2, ArrowRight } from 'lucide-react';
 import Loader from '@/components/shared/Loader';
 import type { OnboardingSubjectData } from '@/types';
+import { Form } from '@/components/ui/form'; // Added this import
 
 const subjectSchema = z.object({
   name: z.string().min(2, "Subject name must be at least 2 characters."),
