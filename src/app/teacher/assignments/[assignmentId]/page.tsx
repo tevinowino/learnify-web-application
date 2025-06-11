@@ -35,9 +35,9 @@ import {
 import { Label } from '@/components/ui/label';
 
 export default function TeacherAssignmentDetailPage() {
-  const params = useParams();
+  const params = useParams<{ assignmentId: string }>();
   const router = useRouter();
-  const assignmentId = params.assignmentId as string;
+  const assignmentId = params.assignmentId;
   const { toast } = useToast();
 
   const { 
@@ -323,4 +323,3 @@ export default function TeacherAssignmentDetailPage() {
     </div>
   );
 }
-

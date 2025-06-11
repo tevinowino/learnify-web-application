@@ -17,9 +17,9 @@ import { Badge } from '@/components/ui/badge';
 import Loader from '@/components/shared/Loader'; // Import new Loader
 
 export default function StudentAssignmentDetailPage() {
-  const params = useParams();
+  const params = useParams<{ assignmentId: string }>();
   const router = useRouter();
-  const assignmentId = params.assignmentId as string;
+  const assignmentId = params.assignmentId;
   const { toast } = useToast();
 
   const { 
@@ -335,4 +335,3 @@ export default function StudentAssignmentDetailPage() {
     </div>
   );
 }
-

@@ -51,8 +51,8 @@ type EditUserFormValues = z.infer<typeof editUserSchema>;
 
 export default function EditUserPage() {
   const router = useRouter();
-  const params = useParams();
-  const userId = params.userId as string;
+  const params = useParams<{ userId: string }>();
+  const userId = params.userId;
 
   const { currentUser, getUserProfile, updateUserRoleAndSchool, updateUserDisplayName, loading: authLoading } = useAuth();
   const { toast } = useToast();

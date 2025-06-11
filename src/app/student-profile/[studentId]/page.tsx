@@ -151,9 +151,9 @@ const StudentActivityFeedSection = ({ activities }: { activities: ActivityType[]
 
 
 export default function StudentProfilePage() {
-  const params = useParams();
+  const params = useParams<{ studentId: string }>();
   const router = useRouter();
-  const studentId = params.studentId as string;
+  const studentId = params.studentId;
   const {
     currentUser: viewingUser,
     getUserProfile,

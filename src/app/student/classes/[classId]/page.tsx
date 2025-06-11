@@ -24,9 +24,9 @@ const materialTypeIcons: Record<LearningMaterialType, React.ReactNode> = {
 };
 
 export default function StudentClassDetailPage() {
-  const params = useParams();
+  const params = useParams<{ classId: string }>();
   const router = useRouter();
-  const classId = params.classId as string;
+  const classId = params.classId;
   const { toast } = useToast();
 
   const { 
@@ -171,7 +171,7 @@ export default function StudentClassDetailPage() {
                         </Button>
                     ) : (material.content) ? ( 
                       <Button variant="link" asChild className="p-0 h-auto mt-1">
-                        <a href={material.content} target="_blank" rel="noopener noreferrer" className="text-sm text-primary hover:underline break-all">
+                        <a href={material.content} target="_blank" rel="noopener noreferrer" className="text-sm text-primary hover:underline break-all line-clamp-3">
                           {material.content} <LinkIcon className="inline h-3 w-3 ml-1"/>
                         </a>
                       </Button>

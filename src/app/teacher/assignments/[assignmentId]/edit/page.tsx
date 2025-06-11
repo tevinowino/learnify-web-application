@@ -24,8 +24,8 @@ import {
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { format } from 'date-fns';
-import { Checkbox } from '@/components/ui/checkbox';
-import { Label } from '@/components/ui/label';
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
 import Loader from '@/components/shared/Loader';
 
 const assignmentEditSchema = z.object({
@@ -51,8 +51,8 @@ const NO_SUBJECT_VALUE = "__NO_SUBJECT__";
 
 export default function EditAssignmentPage() {
   const router = useRouter();
-  const params = useParams();
-  const assignmentId = params.assignmentId as string;
+  const params = useParams<{ assignmentId: string }>();
+  const assignmentId = params.assignmentId;
 
   const { currentUser, getAssignmentById, updateAssignment, getClassesByTeacher, getSubjectsBySchool, loading: authLoading } = useAuth();
   const { toast } = useToast();
@@ -132,7 +132,7 @@ export default function EditAssignmentPage() {
     const deadline = new Date(values.deadlineDate);
     deadline.setHours(hours, minutes, 0, 0);
 
-    const updatedData: Partial<Omit<Assignment, 'id' | 'createdAt' | 'updatedAt' | 'teacherId' | 'totalSubmissions' | 'schoolId'>> = {
+    const updatedData: Partial<Omit<Assignment, 'id' | 'createdAt' | 'updatedAt' | 'teacherId' | 'totalSubmissions' | 'schoolId' | 'attachmentUrl' | 'originalFileName'>> = {
       title: values.title,
       description: values.description,
       deadline: deadline,
@@ -309,4 +309,3 @@ export default function EditAssignmentPage() {
     </div>
   );
 }
-

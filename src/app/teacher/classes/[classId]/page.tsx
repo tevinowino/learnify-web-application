@@ -28,9 +28,9 @@ const materialTypeIcons: Record<LearningMaterialType, React.ReactNode> = {
 };
 
 export default function TeacherClassDetailPage() {
-  const params = useParams();
+  const params = useParams<{ classId: string }>();
   const router = useRouter();
-  const classId = params.classId as string;
+  const classId = params.classId;
 
   const { 
     currentUser, 
@@ -252,4 +252,3 @@ function toast(options: { title: string, description?: string, variant?: 'defaul
     const { toast: showToast } = useOriginalToast();
     showToast(options);
 }
-
