@@ -1258,7 +1258,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         message: `${currentUser.displayName} submitted a testimonial.`,
         link: '/admin/testimonials' 
       });
-      await updateUserLastTestimonialSurveyAtService(currentUser.uid);
+      await UserService.updateUserLastTestimonialSurveyAtService(currentUser.uid); // Moved here as it's part of the successful submission flow
     }
     return result;
   }, [currentUser, addActivity]);
@@ -1337,3 +1337,4 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
+

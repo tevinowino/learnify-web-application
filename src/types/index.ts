@@ -15,7 +15,7 @@ export interface UserProfile extends FirebaseUser {
   subjects?: string[];
   studentAssignments?: Record<string, { status: 'submitted' | 'graded' | 'missing' | 'late'; grade?: string | number }>;
   childStudentId?: string; // For parent role to link to a student
-  lastTestimonialSurveyAt?: Timestamp; // New field for tracking survey
+  lastTestimonialSurveyAt?: Timestamp; 
 }
 
 export interface UserProfileWithId extends UserProfile {
@@ -224,7 +224,7 @@ export interface Activity {
     | 'school_settings_updated'
     | 'invite_code_regenerated'
     | 'parent_linked_child'
-    | 'testimonial_submitted' // New activity type
+    | 'testimonial_submitted' 
     | 'general_announcement';
   message: string;
   link?: string;
@@ -272,3 +272,4 @@ export interface Testimonial {
   isApprovedForDisplay: boolean;
   submittedAt: Timestamp;
 }
+

@@ -1,7 +1,7 @@
 
 "use client";
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import type { UserRole } from '@/types';
 import { useAuth } from '@/hooks/useAuth';
 import Link from 'next/link';
@@ -24,6 +24,8 @@ import { usePathname } from 'next/navigation';
 import { ScrollArea } from '../ui/scroll-area';
 import { ThemeToggle } from '../ui/theme-toggle'; 
 import NotificationBell from '../shared/NotificationBell';
+import TestimonialPromptDialog from '../shared/TestimonialPromptDialog'; // Added import
+import { Timestamp } from 'firebase/firestore'; // Added import
 
 
 interface DashboardLayoutProps {
@@ -38,7 +40,7 @@ const navItemsConfig = {
     { href: '/admin/classes', label: 'Manage Classes', icon: <BookCopy /> },
     { href: '/admin/exams', label: 'Exam Management', icon: <FilePieChart /> },
     { href: '/admin/activity', label: 'Activity Log', icon: <Activity /> },
-    { href: '/admin/testimonials', label: 'Testimonials', icon: <MessageSquare /> }, // Added Testimonials
+    { href: '/admin/testimonials', label: 'Testimonials', icon: <MessageSquare /> },
     { href: '/admin/settings', label: 'School Settings', icon: <Settings /> },
     { href: '/admin/profile', label: 'My Profile', icon: <UserCog /> },
   ],
@@ -76,9 +78,29 @@ const navItemsConfig = {
 };
 
 export default function DashboardLayout({ children, userRole }: DashboardLayoutProps) {
-  const { logOut, currentUser } = useAuth(); 
+  const { logOut, currentUser, loading: authLoading } = useAuth(); 
   const currentNavItems = userRole ? navItemsConfig[userRole] || [] : [];
   const pathname = usePathname();
+  const [isTestimonialPromptOpen, setIsTestimonialPromptOpen] = useState(false);
+
+  useEffect(() => {
+    if (currentUser && currentUser.role !== 'admin' && currentUser.status === 'active' && !authLoading) {
+        const lastSurveyDate = currentUser.lastTestimonialSurveyAt?.toDate();
+        const tenDaysAgo = new Date();
+        tenDaysAgo.setDate(tenDaysAgo.getDate() - 10);
+
+        if (!lastSurveyDate || lastSurveyDate < tenDaysAgo) {
+            // Only open if not on specific auth or onboarding pages
+            if (!pathname.startsWith('/auth/') && !pathname.endsWith('/onboarding')) {
+                const timer = setTimeout(() => {
+                    setIsTestimonialPromptOpen(true);
+                }, 5000); // Show after 5 seconds
+                return () => clearTimeout(timer);
+            }
+        }
+    }
+  }, [currentUser, authLoading, pathname]);
+
 
   return (
     <SidebarProvider>
@@ -132,9 +154,6 @@ export default function DashboardLayout({ children, userRole }: DashboardLayoutP
                 <PanelLeft />
                 <span className="sr-only">Toggle sidebar</span>
               </SidebarTrigger>
-              {/* <div className={`md:hidden ${currentUser?.schoolName ? 'hidden xs:flex' : 'flex'}`}>
-                <Logo />
-              </div> */}
             </div>
 
              <div className="flex-1 text-left sm:text-center md:text-left md:pl-0"> 
@@ -157,6 +176,14 @@ export default function DashboardLayout({ children, userRole }: DashboardLayoutP
           </main>
         </SidebarInset>
       </div>
+      {currentUser && currentUser.role !== 'admin' && (
+        <TestimonialPromptDialog 
+            isOpen={isTestimonialPromptOpen}
+            onOpenChange={setIsTestimonialPromptOpen}
+            user={currentUser}
+        />
+      )}
     </SidebarProvider>
   );
 }
+
