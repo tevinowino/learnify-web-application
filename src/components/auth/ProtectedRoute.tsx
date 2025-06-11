@@ -29,11 +29,11 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, allowedRoles 
   useEffect(() => {
     if (loading) return; 
 
-    if (!currentUser) {
-      const loginPath = `/auth/login?redirectTo=${encodeURIComponent(pathname)}`;
-      router.replace(loginPath);
-      return;
-    }
+    // if (!currentUser) {
+    //   const loginPath = `/auth/login?redirectTo=${encodeURIComponent(pathname)}`;
+    //   router.replace(loginPath);
+    //   return;
+    // }
 
     if (currentUser.status === 'pending_verification') {
       if (pathname !== '/auth/pending-verification') {

@@ -18,6 +18,7 @@ import { BookCopy, PlusCircle, Trash2, ArrowRight } from 'lucide-react';
 import Loader from '@/components/shared/Loader';
 import type { OnboardingClassData, Subject, UserProfileWithId, ClassType } from '@/types';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Form } from '@/components/ui/form';
 
 const classSchema = z.object({
   name: z.string().min(2, "Class name must be at least 2 characters."),

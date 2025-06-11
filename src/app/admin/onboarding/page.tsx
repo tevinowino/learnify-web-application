@@ -23,10 +23,10 @@ export default function AdminOnboardingPage() {
   const [checkingStatus, setCheckingStatus] = useState(true);
 
   useEffect(() => {
-    if (!currentUser || currentUser.role !== 'admin') {
-       if(!authLoading) router.push('/auth/login'); 
-       return;
-    }
+    // if (!currentUser || currentUser.role !== 'admin') {
+    //    if(!authLoading) router.push('/auth/login'); 
+    //    return;
+    // }
 
     const checkStatus = async () => {
       setCheckingStatus(true);

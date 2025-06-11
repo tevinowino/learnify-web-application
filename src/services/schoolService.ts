@@ -6,27 +6,35 @@ import type { School, OnboardingSchoolData } from '@/types';
 export const onboardingCreateSchoolService = async (
   adminId: string,
   schoolData: OnboardingSchoolData,
-  // logoUrl parameter removed
 ): Promise<{ schoolId: string; inviteCode: string } | null> => {
   try {
     const inviteCode = `SCH-${Math.random().toString(36).substring(2, 7).toUpperCase()}`;
     const schoolRef = doc(collection(db, "schools"));
+
     const newSchool: School = {
       id: schoolRef.id,
       name: schoolData.schoolName,
-      adminId: adminId, // This is the creatorAdminId
+      adminId: adminId,
       inviteCode: inviteCode,
       schoolType: schoolData.schoolType,
       country: schoolData.country,
       phoneNumber: schoolData.phoneNumber,
-      // logoUrl: logoUrl || undefined, // Removed logoUrl
-      setupComplete: false, // Initial setup is not complete
+      setupComplete: false,
       isExamModeActive: false,
       createdAt: Timestamp.now(),
       updatedAt: Timestamp.now(),
     };
-    
-    await setDoc(schoolRef, newSchool);
+
+    const batch = writeBatch(db);
+    batch.set(schoolRef, newSchool);
+
+    // 🔥 Add schoolId to user document directly
+    const userRef = doc(db, "users", adminId);
+    batch.update(userRef, {
+      schoolId: schoolRef.id,
+    });
+
+    await batch.commit();
     return { schoolId: schoolRef.id, inviteCode };
   } catch (error) {
     console.error("Error in onboardingCreateSchoolService:", error);
