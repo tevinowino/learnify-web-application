@@ -13,10 +13,11 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import { UserPlus, PlusCircle, Trash2, ArrowRight, Users } from 'lucide-react';
+import { UserPlus, PlusCircle, Trash2, ArrowRight, Users, SkipForward } from 'lucide-react';
 import Loader from '@/components/shared/Loader';
 import type { OnboardingInvitedUserData, UserRole } from '@/types';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Form } from '@/components/ui/form';
 
 const userInviteSchema = z.object({
   email: z.string().email("Invalid email address."),
@@ -25,16 +26,17 @@ const userInviteSchema = z.object({
 });
 
 const inviteUsersSchema = z.object({
-  users: z.array(userInviteSchema).min(1, "Please add at least one user to invite."),
+  users: z.array(userInviteSchema).min(1, "Please add at least one user if you are inviting users now. Otherwise, you can skip this step."),
 });
 
 type InviteUsersFormValues = z.infer<typeof inviteUsersSchema>;
 
 export default function InviteUsersPage() {
-  const { currentUser, onboardingInviteUsers, loading: authLoading } = useAuth();
+  const { currentUser, onboardingInviteUsers, updateAdminOnboardingStep, loading: authLoading } = useAuth();
   const router = useRouter();
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isSkipping, setIsSkipping] = useState(false);
 
   const form = useForm<InviteUsersFormValues>({
     resolver: zodResolver(inviteUsersSchema),
@@ -48,6 +50,14 @@ export default function InviteUsersPage() {
     name: "users",
   });
   
+  const onboardingStepPaths: Record<number, string> = {
+    0: '/admin/onboarding-flow/create-school',
+    1: '/admin/onboarding-flow/add-subjects',
+    2: '/admin/onboarding-flow/create-classes',
+    3: '/admin/onboarding-flow/invite-users',
+    4: '/admin/onboarding-flow/configure-settings',
+  };
+
   useEffect(() => {
     if (!authLoading && (!currentUser || currentUser.role !== 'admin' || !currentUser.schoolId || currentUser.onboardingStep !== 3)) {
        router.push(currentUser?.schoolId && currentUser.onboardingStep !== null ? `/admin/onboarding-flow/${onboardingStepPaths[currentUser.onboardingStep!]}` : '/admin/dashboard');
@@ -58,6 +68,10 @@ export default function InviteUsersPage() {
     if (!currentUser?.schoolId || !currentUser.schoolName) {
       toast({ title: "Error", description: "School information is missing.", variant: "destructive" });
       return;
+    }
+    if (data.users.length === 0) { // If form submitted with no users, treat as skip
+        handleSkip();
+        return;
     }
     setIsSubmitting(true);
     
@@ -71,22 +85,28 @@ export default function InviteUsersPage() {
     setIsSubmitting(false);
 
     if (success) {
-      toast({ title: "Users Invited (Profiles Created)!", description: "Invited users can now be found in 'Pending Verification' or an 'Invited' status. They will need to complete their own signup." });
+      toast({ title: "Users Invited (Profiles Created)!", description: "Invited users can now be found in 'Pending Verification' or an 'Invited' status. They will need to complete their own registration if they don't have an account, or will be linked if they do." });
       // ProtectedRoute will handle redirection
     } else {
       toast({ title: "Error", description: "Failed to invite users. Please try again.", variant: "destructive" });
     }
   };
 
-  const isLoading = authLoading || isSubmitting;
-
-  const onboardingStepPaths: Record<number, string> = {
-    0: '/admin/onboarding-flow/create-school',
-    1: '/admin/onboarding-flow/add-subjects',
-    2: '/admin/onboarding-flow/create-classes',
-    3: '/admin/onboarding-flow/invite-users',
-    4: '/admin/onboarding-flow/configure-settings',
+  const handleSkip = async () => {
+    if (!currentUser?.uid) return;
+    setIsSkipping(true);
+    const success = await updateAdminOnboardingStep(currentUser.uid, 4); // Move to configure settings
+    setIsSkipping(false);
+    if (success) {
+      toast({ title: "Step Skipped", description: "Proceeding to final configuration." });
+      // ProtectedRoute will handle redirection
+    } else {
+      toast({ title: "Error", description: "Could not skip step. Please try again.", variant: "destructive" });
+    }
   };
+
+
+  const isLoading = authLoading || isSubmitting || isSkipping;
 
   if (authLoading && !currentUser) {
     return <div className="flex h-screen items-center justify-center"><Loader message="Loading..." size="large" /></div>;
@@ -95,9 +115,9 @@ export default function InviteUsersPage() {
   return (
     <Card className="w-full card-shadow">
       <CardHeader>
-        <CardTitle className="flex items-center"><Users className="mr-2 h-6 w-6 text-primary"/>Invite Initial Teachers & Students</CardTitle>
+        <CardTitle className="flex items-center"><Users className="mr-2 h-6 w-6 text-primary"/>Invite Initial Teachers & Students (Optional)</CardTitle>
         <CardDescription>
-          Add some initial teachers and students. They will be set to 'pending verification' and will need to complete their own registration if they don't have an account, or will be linked if they do. You can add more later.
+          Add some initial teachers and students. They will be set to 'pending verification'. You can always add more users later from the admin dashboard.
         </CardDescription>
       </CardHeader>
       <Form {...form}>
@@ -145,19 +165,25 @@ export default function InviteUsersPage() {
               </div>
             ))}
             </ScrollArea>
-            {form.formState.errors.users && form.formState.errors.users.message && <p className="text-sm text-destructive mt-2">{form.formState.errors.users.message}</p>}
+            {form.formState.errors.users && form.formState.errors.users.message && fields.length > 0 && <p className="text-sm text-destructive mt-2">{form.formState.errors.users.message}</p>}
              <Button type="button" variant="outline" onClick={() => append({ email: "", displayName: "", role: "teacher" })} disabled={isLoading} className="w-full sm:w-auto button-shadow">
               <UserPlus className="mr-2 h-4 w-4" /> Add Another User
             </Button>
           </CardContent>
-          <CardFooter className="flex flex-col sm:flex-row justify-between items-center gap-2">
+          <CardFooter className="flex flex-col sm:flex-row justify-between items-center gap-2 pt-6 border-t">
             <Button type="button" variant="ghost" onClick={() => router.push('/admin/onboarding-flow/create-classes')} disabled={isLoading}>
               Back to Classes
             </Button>
-            <Button type="submit" className="w-full sm:w-auto button-shadow" disabled={isLoading}>
-              {isLoading ? <Loader size="small" className="mr-2"/> : <ArrowRight className="mr-2 h-4 w-4" />}
-              Invite Users & Continue
-            </Button>
+            <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+                <Button type="button" variant="secondary" onClick={handleSkip} disabled={isLoading} className="w-full sm:w-auto button-shadow">
+                  {isSkipping ? <Loader size="small" className="mr-2"/> : <SkipForward className="mr-2 h-4 w-4" />}
+                  Skip & Continue to Settings
+                </Button>
+                <Button type="submit" className="w-full sm:w-auto button-shadow" disabled={isLoading}>
+                  {isSubmitting ? <Loader size="small" className="mr-2"/> : <ArrowRight className="mr-2 h-4 w-4" />}
+                  Invite Users & Continue
+                </Button>
+            </div>
           </CardFooter>
         </form>
       </Form>
