@@ -59,7 +59,11 @@ if (process.env.FIREBASE_SERVICE_ACCOUNT_JSON_STRING) {
 }
 
 if (serviceAccountJson) {
-  initializeApp({ credential: cert(serviceAccountJson) });
+  console.log('Initializing Firebase Admin SDK with provided service account JSON.');
+  initializeApp({ 
+    credential: cert(serviceAccountJson),
+    projectId: "learnify-project-e7f59", 
+  });
 } else {
   initializeApp(); // Relies on GOOGLE_APPLICATION_CREDENTIALS or default ADC
 }
