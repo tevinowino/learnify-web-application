@@ -7,7 +7,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { Loader2 } from "lucide-react";
+import { Loader2, Eye, EyeOff } from "lucide-react"; // Added Eye and EyeOff
 
 import { Button } from "@/components/ui/button";
 import {
@@ -83,6 +83,7 @@ export default function AuthForm({ mode }: AuthFormProps) {
   const { signUp, logIn, loading: authLoading, getSchoolDetails } = useAuth();
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = React.useState(false);
+  const [showPassword, setShowPassword] = React.useState(false); // State for password visibility
 
   const isSignup = mode === "signup";
   const formSchema = isSignup ? signupSchema : loginSchema;
@@ -126,7 +127,6 @@ export default function AuthForm({ mode }: AuthFormProps) {
             setIsSubmitting(false);
             return;
           }
-          // `signUp` will handle fetching child's school details and validating
           userProfile = await signUp(email, password, role, displayName, undefined, undefined, childStudentId);
         } else if (role === 'teacher' || role === 'student') {
           if (!schoolIdToJoin) { 
@@ -141,7 +141,7 @@ export default function AuthForm({ mode }: AuthFormProps) {
             return;
           }
           userProfile = await signUp(email, password, role, displayName, schoolIdToJoin, school.name);
-        } else { // Admin
+        } else { 
             userProfile = await signUp(email, password, role, displayName);
         }
 
@@ -258,16 +258,30 @@ export default function AuthForm({ mode }: AuthFormProps) {
               render={({ field }) => (
                 <FormItem>
                   <FormLabel htmlFor="password">Password</FormLabel>
-                  <FormControl>
-                    <Input
-                      id="password"
-                      type="password"
-                      placeholder="••••••••"
-                      autoComplete={isSignup ? "new-password" : "current-password"}
-                      aria-invalid={!!form.formState.errors.password}
-                      {...field}
-                    />
-                  </FormControl>
+                  <div className="relative">
+                    <FormControl>
+                      <Input
+                        id="password"
+                        type={showPassword ? "text" : "password"}
+                        placeholder="••••••••"
+                        autoComplete={isSignup ? "new-password" : "current-password"}
+                        aria-invalid={!!form.formState.errors.password}
+                        {...field}
+                        className="pr-10" // Add padding for the icon button
+                      />
+                    </FormControl>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="absolute right-1 top-1/2 h-7 w-7 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                      onClick={() => setShowPassword((prev) => !prev)}
+                      tabIndex={-1} // Keep it out of the normal tab flow
+                    >
+                      {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      <span className="sr-only">{showPassword ? "Hide password" : "Show password"}</span>
+                    </Button>
+                  </div>
                   <FormMessage />
                 </FormItem>
               )}
@@ -359,3 +373,4 @@ export default function AuthForm({ mode }: AuthFormProps) {
     </Card>
   );
 }
+
