@@ -2,7 +2,7 @@
 "use client";
 import type { ReactNode }from 'react';
 import { createContext } from 'react';
-import type { UserProfile, UserRole, School, LearningMaterial, UserProfileWithId, Class, ClassWithTeacherInfo, LearningMaterialWithTeacherInfo, Assignment, Submission, SubmissionFormat, LearningMaterialType, AssignmentWithClassInfo, SubmissionWithStudentName, AssignmentWithClassAndSubmissionInfo, UserStatus, Activity, Subject, ExamPeriod, ExamPeriodWithClassNames, ExamResult, ExamResultWithStudentInfo, ClassType, Notification, AttendanceRecord, AttendanceStatus, Testimonial } from '@/types'; // Added Testimonial
+import type { UserProfile, UserRole, School, LearningMaterial, UserProfileWithId, Class, ClassWithTeacherInfo, LearningMaterialWithTeacherInfo, Assignment, Submission, SubmissionFormat, LearningMaterialType, AssignmentWithClassInfo, SubmissionWithStudentName, AssignmentWithClassAndSubmissionInfo, UserStatus, Activity, Subject, ExamPeriod, ExamPeriodWithClassNames, ExamResult, ExamResultWithStudentInfo, ClassType, Notification, AttendanceRecord, AttendanceStatus, Testimonial, OnboardingSchoolData, OnboardingSubjectData, OnboardingClassData, OnboardingInvitedUserData } from '@/types';
 import type { getClassDetailsService as GetClassDetailsServiceType } from '@/services/classService';
 
 // This will be the full type provided by the AuthProvider
@@ -13,13 +13,22 @@ export interface AuthContextType {
   logIn: (email: string, pass: string) => Promise<UserProfile | null>;
   logOut: () => Promise<void>;
 
-  // Admin School Management
-  createSchool: (schoolName: string, adminId: string) => Promise<string | null>;
+  // Admin School Management (includes onboarding steps)
+  onboardingCreateSchool: (schoolDetails: OnboardingSchoolData, adminId: string, logoFile?: File | null) => Promise<{ schoolId: string; inviteCode: string } | null>;
   joinSchoolWithInviteCode: (inviteCode: string, userId: string) => Promise<boolean>;
-  checkAdminOnboardingStatus: () => Promise<{ isOnboarded: boolean; schoolId?: string }>;
+  checkAdminOnboardingStatus: () => Promise<{ isOnboarded: boolean; schoolId?: string, onboardingStep?: number | null }>;
   getSchoolDetails: (schoolId: string) => Promise<School | null>;
-  updateSchoolDetails: (schoolId: string, data: Partial<Pick<School, 'name' | 'isExamModeActive'>>) => Promise<boolean>;
+  updateSchoolDetails: (schoolId: string, data: Partial<Pick<School, 'name' | 'isExamModeActive' | 'setupComplete' | 'schoolType' | 'country' | 'phoneNumber' | 'logoUrl'>>) => Promise<boolean>;
   regenerateInviteCode: (schoolId: string) => Promise<string | null>;
+  updateAdminOnboardingStep: (userId: string, step: number | null) => Promise<boolean>;
+  onboardingAddSubjects: (schoolId: string, subjects: OnboardingSubjectData[]) => Promise<boolean>;
+  onboardingCreateClasses: (schoolId: string, classesData: OnboardingClassData[]) => Promise<boolean>;
+  onboardingInviteUsers: (schoolId: string, schoolName: string, users: OnboardingInvitedUserData[]) => Promise<boolean>;
+  onboardingCompleteSchoolSetup: (schoolId: string, isExamModeActive: boolean) => Promise<boolean>;
+  
+  // createSchool is kept for potentially different flows, but onboardingCreateSchool is primary for new admins
+  createSchool: (schoolName: string, adminId: string) => Promise<string | null>;
+
 
   // Admin User Management
   getUsersBySchool: (schoolId: string) => Promise<UserProfileWithId[]>;
@@ -96,12 +105,12 @@ export interface AuthContextType {
   updateUserDisplayName: (userId: string, displayName: string) => Promise<boolean>;
   updateUserEmail: (newEmail: string, currentPassword_not_used: string) => Promise<boolean>;
   updateUserPassword: (newPassword: string, currentPassword_not_used: string) => Promise<boolean>;
-  updateUserLastTestimonialSurveyAt: (userId: string) => Promise<boolean>; // New for survey
+  updateUserLastTestimonialSurveyAt: (userId: string) => Promise<boolean>; 
 
   // Subject Management
-  createSubject: (schoolId: string, subjectName: string) => Promise<string | null>;
+  createSubject: (schoolId: string, subjectName: string, isCompulsory?: boolean) => Promise<string | null>;
   getSubjectsBySchool: (schoolId: string) => Promise<Subject[]>;
-  updateSubject: (subjectId: string, newName: string) => Promise<boolean>;
+  updateSubject: (subjectId: string, newName: string, isCompulsory?: boolean) => Promise<boolean>;
   deleteSubject: (subjectId: string, subjectName: string) => Promise<boolean>;
   getSubjectById: (subjectId: string) => Promise<Subject | null>;
 

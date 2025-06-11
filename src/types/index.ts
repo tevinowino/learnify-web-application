@@ -12,9 +12,10 @@ export interface UserProfile extends FirebaseUser {
   schoolName?: string;
   status?: UserStatus;
   classIds?: string[];
-  subjects?: string[];
+  subjects?: string[]; // Array of subject IDs
   studentAssignments?: Record<string, { status: 'submitted' | 'graded' | 'missing' | 'late'; grade?: string | number }>;
   childStudentId?: string; // For parent role to link to a student
+  onboardingStep?: number | null; // 0 to 5, null when completed
   lastTestimonialSurveyAt?: Timestamp; 
 }
 
@@ -25,17 +26,23 @@ export interface UserProfileWithId extends UserProfile {
 export interface School {
   id:string;
   name: string;
-  adminId: string;
+  adminId: string; // The admin who created/manages the school
   inviteCode: string;
+  schoolType?: string; // e.g., Primary, Secondary, K-12
+  country?: string;
+  phoneNumber?: string;
+  logoUrl?: string;
+  setupComplete?: boolean; // True once onboarding is finished
+  isExamModeActive?: boolean;
   createdAt?: Timestamp;
   updatedAt?: Timestamp;
-  isExamModeActive?: boolean;
 }
 
 export interface Subject {
   id: string;
   name: string;
   schoolId: string;
+  isCompulsory?: boolean; // Added for onboarding
   createdAt: Timestamp;
   updatedAt?: Timestamp;
 }
@@ -69,12 +76,12 @@ export interface Class {
   id: string;
   name: string;
   schoolId: string;
-  teacherId?: string;
+  teacherId?: string; // Optional teacher ID
   studentIds?: string[];
   classInviteCode?: string;
   classType: ClassType;
-  compulsorySubjectIds?: string[];
-  subjectId?: string | null;
+  compulsorySubjectIds?: string[]; // For main classes
+  subjectId?: string | null; // For subject-based classes
   createdAt: Timestamp;
   updatedAt?: Timestamp;
 }
@@ -130,7 +137,7 @@ export interface Submission {
   grade?: string | number;
   feedback?: string;
   status: 'submitted' | 'graded' | 'late';
-  updatedAt?: Timestamp; // Added for consistency
+  updatedAt?: Timestamp; 
 }
 
 export interface SubmissionWithStudentName extends Submission {
@@ -222,6 +229,7 @@ export interface Activity {
     | 'exam_period_finalized'
     | 'exam_results_entered'
     | 'school_settings_updated'
+    | 'school_onboarding_step'
     | 'invite_code_regenerated'
     | 'parent_linked_child'
     | 'testimonial_submitted' 
@@ -234,16 +242,16 @@ export interface Activity {
 export type AttendanceStatus = 'present' | 'absent' | 'late' | 'excused';
 
 export interface AttendanceRecord {
-  id: string; // Document ID
+  id: string; 
   studentId: string;
-  studentName?: string; // Denormalized for easier display
+  studentName?: string; 
   classId: string;
-  className?: string; // Denormalized
+  className?: string; 
   schoolId: string;
-  date: Timestamp; // Specific date of attendance
+  date: Timestamp; 
   status: AttendanceStatus;
-  markedBy: string; // Teacher's UID
-  markedByName?: string; // Teacher's display name
+  markedBy: string; 
+  markedByName?: string; 
   createdAt: Timestamp;
   updatedAt: Timestamp;
 }
@@ -265,11 +273,37 @@ export interface Testimonial {
   userId: string;
   userName: string;
   userRole: UserRole;
-  schoolId?: string; // Optional, if user is tied to a school
-  schoolName?: string; // Optional
-  rating: number; // e.g., 1-5
+  schoolId?: string; 
+  schoolName?: string; 
+  rating: number; 
   feedbackText: string;
   isApprovedForDisplay: boolean;
   submittedAt: Timestamp;
 }
 
+// For Onboarding
+export interface OnboardingSchoolData {
+  schoolName: string;
+  schoolType: string;
+  country: string;
+  phoneNumber: string;
+}
+
+export interface OnboardingSubjectData {
+  name: string;
+  isCompulsory?: boolean;
+}
+
+export interface OnboardingClassData {
+  name: string;
+  type: ClassType;
+  subjectId?: string;
+  compulsorySubjectIds?: string[];
+  classTeacherId?: string;
+}
+
+export interface OnboardingInvitedUserData {
+  email: string;
+  displayName: string;
+  role: 'teacher' | 'student';
+}

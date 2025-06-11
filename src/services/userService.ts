@@ -3,18 +3,18 @@ import { doc, getDoc, setDoc, collection, query, where, getDocs, updateDoc, Time
 import { createUserWithEmailAndPassword, updateProfile as updateFirebaseProfile, type Auth as FirebaseAuthType, type User as FirebaseUserType } from 'firebase/auth';
 import { db } from '@/lib/firebase';
 import type { UserProfile, UserProfileWithId, UserRole, UserStatus } from '@/types';
-import { getClassDetailsService } from './classService'; // For onboarding
+import { getClassDetailsService } from './classService'; 
 
 export const createUserProfileInFirestore = async (
   firebaseUser: FirebaseUserType,
   role: UserRole,
   displayName: string,
-  initialSchoolId?: string, // Can be undefined for admins creating a new school or parents linking
+  initialSchoolId?: string, 
   initialSchoolName?: string,
-  initialStatus?: UserStatus, // Allow passing status, e.g., 'active' for parents
-  childStudentId?: string // Specifically for parents
+  initialStatus?: UserStatus, 
+  childStudentId?: string 
 ): Promise<UserProfile> => {
-  const userProfileData: Omit<UserProfile, keyof FirebaseUserType | 'classIds' | 'studentAssignments'> & { uid: string, createdAt: Timestamp, classIds: string[], studentAssignments: {}, status: UserStatus, schoolId?: string, schoolName?: string, subjects?: string[], childStudentId?: string, lastTestimonialSurveyAt?: Timestamp } = {
+  const userProfileData: Omit<UserProfile, keyof FirebaseUserType | 'classIds' | 'studentAssignments'> & { uid: string, createdAt: Timestamp, classIds: string[], studentAssignments: {}, status: UserStatus, schoolId?: string, schoolName?: string, subjects?: string[], childStudentId?: string, onboardingStep?: number | null, lastTestimonialSurveyAt?: Timestamp } = {
     uid: firebaseUser.uid,
     email: firebaseUser.email,
     displayName: displayName,
@@ -27,13 +27,15 @@ export const createUserProfileInFirestore = async (
     schoolId: initialSchoolId,
     schoolName: initialSchoolName,
     childStudentId: role === 'parent' ? childStudentId : undefined,
-    lastTestimonialSurveyAt: undefined, // Initialize
+    onboardingStep: role === 'admin' && !initialSchoolId ? 0 : null, // Initialize for new admins
+    lastTestimonialSurveyAt: undefined,
   };
 
   if (role === 'admin' && !initialSchoolId) {
+    // School ID and name will be set after school creation step in onboarding
     delete userProfileData.schoolId;
     delete userProfileData.schoolName;
-    userProfileData.status = 'active';
+    userProfileData.status = 'active'; // Admins creating schools are active
   }
 
 
@@ -67,7 +69,8 @@ export const getUserProfileService = async (userId: string): Promise<UserProfile
         ...data,
         status: data.status || (data.role === 'admin' ? 'active' : 'pending_verification'),
         subjects: data.subjects || [],
-        classIds: data.classIds || []
+        classIds: data.classIds || [],
+        onboardingStep: data.onboardingStep === undefined ? null : data.onboardingStep, // Ensure default
       } as UserProfileWithId;
     }
     return null;
@@ -148,7 +151,8 @@ export const adminCreateUserService = async (
         classIds: [],
         subjects: [],
         studentAssignments: {},
-        status: 'active' as UserStatus,
+        status: 'active' as UserStatus, // Directly created by admin, so active
+        onboardingStep: null, // Not part of admin onboarding flow for this user
         lastTestimonialSurveyAt: undefined,
       };
       await setDoc(doc(db, "users", firebaseUser.uid), userProfileData);
@@ -161,7 +165,7 @@ export const adminCreateUserService = async (
   }
 };
 
-export const updateUserRoleAndSchoolService = async (userId: string, data: { role?: UserRole; schoolId?: string, classIds?: string[], status?: UserStatus, subjects?: string[] }): Promise<boolean> => {
+export const updateUserRoleAndSchoolService = async (userId: string, data: { role?: UserRole; schoolId?: string, classIds?: string[], status?: UserStatus, subjects?: string[], onboardingStep?: number | null }): Promise<boolean> => {
   try {
     const userRef = doc(db, "users", userId);
     const updateData: any = { ...data, updatedAt: Timestamp.now() };
@@ -176,11 +180,14 @@ export const updateUserRoleAndSchoolService = async (userId: string, data: { rol
     } else if (data.subjects === null) {
         updateData.subjects = [];
     }
+    if (data.onboardingStep === undefined) { // If onboardingStep is not explicitly passed, don't change it.
+        delete updateData.onboardingStep;
+    }
 
     await updateDoc(userRef, updateData);
     return true;
   } catch (error) {
-    console.error("Error updating user role/school/status/subjects in service:", error);
+    console.error("Error updating user role/school/status/subjects/onboardingStep in service:", error);
     return false;
   }
 };
@@ -246,6 +253,46 @@ export const updateUserLastTestimonialSurveyAtService = async (userId: string): 
     return true;
   } catch (error) {
     console.error("Error updating lastTestimonialSurveyAt in service:", error);
+    return false;
+  }
+};
+
+export const onboardingInviteUsersService = async (
+  authInstance: FirebaseAuthType,
+  schoolId: string,
+  schoolName: string,
+  usersToInvite: Array<{ email: string; displayName: string; role: 'teacher' | 'student' }>
+): Promise<boolean> => {
+  try {
+    const batch = writeBatch(db);
+    for (const user of usersToInvite) {
+      // For onboarding, we'll create their Firestore profile with 'pending_verification'
+      // They will need to complete signup themselves (or be manually activated by admin later).
+      // This assumes the admin is just "inviting" them to join, not creating full Auth accounts yet.
+      const newUserRef = doc(collection(db, "users")); // Auto-generate ID for Firestore doc
+      const userProfileData = {
+        uid: newUserRef.id, // Using Firestore doc ID as temp UID if no Auth user created
+        email: user.email,
+        displayName: user.displayName,
+        role: user.role,
+        schoolId: schoolId,
+        schoolName: schoolName,
+        status: 'pending_verification' as UserStatus, // Or a new status like 'invited'
+        createdAt: Timestamp.now(),
+        updatedAt: Timestamp.now(),
+        classIds: [],
+        subjects: [],
+        onboardingStep: null,
+      };
+      batch.set(newUserRef, userProfileData);
+      // Here, you would typically send an email invitation to user.email
+      // For example: `sendInvitationEmail(user.email, schoolName, inviteCodeForSchool);`
+      // The user would then click a link in the email to sign up for Learnify using this school ID.
+    }
+    await batch.commit();
+    return true;
+  } catch (error) {
+    console.error("Error inviting users during onboarding in service:", error);
     return false;
   }
 };

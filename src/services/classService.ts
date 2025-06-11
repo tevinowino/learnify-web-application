@@ -1,14 +1,14 @@
 
 import { doc, collection, query, where, getDocs, writeBatch, updateDoc, addDoc, Timestamp, arrayUnion, arrayRemove, documentId, orderBy, getDoc, deleteDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import type { Class, ClassWithTeacherInfo, UserProfileWithId, UserProfile, ClassType } from '@/types';
+import type { Class, ClassWithTeacherInfo, UserProfileWithId, UserProfile, ClassType, OnboardingClassData } from '@/types';
 import type { getUserProfileService as GetUserProfileServiceType } from './userService'; 
-import { getSubjectByIdService } from './subjectService'; // Import for subject name resolution
+import { getSubjectByIdService } from './subjectService'; 
 
 export const createClassService = async (
   className: string, 
   schoolId: string, 
-  teacherId: string,
+  teacherId: string, // Can be empty string if not assigned
   classType: ClassType,
   compulsorySubjectIds?: string[],
   subjectId?: string | null
@@ -19,7 +19,7 @@ export const createClassService = async (
     const classData: Omit<Class, 'id'> = {
       name: className,
       schoolId: schoolId,
-      teacherId: teacherId || '',
+      teacherId: teacherId || undefined, // Store as undefined if empty
       studentIds: [],
       classInviteCode: classInviteCode,
       classType: classType,
@@ -36,6 +36,39 @@ export const createClassService = async (
     return null;
   }
 };
+
+export const onboardingCreateClassesService = async (schoolId: string, classesData: OnboardingClassData[]): Promise<boolean> => {
+  if (!schoolId || classesData.length === 0) return false;
+  try {
+    const batch = writeBatch(db);
+    const classesCollectionRef = collection(db, "classes");
+
+    for (const classInfo of classesData) {
+      const classDocRef = doc(classesCollectionRef);
+      const classInviteCode = `C-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
+      const newClass: Class = {
+        id: classDocRef.id,
+        name: classInfo.name,
+        schoolId,
+        teacherId: classInfo.classTeacherId || undefined,
+        studentIds: [],
+        classInviteCode: classInviteCode,
+        classType: classInfo.type,
+        compulsorySubjectIds: classInfo.type === 'main' ? (classInfo.compulsorySubjectIds || []) : [],
+        subjectId: classInfo.type === 'subject_based' ? (classInfo.subjectId || null) : null,
+        createdAt: Timestamp.now(),
+        updatedAt: Timestamp.now(),
+      };
+      batch.set(classDocRef, newClass);
+    }
+    await batch.commit();
+    return true;
+  } catch (error) {
+    console.error("Error batch creating classes in service:", error);
+    return false;
+  }
+};
+
 
 export const getClassesBySchoolService = async (
   schoolId: string,
@@ -58,7 +91,13 @@ export const getClassesBySchoolService = async (
         const subject = await getSubjectByIdService(classData.subjectId);
         subjectName = subject?.name;
       }
-      return { ...classData, id: docSnapshot.id, teacherDisplayName, subjectName };
+      let compulsorySubjectNames: string[] = [];
+      if (classData.classType === 'main' && classData.compulsorySubjectIds && classData.compulsorySubjectIds.length > 0) {
+          const subjectPromises = classData.compulsorySubjectIds.map(id => getSubjectByIdService(id));
+          const subjects = await Promise.all(subjectPromises);
+          compulsorySubjectNames = subjects.filter(s => s?.name).map(s => s!.name);
+      }
+      return { ...classData, id: docSnapshot.id, teacherDisplayName, subjectName, compulsorySubjectNames };
     });
     const allClasses = await Promise.all(classesPromises);
     return allClasses.sort((a, b) => a.name.localeCompare(b.name));
@@ -145,11 +184,9 @@ export const updateClassDetailsService = async (classId: string, data: Partial<P
     const classRef = doc(db, "classes", classId);
     const updateData: any = { ...data, updatedAt: Timestamp.now() };
     
-    // Ensure subjectId is nullified if classType is not subject_based
     if (data.classType && data.classType !== 'subject_based') {
         updateData.subjectId = null;
     }
-    // Ensure compulsorySubjectIds is empty array if classType is not main
     if (data.classType && data.classType !== 'main') {
         updateData.compulsorySubjectIds = [];
     }
@@ -176,10 +213,8 @@ export const enrollStudentInClassService = async (classId: string, studentId: st
     if (!studentSnap.exists()) return false;
     const studentData = studentSnap.data() as UserProfile;
 
-    // Update class's student list
     batch.update(classRef, { studentIds: arrayUnion(studentId), updatedAt: Timestamp.now() });
     
-    // Update student's class list
     const studentUpdatePayload: any = { classIds: arrayUnion(classId), updatedAt: Timestamp.now() };
 
     let subjectsToAdd: string[] = [];
@@ -191,7 +226,6 @@ export const enrollStudentInClassService = async (classId: string, studentId: st
     }
     
     if (subjectsToAdd.length > 0) {
-        // Ensure unique subjects by merging with existing if any
         const currentStudentSubjects = studentData.subjects || [];
         const finalSubjects = Array.from(new Set([...currentStudentSubjects, ...subjectsToAdd]));
         studentUpdatePayload.subjects = finalSubjects;
@@ -215,11 +249,6 @@ export const removeStudentFromClassService = async (classId: string, studentId: 
     const studentRef = doc(db, "users", studentId);
     batch.update(studentRef, { classIds: arrayRemove(classId), updatedAt: Timestamp.now() });
     
-    // Note: Removing from a class does not automatically remove subjects. 
-    // This might need more complex logic if, for example, a student leaves a main class, 
-    // whether its compulsory subjects should be removed if not part of another class.
-    // For now, it only removes the class association.
-
     await batch.commit();
     return true;
   } catch (error) {
@@ -417,5 +446,3 @@ export const joinClassWithCodeService = async (classCode: string, studentId: str
       return false;
     }
   };
-
-    

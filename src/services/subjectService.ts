@@ -1,14 +1,15 @@
 
-import { doc, collection, query, where, getDocs, addDoc, Timestamp, updateDoc, deleteDoc, orderBy, getDoc } from 'firebase/firestore';
+import { doc, collection, query, where, getDocs, addDoc, Timestamp, updateDoc, deleteDoc, orderBy, getDoc, writeBatch } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import type { Subject } from '@/types';
+import type { Subject, OnboardingSubjectData } from '@/types';
 
-export const createSubjectService = async (schoolId: string, subjectName: string): Promise<string | null> => {
+export const createSubjectService = async (schoolId: string, subjectName: string, isCompulsory?: boolean): Promise<string | null> => {
   if (!schoolId || !subjectName.trim()) return null;
   try {
     const subjectData: Omit<Subject, 'id'> = {
       name: subjectName.trim(),
       schoolId,
+      isCompulsory: isCompulsory ?? false,
       createdAt: Timestamp.now(),
       updatedAt: Timestamp.now(),
     };
@@ -20,6 +21,34 @@ export const createSubjectService = async (schoolId: string, subjectName: string
     return null;
   }
 };
+
+export const onboardingAddSubjectsService = async (schoolId: string, subjects: OnboardingSubjectData[]): Promise<boolean> => {
+  if (!schoolId || subjects.length === 0) return false;
+  try {
+    const batch = writeBatch(db);
+    const subjectsCollectionRef = collection(db, "subjects");
+
+    for (const subject of subjects) {
+      if (!subject.name.trim()) continue; 
+      const subjectDocRef = doc(subjectsCollectionRef); 
+      const subjectData: Subject = {
+        id: subjectDocRef.id,
+        name: subject.name.trim(),
+        schoolId,
+        isCompulsory: subject.isCompulsory || false,
+        createdAt: Timestamp.now(),
+        updatedAt: Timestamp.now(),
+      };
+      batch.set(subjectDocRef, subjectData);
+    }
+    await batch.commit();
+    return true;
+  } catch (error) {
+    console.error("Error batch adding subjects in service:", error);
+    return false;
+  }
+};
+
 
 export const getSubjectsBySchoolService = async (schoolId: string): Promise<Subject[]> => {
   if (!schoolId) return [];
@@ -46,11 +75,15 @@ export const getSubjectByIdService = async (subjectId: string): Promise<Subject 
   }
 };
 
-export const updateSubjectService = async (subjectId: string, newName: string): Promise<boolean> => {
+export const updateSubjectService = async (subjectId: string, newName: string, isCompulsory?: boolean): Promise<boolean> => {
   if (!subjectId || !newName.trim()) return false;
   try {
     const subjectRef = doc(db, "subjects", subjectId);
-    await updateDoc(subjectRef, { name: newName.trim(), updatedAt: Timestamp.now() });
+    const updateData: Partial<Subject> = { name: newName.trim(), updatedAt: Timestamp.now() };
+    if (isCompulsory !== undefined) {
+        updateData.isCompulsory = isCompulsory;
+    }
+    await updateDoc(subjectRef, updateData);
     return true;
   } catch (error) {
     console.error("Error updating subject in service:", error);
@@ -62,12 +95,9 @@ export const deleteSubjectService = async (subjectId: string): Promise<boolean> 
   if (!subjectId) return false;
   try {
     await deleteDoc(doc(db, "subjects", subjectId));
-    // Consider implications: if subjects are tied to student profiles, those references might need cleaning.
-    // For now, simple delete.
     return true;
   } catch (error) {
     console.error("Error deleting subject in service:", error);
     return false;
   }
 };
-
