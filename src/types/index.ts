@@ -31,7 +31,7 @@ export interface School {
   schoolType?: string; // e.g., Primary, Secondary, K-12
   country?: string;
   phoneNumber?: string;
-  logoUrl?: string;
+  // logoUrl?: string; // Removed logoUrl
   setupComplete?: boolean; // True once onboarding is finished
   isExamModeActive?: boolean;
   createdAt?: Timestamp;

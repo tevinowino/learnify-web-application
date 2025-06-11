@@ -2,18 +2,17 @@
 "use client";
 
 import React, { useState } from 'react';
-import { useForm, Controller } from 'react-hook-form';
+import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import { School, UploadCloud, Building, MapPin, Phone, ArrowRight } from 'lucide-react';
+import { School, Building, MapPin, Phone, ArrowRight } from 'lucide-react';
 import Loader from '@/components/shared/Loader';
 import type { OnboardingSchoolData } from '@/types';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
@@ -23,7 +22,6 @@ const createSchoolSchema = z.object({
   schoolType: z.enum(["Primary", "Secondary", "K-12", "Higher Education", "Vocational", "Other"], { required_error: "Please select a school type." }),
   country: z.string().min(2, "Country is required."),
   phoneNumber: z.string().min(5, "Phone number must be at least 5 characters if provided.").optional().or(z.literal("")),
-  logoFile: z.instanceof(File).optional(),
 });
 
 type CreateSchoolFormValues = z.infer<typeof createSchoolSchema>;
@@ -36,12 +34,11 @@ export default function CreateSchoolPage() {
 
   const form = useForm<CreateSchoolFormValues>({
     resolver: zodResolver(createSchoolSchema),
-    defaultValues: { // Added default values for all fields
+    defaultValues: {
         schoolName: "",
         schoolType: undefined,
         country: "",
         phoneNumber: "",
-        logoFile: undefined,
     }
   });
 
@@ -59,7 +56,8 @@ export default function CreateSchoolPage() {
         phoneNumber: data.phoneNumber || "",
     };
     
-    const result = await onboardingCreateSchool(schoolDetails, currentUser.uid, data.logoFile);
+    // Pass null for logoFile as it's removed
+    const result = await onboardingCreateSchool(schoolDetails, currentUser.uid, null); 
     setIsSubmitting(false);
 
     if (result) {
@@ -147,27 +145,6 @@ export default function CreateSchoolPage() {
                 )}
               />
             </div>
-
-            <FormField
-              control={form.control}
-              name="logoFile"
-              render={({ field: { onChange, value, ...restField } }) => ( // Destructure onChange and value
-                <FormItem>
-                  <FormLabel className="flex items-center"><UploadCloud className="mr-2 h-4 w-4 text-muted-foreground"/>School Logo (Optional)</FormLabel>
-                  <FormControl>
-                    <Input 
-                      type="file" 
-                      accept="image/*" 
-                      disabled={isLoading} 
-                      onChange={(e) => onChange(e.target.files?.[0])} // Pass the file to RHF
-                      {...restField} // Spread the rest of the field props
-                    />
-                  </FormControl>
-                  <FormMessage />
-                  <p className="text-xs text-muted-foreground">Upload your school's logo. Recommended: PNG, JPG, max 2MB.</p>
-                </FormItem>
-              )}
-            />
           </CardContent>
           <CardFooter>
             <Button type="submit" className="w-full button-shadow" disabled={isLoading}>

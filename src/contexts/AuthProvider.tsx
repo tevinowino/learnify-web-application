@@ -30,7 +30,8 @@ import * as ExamService from '@/services/examService';
 import * as NotificationService from '@/services/notificationService';
 import * as AttendanceService from '@/services/attendanceService';
 import * as TestimonialService from '@/services/testimonialService';
-import { uploadFileToCloudinaryService } from '@/services/fileUploadService';
+// Removed Cloudinary import as logo is removed
+// import { uploadFileToCloudinaryService } from '@/services/fileUploadService';
 import { AuthContext, type AuthContextType } from './AuthContext';
 import { format } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
@@ -275,18 +276,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const onboardingCreateSchool = useCallback(async (
     schoolDetails: OnboardingSchoolData,
     adminId: string,
-    logoFile?: File | null
+    logoFile_removed?: File | null // Parameter kept for signature but not used
   ): Promise<{ schoolId: string; inviteCode: string } | null> => {
     if (!currentUser || currentUser.uid !== adminId || currentUser.role !== 'admin') return null;
     setAuthProcessLoading(true);
     try {
-      let logoUrl: string | null = null;
-      if (logoFile) {
-        const uploadResult = await uploadFileToCloudinaryService(logoFile);
-        logoUrl = uploadResult.url;
-      }
-      
-      const result = await SchoolService.onboardingCreateSchoolService(adminId, schoolDetails, logoUrl);
+      // Removed logo upload logic
+      const result = await SchoolService.onboardingCreateSchoolService(adminId, schoolDetails); // Pass without logoUrl
       if (result) {
         await updateAdminOnboardingStep(adminId, 1);
         setCurrentUser(prev => prev ? ({ ...prev, schoolId: result.schoolId, schoolName: schoolDetails.schoolName, onboardingStep: 1 }) : null);
@@ -412,7 +408,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     return { isOnboarded, schoolId: currentUser.schoolId, onboardingStep: currentUser.onboardingStep };
   }, [currentUser]);
 
-  const updateSchoolDetails = useCallback(async (schoolId: string, data: Partial<Pick<School, 'name' | 'isExamModeActive' | 'setupComplete' | 'schoolType' | 'country' | 'phoneNumber' | 'logoUrl'>>): Promise<boolean> => {
+  const updateSchoolDetails = useCallback(async (schoolId: string, data: Partial<Pick<School, 'name' | 'isExamModeActive' | 'setupComplete' | 'schoolType' | 'country' | 'phoneNumber'>>): Promise<boolean> => { // logoUrl removed
     if (!currentUser || currentUser.role !== 'admin' || currentUser.schoolId !== schoolId) return false;
     const school = await SchoolService.getSchoolDetailsService(schoolId);
     if (!school || school.adminId !== currentUser.uid) return false; // Check if current user is the admin of the school
@@ -776,13 +772,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
     try {
       if (file && materialData.materialType === 'pdf_upload') {
-        const uploadResult = await uploadFileToCloudinaryService(file);
-        if (!uploadResult.url) {
-            throw new Error("Cloudinary file upload failed for material.");
-        }
-        attachmentUrl = uploadResult.url;
-        originalFileNameForMaterial = uploadResult.originalFileName;
-        finalContent = `[Uploaded File: ${originalFileNameForMaterial || file.name}]`;
+        // const uploadResult = await uploadFileToCloudinaryService(file); // Logic removed
+        // if (!uploadResult.url) {
+        //     throw new Error("Cloudinary file upload failed for material.");
+        // }
+        // attachmentUrl = uploadResult.url;
+        // originalFileNameForMaterial = uploadResult.originalFileName;
+        finalContent = `[Uploaded File: ${file.name}]`; // Placeholder if not actually uploading
+        attachmentUrl = "placeholder_url_for_testing"; // Placeholder if needed
+        originalFileNameForMaterial = file.name;
       }
 
       const dataToSave: Omit<LearningMaterial, 'id' | 'createdAt' | 'updatedAt'> = {
@@ -870,15 +868,18 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       originalFileNameForUpdate = materialDocBeforeUpdate.originalFileName || null; 
 
       if (file && data.materialType === 'pdf_upload') {
-        const uploadResult = await uploadFileToCloudinaryService(file);
-        if (uploadResult.url) {
-          finalAttachmentUrl = uploadResult.url;
-          originalFileNameForUpdate = uploadResult.originalFileName;
-          finalContent = `[Uploaded File: ${originalFileNameForUpdate || file.name}]`;
-        } else {
-          console.error("Cloudinary material attachment upload failed during update.");
-          return false;
-        }
+        // const uploadResult = await uploadFileToCloudinaryService(file); // Logic removed
+        // if (uploadResult.url) {
+        //   finalAttachmentUrl = uploadResult.url;
+        //   originalFileNameForUpdate = uploadResult.originalFileName;
+        //   finalContent = `[Uploaded File: ${originalFileNameForUpdate || file.name}]`;
+        // } else {
+        //   console.error("Cloudinary material attachment upload failed during update.");
+        //   return false;
+        // }
+        finalContent = `[Uploaded File: ${file.name}]`; // Placeholder
+        finalAttachmentUrl = "placeholder_url_for_testing"; // Placeholder
+        originalFileNameForUpdate = file.name;
       } else if (data.materialType && data.materialType !== 'pdf_upload' && materialDocBeforeUpdate.materialType === 'pdf_upload') {
         finalAttachmentUrl = null;
         originalFileNameForUpdate = null;
@@ -1117,12 +1118,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
     try {
       if (file && submissionData.submissionType === 'file_upload') {
-        const uploadResult = await uploadFileToCloudinaryService(file);
-        if (!uploadResult.url) {
-          throw new Error("Cloudinary submission file upload failed.");
-        }
-        finalContent = uploadResult.url;
-        submissionOriginalFileName = uploadResult.originalFileName;
+        // const uploadResult = await uploadFileToCloudinaryService(file); // Logic removed
+        // if (!uploadResult.url) {
+        //   throw new Error("Cloudinary submission file upload failed.");
+        // }
+        // finalContent = uploadResult.url;
+        // submissionOriginalFileName = uploadResult.originalFileName;
+        finalContent = "placeholder_url_for_testing"; // Placeholder
+        submissionOriginalFileName = file.name;
       }
 
       const assignment = await AssignmentService.getAssignmentByIdService(submissionData.assignmentId, ClassService.getClassDetailsService);

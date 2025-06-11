@@ -14,11 +14,11 @@ export interface AuthContextType {
   logOut: () => Promise<void>;
 
   // Admin School Management (includes onboarding steps)
-  onboardingCreateSchool: (schoolDetails: OnboardingSchoolData, adminId: string, logoFile?: File | null) => Promise<{ schoolId: string; inviteCode: string } | null>;
+  onboardingCreateSchool: (schoolDetails: OnboardingSchoolData, adminId: string, logoFile_removed?: File | null) => Promise<{ schoolId: string; inviteCode: string } | null>; // logoFile parameter removed
   joinSchoolWithInviteCode: (inviteCode: string, userId: string) => Promise<boolean>;
   checkAdminOnboardingStatus: () => Promise<{ isOnboarded: boolean; schoolId?: string, onboardingStep?: number | null }>;
   getSchoolDetails: (schoolId: string) => Promise<School | null>;
-  updateSchoolDetails: (schoolId: string, data: Partial<Pick<School, 'name' | 'isExamModeActive' | 'setupComplete' | 'schoolType' | 'country' | 'phoneNumber' | 'logoUrl'>>) => Promise<boolean>;
+  updateSchoolDetails: (schoolId: string, data: Partial<Pick<School, 'name' | 'isExamModeActive' | 'setupComplete' | 'schoolType' | 'country' | 'phoneNumber'>>) => Promise<boolean>; // logoUrl removed
   regenerateInviteCode: (schoolId: string) => Promise<string | null>;
   updateAdminOnboardingStep: (userId: string, step: number | null) => Promise<boolean>;
   onboardingAddSubjects: (schoolId: string, subjects: OnboardingSubjectData[]) => Promise<boolean>;

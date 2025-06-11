@@ -6,7 +6,7 @@ import type { School, OnboardingSchoolData } from '@/types';
 export const onboardingCreateSchoolService = async (
   adminId: string,
   schoolData: OnboardingSchoolData,
-  logoUrl?: string | null
+  // logoUrl parameter removed
 ): Promise<{ schoolId: string; inviteCode: string } | null> => {
   try {
     const inviteCode = `SCH-${Math.random().toString(36).substring(2, 7).toUpperCase()}`;
@@ -19,7 +19,7 @@ export const onboardingCreateSchoolService = async (
       schoolType: schoolData.schoolType,
       country: schoolData.country,
       phoneNumber: schoolData.phoneNumber,
-      logoUrl: logoUrl || undefined,
+      // logoUrl: logoUrl || undefined, // Removed logoUrl
       setupComplete: false, // Initial setup is not complete
       isExamModeActive: false,
       createdAt: Timestamp.now(),
@@ -113,7 +113,7 @@ export const getSchoolDetailsService = async (schoolId: string): Promise<School 
   }
 };
 
-export const updateSchoolDetailsService = async (schoolId: string, data: Partial<Pick<School, 'name' | 'isExamModeActive' | 'setupComplete' | 'schoolType' | 'country' | 'phoneNumber' | 'logoUrl'>>): Promise<boolean> => {
+export const updateSchoolDetailsService = async (schoolId: string, data: Partial<Pick<School, 'name' | 'isExamModeActive' | 'setupComplete' | 'schoolType' | 'country' | 'phoneNumber'>>): Promise<boolean> => {
   try {
     const schoolRef = doc(db, "schools", schoolId);
     await updateDoc(schoolRef, { ...data, updatedAt: Timestamp.now() });
