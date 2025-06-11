@@ -2,7 +2,7 @@
 "use client";
 
 import React, { useState } from 'react';
-import { useForm, Controller } from 'react-hook-form'; // Ensure Controller is imported
+import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { useRouter } from 'next/navigation';
@@ -13,16 +13,16 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import { School, UploadCloud, Building, MapPin, Phone } from 'lucide-react';
+import { School, UploadCloud, Building, MapPin, Phone, ArrowRight } from 'lucide-react';
 import Loader from '@/components/shared/Loader';
 import type { OnboardingSchoolData } from '@/types';
-import { Form } from '@/components/ui/form'; // Added this import
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 
 const createSchoolSchema = z.object({
   schoolName: z.string().min(3, "School name must be at least 3 characters."),
   schoolType: z.enum(["Primary", "Secondary", "K-12", "Higher Education", "Vocational", "Other"], { required_error: "Please select a school type." }),
   country: z.string().min(2, "Country is required."),
-  phoneNumber: z.string().min(5, "Phone number is required.").optional().or(z.literal("")), // Optional
+  phoneNumber: z.string().min(5, "Phone number must be at least 5 characters if provided.").optional().or(z.literal("")),
   logoFile: z.instanceof(File).optional(),
 });
 
@@ -36,6 +36,13 @@ export default function CreateSchoolPage() {
 
   const form = useForm<CreateSchoolFormValues>({
     resolver: zodResolver(createSchoolSchema),
+    defaultValues: { // Added default values for all fields
+        schoolName: "",
+        schoolType: undefined,
+        country: "",
+        phoneNumber: "",
+        logoFile: undefined,
+    }
   });
 
   const onSubmit = async (data: CreateSchoolFormValues) => {
@@ -74,20 +81,30 @@ export default function CreateSchoolPage() {
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)}>
           <CardContent className="space-y-6">
-            <div className="space-y-2">
-              <Label htmlFor="schoolName" className="flex items-center"><Building className="mr-2 h-4 w-4 text-muted-foreground"/>School Name</Label>
-              <Input id="schoolName" {...form.register("schoolName")} placeholder="e.g., Learnify Academy" disabled={isLoading} />
-              {form.formState.errors.schoolName && <p className="text-sm text-destructive">{form.formState.errors.schoolName.message}</p>}
-            </div>
+            <FormField
+              control={form.control}
+              name="schoolName"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel className="flex items-center"><Building className="mr-2 h-4 w-4 text-muted-foreground"/>School Name</FormLabel>
+                  <FormControl>
+                    <Input placeholder="e.g., Learnify Academy" disabled={isLoading} {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
 
-            <div className="space-y-2">
-              <Label htmlFor="schoolType" className="flex items-center"><Building className="mr-2 h-4 w-4 text-muted-foreground"/>School Type</Label>
-              <Controller
-                control={form.control}
-                name="schoolType"
-                render={({ field }) => (
+            <FormField
+              control={form.control}
+              name="schoolType"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel className="flex items-center"><Building className="mr-2 h-4 w-4 text-muted-foreground"/>School Type</FormLabel>
                   <Select onValueChange={field.onChange} defaultValue={field.value} disabled={isLoading}>
-                    <SelectTrigger id="schoolType"><SelectValue placeholder="Select school type..." /></SelectTrigger>
+                    <FormControl>
+                      <SelectTrigger><SelectValue placeholder="Select school type..." /></SelectTrigger>
+                    </FormControl>
                     <SelectContent>
                       <SelectItem value="Primary">Primary School</SelectItem>
                       <SelectItem value="Secondary">Secondary School</SelectItem>
@@ -97,33 +114,64 @@ export default function CreateSchoolPage() {
                       <SelectItem value="Other">Other</SelectItem>
                     </SelectContent>
                   </Select>
-                )}
-              />
-              {form.formState.errors.schoolType && <p className="text-sm text-destructive">{form.formState.errors.schoolType.message}</p>}
-            </div>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="country" className="flex items-center"><MapPin className="mr-2 h-4 w-4 text-muted-foreground"/>Country</Label>
-                <Input id="country" {...form.register("country")} placeholder="e.g., Kenya" disabled={isLoading} />
-                {form.formState.errors.country && <p className="text-sm text-destructive">{form.formState.errors.country.message}</p>}
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="phoneNumber" className="flex items-center"><Phone className="mr-2 h-4 w-4 text-muted-foreground"/>Phone Number (Optional)</Label>
-                <Input id="phoneNumber" {...form.register("phoneNumber")} placeholder="e.g., +254 7XX XXX XXX" disabled={isLoading} />
-                {form.formState.errors.phoneNumber && <p className="text-sm text-destructive">{form.formState.errors.phoneNumber.message}</p>}
-              </div>
+              <FormField
+                control={form.control}
+                name="country"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="flex items-center"><MapPin className="mr-2 h-4 w-4 text-muted-foreground"/>Country</FormLabel>
+                    <FormControl>
+                      <Input placeholder="e.g., Kenya" disabled={isLoading} {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="phoneNumber"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="flex items-center"><Phone className="mr-2 h-4 w-4 text-muted-foreground"/>Phone Number (Optional)</FormLabel>
+                    <FormControl>
+                      <Input placeholder="e.g., +254 7XX XXX XXX" disabled={isLoading} {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="logoFile" className="flex items-center"><UploadCloud className="mr-2 h-4 w-4 text-muted-foreground"/>School Logo (Optional)</Label>
-              <Input id="logoFile" type="file" {...form.register("logoFile")} accept="image/*" disabled={isLoading} />
-              <p className="text-xs text-muted-foreground">Upload your school's logo. Recommended: PNG, JPG, max 2MB.</p>
-            </div>
+            <FormField
+              control={form.control}
+              name="logoFile"
+              render={({ field: { onChange, value, ...restField } }) => ( // Destructure onChange and value
+                <FormItem>
+                  <FormLabel className="flex items-center"><UploadCloud className="mr-2 h-4 w-4 text-muted-foreground"/>School Logo (Optional)</FormLabel>
+                  <FormControl>
+                    <Input 
+                      type="file" 
+                      accept="image/*" 
+                      disabled={isLoading} 
+                      onChange={(e) => onChange(e.target.files?.[0])} // Pass the file to RHF
+                      {...restField} // Spread the rest of the field props
+                    />
+                  </FormControl>
+                  <FormMessage />
+                  <p className="text-xs text-muted-foreground">Upload your school's logo. Recommended: PNG, JPG, max 2MB.</p>
+                </FormItem>
+              )}
+            />
           </CardContent>
           <CardFooter>
             <Button type="submit" className="w-full button-shadow" disabled={isLoading}>
-              {isLoading ? <Loader size="small" className="mr-2"/> : <School className="mr-2 h-4 w-4" />}
+              {isLoading ? <Loader size="small" className="mr-2"/> : <ArrowRight className="mr-2 h-4 w-4" />}
               Create School & Continue
             </Button>
           </CardFooter>
