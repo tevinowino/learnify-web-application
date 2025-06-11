@@ -2,7 +2,7 @@
 "use client";
 
 import React, { useState } from 'react';
-import { useForm } from 'react-hook-form';
+import { useForm, Controller } from 'react-hook-form'; // Ensure Controller is imported
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { useRouter } from 'next/navigation';
@@ -16,6 +16,7 @@ import { useToast } from '@/hooks/use-toast';
 import { School, UploadCloud, Building, MapPin, Phone } from 'lucide-react';
 import Loader from '@/components/shared/Loader';
 import type { OnboardingSchoolData } from '@/types';
+import { Form } from '@/components/ui/form'; // Added this import
 
 const createSchoolSchema = z.object({
   schoolName: z.string().min(3, "School name must be at least 3 characters."),
