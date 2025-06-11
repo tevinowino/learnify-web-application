@@ -57,7 +57,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         } else {
           console.error(`User ${user.uid} authenticated but no Firestore profile. Forcing logout.`);
           await firebaseSignOut(auth); 
-          // setCurrentUser(null); // Let the onAuthStateChanged re-trigger handle this
         }
       } else {
         setCurrentUser(null);
@@ -106,9 +105,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       } else if ((role === 'teacher' || role === 'student') && schoolIdToJoin) {
         finalStatus = 'pending_verification';
       } else if (role === 'admin' && !schoolIdToJoin) {
-        finalOnboardingStep = 0; // New admin starting onboarding, schoolId will be set after school creation
-        finalSchoolId = undefined; // Explicitly undefined for new admin
-        finalSchoolName = undefined; // Explicitly undefined for new admin
+        finalOnboardingStep = 0; 
+        finalSchoolId = undefined; 
+        finalSchoolName = undefined; 
       }
 
 
@@ -296,29 +295,25 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     if (!currentUser || currentUser.uid !== adminId || currentUser.role !== 'admin') return null;
     setAuthProcessLoading(true);
     try {
-      // 1. Create School Document in Firestore
       const schoolCreationResult = await SchoolService.onboardingCreateSchoolService(adminId, schoolDetails);
       if (!schoolCreationResult) {
           throw new Error("School document creation failed in service.");
       }
       const { schoolId, inviteCode } = schoolCreationResult;
 
-      // 2. Update Admin's User Document with School Info & Next Onboarding Step
       const userUpdateSuccess = await UserService.updateUserRoleAndSchoolService(adminId, { 
           schoolId: schoolId, 
           schoolName: schoolDetails.schoolName,
-          onboardingStep: 1 // Move to next step
+          onboardingStep: 1 
       });
 
       if (!userUpdateSuccess) {
-          // CRITICAL: School created, but admin user not updated. This is an inconsistent state.
-          // Ideally, you might want to implement a rollback (delete the created school) or log this as a critical error.
-          // For now, we'll throw an error to indicate the operation failed.
           console.error(`CRITICAL: School ${schoolId} created but failed to link to admin ${adminId} or update onboarding step.`);
-          throw new Error("Failed to update admin user profile after school creation.");
+          // Consider a rollback or more robust error handling here if school creation without admin link is problematic
+          await SchoolService.deleteSchoolService(schoolId); // Attempt to delete the orphaned school
+          throw new Error("Failed to update admin user profile after school creation. School creation rolled back.");
       }
-
-      // 3. Update Local Auth Context State
+      
       setCurrentUser(prev => {
         if (!prev) return null;
         return { 
@@ -329,10 +324,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         };
       });
             
-      // 4. Log Activity
       if (currentUser.displayName) {
           await addActivity({
-              schoolId: schoolId, // Use the new schoolId
+              schoolId: schoolId, 
               actorId: adminId,
               actorName: currentUser.displayName,
               type: 'school_onboarding_step',
@@ -1233,7 +1227,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       const success = await UserService.completeStudentOnboardingService(userId, classIds, subjectIds);
       if (success && currentUser?.schoolId && currentUser.displayName) {
         setCurrentUser(prev => prev ? ({ ...prev, classIds, subjects: subjectIds }) : null);
-         const mainClassId = classIds[0];
+         const mainClassId = classIds[0]; 
          const cls = await ClassService.getClassDetailsService(mainClassId, UserService.getUserProfileService);
          await addActivity({
             schoolId: currentUser.schoolId,

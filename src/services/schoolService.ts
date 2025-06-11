@@ -1,5 +1,5 @@
 
-import { doc, getDoc, setDoc, collection, query, where, getDocs, writeBatch, updateDoc, Timestamp } from 'firebase/firestore';
+import { doc, getDoc, setDoc, collection, query, where, getDocs, writeBatch, updateDoc, Timestamp, deleteDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import type { School, OnboardingSchoolData } from '@/types';
 
@@ -123,3 +123,18 @@ export const regenerateInviteCodeService = async (schoolId: string): Promise<str
   }
 };
 
+export const deleteSchoolService = async (schoolId: string): Promise<boolean> => {
+  if (!schoolId) return false;
+  try {
+    const schoolRef = doc(db, "schools", schoolId);
+    await deleteDoc(schoolRef);
+    // Note: This is a basic delete. A more robust delete might involve
+    // deleting all associated users, classes, subjects, materials, assignments etc.
+    // which would require more complex batch operations or Cloud Functions.
+    console.log(`School document ${schoolId} deleted.`);
+    return true;
+  } catch (error) {
+    console.error(`Error deleting school ${schoolId} in service:`, error);
+    return false;
+  }
+};

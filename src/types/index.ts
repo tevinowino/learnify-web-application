@@ -31,7 +31,6 @@ export interface School {
   schoolType?: string; // e.g., Primary, Secondary, K-12
   country?: string;
   phoneNumber?: string;
-  // logoUrl?: string; // Removed logoUrl
   setupComplete?: boolean; // True once onboarding is finished
   isExamModeActive?: boolean;
   createdAt?: Timestamp;
@@ -299,7 +298,7 @@ export interface OnboardingClassData {
   type: ClassType;
   subjectId?: string;
   compulsorySubjectIds?: string[];
-  classTeacherId?: string;
+  // classTeacherId removed
 }
 
 export interface OnboardingInvitedUserData {
@@ -307,3 +306,4 @@ export interface OnboardingInvitedUserData {
   displayName: string;
   role: 'teacher' | 'student';
 }
+

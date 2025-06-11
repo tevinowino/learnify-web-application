@@ -15,7 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useToast } from '@/hooks/use-toast';
 import { BookCopy, PlusCircle, Trash2, ArrowRight } from 'lucide-react';
 import Loader from '@/components/shared/Loader';
-import type { OnboardingClassData, Subject, UserProfileWithId, ClassType } from '@/types';
+import type { OnboardingClassData, Subject, ClassType } from '@/types';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 
@@ -24,7 +24,7 @@ const classSchema = z.object({
   type: z.enum(["main", "subject_based"], { required_error: "Please select a class type." }),
   subjectId: z.string().optional(),
   compulsorySubjectIds: z.array(z.string()).optional(),
-  classTeacherId: z.string().optional(),
+  // classTeacherId removed
 }).superRefine((data, ctx) => {
   if (data.type === 'subject_based' && !data.subjectId) {
     ctx.addIssue({
@@ -41,23 +41,21 @@ const createClassesSchema = z.object({
 
 type CreateClassesFormValues = z.infer<typeof createClassesSchema>;
 
-const NO_TEACHER_VALUE = "__NO_TEACHER__";
-const NO_SUBJECT_VALUE = "__NO_SUBJECT_FOR_CLASS__"; // For subject-based class subject selection
+const NO_SUBJECT_VALUE = "__NO_SUBJECT_FOR_CLASS__";
 
 export default function CreateClassesPage() {
-  const { currentUser, getSubjectsBySchool, getUsersBySchoolAndRole, onboardingCreateClasses, loading: authLoading } = useAuth();
+  const { currentUser, getSubjectsBySchool, onboardingCreateClasses, loading: authLoading } = useAuth();
   const router = useRouter();
   const { toast } = useToast();
   
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [schoolSubjects, setSchoolSubjects] = useState<Subject[]>([]);
-  const [schoolTeachers, setSchoolTeachers] = useState<UserProfileWithId[]>([]);
   const [isLoadingData, setIsLoadingData] = useState(true);
 
   const form = useForm<CreateClassesFormValues>({
     resolver: zodResolver(createClassesSchema),
     defaultValues: {
-      classes: [{ name: "", type: "main", compulsorySubjectIds: [], subjectId: NO_SUBJECT_VALUE, classTeacherId: NO_TEACHER_VALUE }],
+      classes: [{ name: "", type: "main", compulsorySubjectIds: [], subjectId: NO_SUBJECT_VALUE }],
     },
   });
 
@@ -70,19 +68,15 @@ export default function CreateClassesPage() {
     if (currentUser?.schoolId) {
       setIsLoadingData(true);
       try {
-        const [subjects, teachers] = await Promise.all([
-          getSubjectsBySchool(currentUser.schoolId),
-          getUsersBySchoolAndRole(currentUser.schoolId, 'teacher')
-        ]);
+        const subjects = await getSubjectsBySchool(currentUser.schoolId);
         setSchoolSubjects(subjects.sort((a,b) => a.name.localeCompare(b.name)));
-        setSchoolTeachers(teachers.sort((a,b) => (a.displayName || "").localeCompare(b.displayName || "")));
       } catch (error) {
-        toast({ title: "Error", description: "Could not load school subjects or teachers.", variant: "destructive" });
+        toast({ title: "Error", description: "Could not load school subjects.", variant: "destructive" });
       } finally {
         setIsLoadingData(false);
       }
     }
-  }, [currentUser, getSubjectsBySchool, getUsersBySchoolAndRole, toast]);
+  }, [currentUser, getSubjectsBySchool, toast]);
 
   const onboardingStepPaths: Record<number, string> = {
     0: '/admin/onboarding-flow/create-school',
@@ -111,7 +105,6 @@ export default function CreateClassesPage() {
         type: c.type,
         subjectId: c.type === 'subject_based' ? (c.subjectId === NO_SUBJECT_VALUE ? undefined : c.subjectId) : undefined,
         compulsorySubjectIds: c.type === 'main' ? c.compulsorySubjectIds : undefined,
-        classTeacherId: c.classTeacherId === NO_TEACHER_VALUE ? undefined : c.classTeacherId,
     }));
 
     const success = await onboardingCreateClasses(currentUser.schoolId, classesToSave);
@@ -119,7 +112,6 @@ export default function CreateClassesPage() {
 
     if (success) {
       toast({ title: "Classes Created!", description: "You can now proceed to invite users." });
-      // ProtectedRoute will handle redirection based on updated onboardingStep
     } else {
       toast({ title: "Error", description: "Failed to create classes. Please try again.", variant: "destructive" });
     }
@@ -183,7 +175,6 @@ export default function CreateClassesPage() {
                               <Select 
                                 onValueChange={(value) => {
                                   field.onChange(value as ClassType);
-                                  // Reset conditional fields when type changes
                                   form.setValue(`classes.${index}.subjectId`, NO_SUBJECT_VALUE);
                                   form.setValue(`classes.${index}.compulsorySubjectIds`, []);
                                 }} 
@@ -278,30 +269,6 @@ export default function CreateClassesPage() {
                           )}
                         />
                     )}
-                    <FormField
-                      control={form.control}
-                      name={`classes.${index}.classTeacherId`}
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Class Teacher (Optional)</FormLabel>
-                          <Select 
-                            onValueChange={field.onChange} 
-                            value={field.value || NO_TEACHER_VALUE} 
-                            disabled={isLoadingPage || isSubmitting || schoolTeachers.length === 0}
-                          >
-                            <FormControl>
-                              <SelectTrigger><SelectValue placeholder="Assign a teacher..." /></SelectTrigger>
-                            </FormControl>
-                            <SelectContent>
-                              <SelectItem value={NO_TEACHER_VALUE}>No Specific Teacher</SelectItem>
-                              {schoolTeachers.map(teacher => (<SelectItem key={teacher.id} value={teacher.id}>{teacher.displayName}</SelectItem>))}
-                            </SelectContent>
-                          </Select>
-                          {schoolTeachers.length === 0 && <p className="text-xs text-muted-foreground mt-1">No teachers available to assign.</p>}
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
                   </div>
                 );
               })}
@@ -309,7 +276,7 @@ export default function CreateClassesPage() {
             {form.formState.errors.classes && form.formState.errors.classes.root?.message && (
               <p className="text-sm font-medium text-destructive">{form.formState.errors.classes.root.message}</p>
             )}
-             <Button type="button" variant="outline" onClick={() => append({ name: "", type: "main", compulsorySubjectIds: [], subjectId: NO_SUBJECT_VALUE, classTeacherId: NO_TEACHER_VALUE })} disabled={isLoadingPage || isSubmitting} className="w-full sm:w-auto button-shadow mt-4">
+             <Button type="button" variant="outline" onClick={() => append({ name: "", type: "main", compulsorySubjectIds: [], subjectId: NO_SUBJECT_VALUE })} disabled={isLoadingPage || isSubmitting} className="w-full sm:w-auto button-shadow mt-4">
               <PlusCircle className="mr-2 h-4 w-4" /> Add Another Class
             </Button>
           </CardContent>

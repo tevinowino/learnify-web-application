@@ -46,11 +46,10 @@ export const onboardingCreateClassesService = async (schoolId: string, classesDa
     for (const classInfo of classesData) {
       const classDocRef = doc(classesCollectionRef);
       const classInviteCode = `C-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
-      const newClass: Class = {
+      const newClass: Omit<Class, 'teacherId'> & { teacherId?: string } = { // Make teacherId optional for newClass
         id: classDocRef.id,
         name: classInfo.name,
         schoolId,
-        teacherId: classInfo.classTeacherId || undefined,
         studentIds: [],
         classInviteCode: classInviteCode,
         classType: classInfo.type,
@@ -59,6 +58,7 @@ export const onboardingCreateClassesService = async (schoolId: string, classesDa
         createdAt: Timestamp.now(),
         updatedAt: Timestamp.now(),
       };
+      // teacherId is omitted as it's not part of OnboardingClassData anymore
       batch.set(classDocRef, newClass);
     }
     await batch.commit();
@@ -190,6 +190,11 @@ export const updateClassDetailsService = async (classId: string, data: Partial<P
     if (data.classType && data.classType !== 'main') {
         updateData.compulsorySubjectIds = [];
     }
+    // If teacherId is explicitly being set to "no teacher" (represented by undefined or empty string from UI), store as null.
+    if (data.teacherId === undefined || data.teacherId === '') {
+        updateData.teacherId = null;
+    }
+
 
     await updateDoc(classRef, updateData);
     return true;
