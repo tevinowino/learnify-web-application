@@ -56,13 +56,12 @@ export default function CreateSchoolPage() {
         phoneNumber: data.phoneNumber || "",
     };
     
-    // Pass null for logoFile as it's removed
-    const result = await onboardingCreateSchool(schoolDetails, currentUser.uid, null); 
+    const result = await onboardingCreateSchool(schoolDetails, currentUser.uid); 
     setIsSubmitting(false);
 
     if (result) {
       toast({ title: "School Created!", description: `Invite code: ${result.inviteCode}. Proceed to the next step.` });
-      // ProtectedRoute will handle redirection based on updated onboardingStep
+      // ProtectedRoute will handle redirection based on updated onboardingStep in currentUser
     } else {
       toast({ title: "Error", description: "Failed to create school. Please try again.", variant: "destructive" });
     }
@@ -157,3 +156,4 @@ export default function CreateSchoolPage() {
     </Card>
   );
 }
+

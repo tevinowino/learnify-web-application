@@ -16,7 +16,7 @@ import {
 import { doc, getDoc, setDoc, Timestamp, updateDoc, writeBatch, arrayUnion, arrayRemove } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase';
 import type { UserProfile, UserRole, School, LearningMaterial, UserProfileWithId, Class, ClassWithTeacherInfo, LearningMaterialWithTeacherInfo, Assignment, Submission, SubmissionFormat, LearningMaterialType, AssignmentWithClassInfo, SubmissionWithStudentName, AssignmentWithClassAndSubmissionInfo, UserStatus, Activity, Subject, ExamPeriod, ExamPeriodWithClassNames, ExamResult, ExamResultWithStudentInfo, ClassType, Notification, AttendanceRecord, AttendanceStatus, Testimonial, OnboardingSchoolData, OnboardingSubjectData, OnboardingClassData, OnboardingInvitedUserData } from '@/types';
-import { useRouter, useSearchParams } from 'next/navigation'; // Added useSearchParams
+import { useRouter, useSearchParams } from 'next/navigation'; 
 
 import * as SchoolService from '@/services/schoolService';
 import * as UserService from '@/services/userService';
@@ -40,7 +40,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
   const [authProcessLoading, setAuthProcessLoading] = useState(true);
   const router = useRouter();
-  const searchParams = useSearchParams(); // Added to get redirectTo
+  const searchParams = useSearchParams(); 
   const { toast } = useToast();
 
   useEffect(() => {
@@ -106,7 +106,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       } else if ((role === 'teacher' || role === 'student') && schoolIdToJoin) {
         finalStatus = 'pending_verification';
       } else if (role === 'admin' && !schoolIdToJoin) {
-        finalOnboardingStep = 0; // New admin starting onboarding
+        finalOnboardingStep = 0; // New admin starting onboarding, schoolId will be set after school creation
+        finalSchoolId = undefined; // Explicitly undefined for new admin
+        finalSchoolName = undefined; // Explicitly undefined for new admin
       }
 
 
@@ -119,26 +121,24 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
       await updateFirebaseProfile(firebaseUser, { displayName });
       
-      // Create Firestore profile *and wait for it*
       const profileFromDb = await UserService.createUserProfileInFirestore(
         firebaseUser,
         role,
         displayName,
-        finalSchoolId,
-        finalSchoolName,
+        finalSchoolId, 
+        finalSchoolName, 
         finalStatus,
         childStudentId,
-        finalOnboardingStep // Pass onboarding step
+        finalOnboardingStep 
       );
       
-      // Construct the complete user profile for local state
       const completeUserProfile: UserProfile = {
-        ...firebaseUser, // Base Firebase user properties
-        ...profileFromDb, // Firestore specific properties (already includes uid)
-        uid: firebaseUser.uid // Ensure uid from firebaseUser is authoritative
+        ...firebaseUser, 
+        ...profileFromDb, 
+        uid: firebaseUser.uid 
       };
       
-      setCurrentUser(completeUserProfile); // Set local state immediately
+      setCurrentUser(completeUserProfile); 
 
       if (completeUserProfile.displayName && completeUserProfile.email) {
          if (completeUserProfile.schoolId && completeUserProfile.schoolName) {
@@ -190,8 +190,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           setAuthProcessLoading(false);
           return fullProfile;
         } else {
-            // User authenticated with Firebase but no profile in Firestore
-            // This is an error state, log them out.
             await firebaseSignOut(auth);
         }
       }
@@ -293,45 +291,68 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const onboardingCreateSchool = useCallback(async (
     schoolDetails: OnboardingSchoolData,
-    adminId: string
+    adminId: string,
   ): Promise<{ schoolId: string; inviteCode: string } | null> => {
     if (!currentUser || currentUser.uid !== adminId || currentUser.role !== 'admin') return null;
     setAuthProcessLoading(true);
     try {
-      const result = await SchoolService.onboardingCreateSchoolService(adminId, schoolDetails);
-      if (result) {
-        await UserService.updateUserRoleAndSchoolService(adminId, { 
-            schoolId: result.schoolId, 
-            schoolName: schoolDetails.schoolName,
-            onboardingStep: 1 
-        });
-        setCurrentUser(prev => prev ? ({ 
+      // 1. Create School Document in Firestore
+      const schoolCreationResult = await SchoolService.onboardingCreateSchoolService(adminId, schoolDetails);
+      if (!schoolCreationResult) {
+          throw new Error("School document creation failed in service.");
+      }
+      const { schoolId, inviteCode } = schoolCreationResult;
+
+      // 2. Update Admin's User Document with School Info & Next Onboarding Step
+      const userUpdateSuccess = await UserService.updateUserRoleAndSchoolService(adminId, { 
+          schoolId: schoolId, 
+          schoolName: schoolDetails.schoolName,
+          onboardingStep: 1 // Move to next step
+      });
+
+      if (!userUpdateSuccess) {
+          // CRITICAL: School created, but admin user not updated. This is an inconsistent state.
+          // Ideally, you might want to implement a rollback (delete the created school) or log this as a critical error.
+          // For now, we'll throw an error to indicate the operation failed.
+          console.error(`CRITICAL: School ${schoolId} created but failed to link to admin ${adminId} or update onboarding step.`);
+          throw new Error("Failed to update admin user profile after school creation.");
+      }
+
+      // 3. Update Local Auth Context State
+      setCurrentUser(prev => {
+        if (!prev) return null;
+        return { 
             ...prev, 
-            schoolId: result.schoolId, 
+            schoolId: schoolId, 
             schoolName: schoolDetails.schoolName, 
             onboardingStep: 1 
-        }) : null);
-         await addActivity({
-            schoolId: result.schoolId,
-            actorId: adminId,
-            actorName: currentUser.displayName || 'Admin',
-            type: 'school_onboarding_step',
-            message: `Admin ${currentUser.displayName} created school "${schoolDetails.schoolName}" (Step 1 Complete). Invite Code: ${result.inviteCode}`,
-        });
+        };
+      });
+            
+      // 4. Log Activity
+      if (currentUser.displayName) {
+          await addActivity({
+              schoolId: schoolId, // Use the new schoolId
+              actorId: adminId,
+              actorName: currentUser.displayName,
+              type: 'school_onboarding_step',
+              message: `Admin ${currentUser.displayName} created school "${schoolDetails.schoolName}" (Step 1 Complete). Invite Code: ${inviteCode}.`,
+          });
       }
-      return result;
+      return { schoolId, inviteCode };
     } catch (error) {
       console.error("Error in AuthProvider onboardingCreateSchool:", error);
+      toast({ title: "Error Creating School", description: (error as Error).message || "An unexpected error occurred.", variant: "destructive"});
       return null;
     } finally {
       setAuthProcessLoading(false);
     }
-  }, [currentUser, setCurrentUser, addActivity]);
+  }, [currentUser, setCurrentUser, addActivity, toast]);
 
   const onboardingAddSubjects = useCallback(async (schoolId: string, subjects: OnboardingSubjectData[]): Promise<boolean> => {
     if (!currentUser || currentUser.role !== 'admin' || currentUser.schoolId !== schoolId) return false;
     const schoolDoc = await SchoolService.getSchoolDetailsService(schoolId);
-    if (schoolDoc?.adminId !== currentUser.uid) return false; 
+    if (!schoolDoc || schoolDoc.adminId !== currentUser.uid) return false; 
 
     const success = await SubjectService.onboardingAddSubjectsService(schoolId, subjects);
     if (success) {
@@ -350,7 +371,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const onboardingCreateClasses = useCallback(async (schoolId: string, classesData: OnboardingClassData[]): Promise<boolean> => {
     if (!currentUser || currentUser.role !== 'admin' || currentUser.schoolId !== schoolId) return false;
     const schoolDoc = await SchoolService.getSchoolDetailsService(schoolId);
-    if (schoolDoc?.adminId !== currentUser.uid) return false;
+    if (!schoolDoc || schoolDoc.adminId !== currentUser.uid) return false;
 
     const success = await ClassService.onboardingCreateClassesService(schoolId, classesData);
     if (success) {
@@ -369,7 +390,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const onboardingInviteUsers = useCallback(async (schoolId: string, schoolName: string, users: OnboardingInvitedUserData[]): Promise<boolean> => {
     if (!currentUser || currentUser.role !== 'admin' || currentUser.schoolId !== schoolId) return false;
     const schoolDoc = await SchoolService.getSchoolDetailsService(schoolId);
-    if (schoolDoc?.adminId !== currentUser.uid) return false;
+    if (!schoolDoc || schoolDoc.adminId !== currentUser.uid) return false;
 
     const success = await UserService.onboardingInviteUsersService(auth, schoolId, schoolName, users);
     if (success) {
@@ -379,7 +400,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         actorId: currentUser.uid,
         actorName: currentUser.displayName || 'Admin',
         type: 'school_onboarding_step',
-        message: `Admin invited ${users.length} users to "${schoolName}" (Step 4 Complete).`,
+        message: `Admin invited ${users.length} users to "${schoolName}" (Step 4 Complete). Users set to 'pending verification'.`,
       });
     }
     return success;
@@ -388,7 +409,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const onboardingCompleteSchoolSetup = useCallback(async (schoolId: string, isExamModeActive: boolean): Promise<boolean> => {
     if (!currentUser || currentUser.role !== 'admin' || currentUser.schoolId !== schoolId) return false;
     const schoolDoc = await SchoolService.getSchoolDetailsService(schoolId);
-    if (schoolDoc?.adminId !== currentUser.uid) return false;
+    if (!schoolDoc || schoolDoc.adminId !== currentUser.uid) return false;
 
     const success = await SchoolService.updateSchoolDetailsService(schoolId, { setupComplete: true, isExamModeActive });
     if (success) {
@@ -409,6 +430,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     try {
       const schoolId = await SchoolService.createSchoolService(schoolName, adminId);
       if (schoolId && currentUser && currentUser.uid === adminId) {
+        await UserService.updateUserRoleAndSchoolService(adminId, { schoolId, schoolName, onboardingStep: null, status: 'active' });
         setCurrentUser(prev => prev ? ({ ...prev, schoolId, schoolName, status: 'active', onboardingStep: null }) : null);
       }
       return schoolId;
@@ -419,6 +441,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     try {
       const schoolData = await SchoolService.joinSchoolWithInviteCodeService(inviteCode, userId);
       if (schoolData && currentUser && currentUser.uid === userId) {
+        await UserService.updateUserRoleAndSchoolService(userId, { 
+            schoolId: schoolData.id, 
+            schoolName: schoolData.name, 
+            status: 'active',
+            onboardingStep: null 
+        });
         setCurrentUser(prev => prev ? ({ ...prev, schoolId: schoolData.id, schoolName: schoolData.name, status: 'active', onboardingStep: null }) : null);
       }
       return !!schoolData;
@@ -427,7 +455,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const checkAdminOnboardingStatus = useCallback(async (): Promise<{ isOnboarded: boolean; schoolId?: string, onboardingStep?: number | null }> => {
     if (!currentUser || currentUser.role !== 'admin') return { isOnboarded: false, onboardingStep: null };
-    const isOnboarded = !!currentUser.schoolId && (currentUser.onboardingStep === null || currentUser.onboardingStep >= 5); 
+    const isOnboarded = !!currentUser.schoolId && (currentUser.onboardingStep === null || currentUser.onboardingStep === undefined); 
     return { isOnboarded, schoolId: currentUser.schoolId, onboardingStep: currentUser.onboardingStep };
   }, [currentUser]);
 
@@ -440,7 +468,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         const success = await SchoolService.updateSchoolDetailsService(schoolId, data);
         if (success && currentUser?.schoolId && currentUser.displayName && school) {
             let message = `${currentUser.displayName} updated school settings for "${school.name}".`;
-            if (data.name && school.name !== data.name) message = `${currentUser.displayName} updated school name to "${data.name}".`;
+            if (data.name && school.name !== data.name) {
+                message = `${currentUser.displayName} updated school name to "${data.name}".`;
+                if (currentUser.uid === school.adminId) { 
+                    setCurrentUser(prev => prev ? { ...prev, schoolName: data.name } : null);
+                    await UserService.updateUserRoleAndSchoolService(currentUser.uid, { schoolName: data.name });
+                }
+            }
             if (data.isExamModeActive !== undefined && school.isExamModeActive !== data.isExamModeActive) {
                  message = `${currentUser.displayName} ${data.isExamModeActive ? 'activated' : 'deactivated'} exam mode for "${school.name}".`
             }
@@ -458,7 +492,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         }
         return success;
     } catch(error) { return false; }
-  }, [currentUser, addActivity]);
+  }, [currentUser, setCurrentUser, addActivity]);
 
   const regenerateInviteCode = useCallback(async (schoolId: string): Promise<string | null> => {
     if (!currentUser || currentUser.role !== 'admin' || currentUser.schoolId !== schoolId) return null;
@@ -586,7 +620,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const createClassInSchool = useCallback(async (className: string, schoolId: string, classType: ClassType, teacherId?: string, compulsorySubjectIds?: string[], subjectId?: string | null): Promise<string | null> => {
     if (!currentUser || (currentUser.role !== 'admin')) return null;
     const schoolDoc = await SchoolService.getSchoolDetailsService(schoolId);
-    if (!schoolDoc || schoolDoc.adminId !== currentUser.uid) return null; 
+    if (!schoolDoc || (currentUser.role === 'admin' && schoolDoc.adminId !== currentUser.uid)) return null; 
 
     try {
       const newClassId = await ClassService.createClassService(className, schoolId, teacherId || '', classType, compulsorySubjectIds, subjectId);

@@ -9,32 +9,24 @@ export const onboardingCreateSchoolService = async (
 ): Promise<{ schoolId: string; inviteCode: string } | null> => {
   try {
     const inviteCode = `SCH-${Math.random().toString(36).substring(2, 7).toUpperCase()}`;
-    const schoolRef = doc(collection(db, "schools"));
+    const schoolRef = doc(collection(db, "schools")); // Auto-generate ID
 
     const newSchool: School = {
       id: schoolRef.id,
       name: schoolData.schoolName,
-      adminId: adminId,
+      adminId: adminId, // Set the creator admin
       inviteCode: inviteCode,
       schoolType: schoolData.schoolType,
       country: schoolData.country,
       phoneNumber: schoolData.phoneNumber,
-      setupComplete: false,
-      isExamModeActive: false,
+      setupComplete: false, // School setup is not yet complete
+      isExamModeActive: false, // Default exam mode to off
       createdAt: Timestamp.now(),
       updatedAt: Timestamp.now(),
     };
 
-    const batch = writeBatch(db);
-    batch.set(schoolRef, newSchool);
+    await setDoc(schoolRef, newSchool); // Create the school document
 
-    // 🔥 Add schoolId to user document directly
-    const userRef = doc(db, "users", adminId);
-    batch.update(userRef, {
-      schoolId: schoolRef.id,
-    });
-
-    await batch.commit();
     return { schoolId: schoolRef.id, inviteCode };
   } catch (error) {
     console.error("Error in onboardingCreateSchoolService:", error);
@@ -44,8 +36,6 @@ export const onboardingCreateSchoolService = async (
 
 
 export const createSchoolService = async (schoolName: string, adminId: string): Promise<string | null> => {
-  // This function is likely for admins who are ALREADY onboarded and creating a school,
-  // or if there's a separate flow. For the new multi-step onboarding, onboardingCreateSchoolService is preferred.
   try {
     const inviteCode = `SCH-${Math.random().toString(36).substring(2, 7).toUpperCase()}`;
     const schoolRef = doc(collection(db, "schools"));
@@ -57,20 +47,15 @@ export const createSchoolService = async (schoolName: string, adminId: string): 
       createdAt: Timestamp.now(),
       updatedAt: Timestamp.now(),
       isExamModeActive: false, 
-      setupComplete: true, // Assuming this flow means setup is done or handled differently
+      setupComplete: true, 
     };
     
-    const batch = writeBatch(db);
-    batch.set(schoolRef, schoolData);
+    await setDoc(schoolRef, schoolData);
     
-    const userRef = doc(db, "users", adminId);
-    // Only update if schoolId isn't already set, or if it's part of a different flow
-    const userSnap = await getDoc(userRef);
-    if (userSnap.exists() && !userSnap.data().schoolId) {
-      batch.update(userRef, { schoolId: schoolRef.id, schoolName: schoolName, status: 'active' });
-    }
-    
-    await batch.commit();
+    // Note: Linking admin to this school should happen in AuthProvider or a higher-level function
+    // to ensure consistency, especially if the user profile might not exist yet.
+    // For this specific function, if it's called outside onboarding, the calling context should handle user updates.
+
     return schoolRef.id;
   } catch (error) {
     console.error("Error creating school in service:", error);
@@ -93,14 +78,8 @@ export const joinSchoolWithInviteCodeService = async (inviteCode: string, userId
     const schoolId = schoolDoc.id;
     const schoolData = schoolDoc.data() as School;
 
-    const userRef = doc(db, "users", userId);
-    await updateDoc(userRef, { 
-        schoolId: schoolId, 
-        schoolName: schoolData.name, 
-        status: 'active', // Joining implies becoming active in this school context
-        onboardingStep: null, // Clear any previous onboarding state if joining
-        updatedAt: Timestamp.now() 
-    });
+    // The user document update should ideally happen in AuthProvider after this service call returns.
+    // This service focuses on finding the school.
     
     return schoolData;
   } catch (error) {
@@ -143,3 +122,4 @@ export const regenerateInviteCodeService = async (schoolId: string): Promise<str
     return null;
   }
 };
+
