@@ -880,8 +880,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       
       const updatePayload: Partial<Omit<Assignment, 'id' | 'createdAt' | 'updatedAt' | 'teacherId' | 'schoolId'>> = {
         ...data,
-        attachmentUrl: null, // Assignment attachments are now text-based
-        originalFileName: null, // Assignment attachments are now text-based
+        attachmentUrl: null, 
+        originalFileName: null, 
       };
 
       const success = await AssignmentService.updateAssignmentService(assignmentId, updatePayload);
@@ -1256,8 +1256,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         actorName: currentUser.displayName,
         type: 'testimonial_submitted',
         message: `${currentUser.displayName} submitted a testimonial.`,
-        link: '/admin/testimonials'
+        link: '/admin/testimonials' 
       });
+      await updateUserLastTestimonialSurveyAtService(currentUser.uid);
     }
     return result;
   }, [currentUser, addActivity]);
@@ -1336,4 +1337,3 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
-

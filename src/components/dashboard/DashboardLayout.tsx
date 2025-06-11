@@ -1,3 +1,4 @@
+
 "use client";
 
 import React from 'react';
@@ -5,7 +6,7 @@ import type { UserRole } from '@/types';
 import { useAuth } from '@/hooks/useAuth';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
-import { Home, Users, Settings, LogOut as LogOutIcon, Library, FileText, UserCircle2, BookCopy, UserCog, Edit3, ListChecks, FolderOpen, BarChart2, PanelLeft, BookText as BookTextIcon, Shield, HeartHandshake, Users2, FilePieChart, Activity, Sparkles, Brain } from 'lucide-react'; 
+import { Home, Users, Settings, LogOut as LogOutIcon, Library, FileText, UserCircle2, BookCopy, UserCog, Edit3, ListChecks, FolderOpen, BarChart2, PanelLeft, BookText as BookTextIcon, Shield, HeartHandshake, Users2, FilePieChart, Activity, Sparkles, Brain, MessageSquare } from 'lucide-react'; 
 import Logo from '@/components/shared/Logo'; 
 import {
   SidebarProvider,
@@ -37,6 +38,7 @@ const navItemsConfig = {
     { href: '/admin/classes', label: 'Manage Classes', icon: <BookCopy /> },
     { href: '/admin/exams', label: 'Exam Management', icon: <FilePieChart /> },
     { href: '/admin/activity', label: 'Activity Log', icon: <Activity /> },
+    { href: '/admin/testimonials', label: 'Testimonials', icon: <MessageSquare /> }, // Added Testimonials
     { href: '/admin/settings', label: 'School Settings', icon: <Settings /> },
     { href: '/admin/profile', label: 'My Profile', icon: <UserCog /> },
   ],
@@ -142,10 +144,10 @@ export default function DashboardLayout({ children, userRole }: DashboardLayoutP
                 </span>
               )}
             </div>
-            {/* <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2">
                 <NotificationBell />
                 <ThemeToggle />
-            </div> */}
+            </div>
           </header>
           
           <main className="flex-1 overflow-y-auto p-4 sm:p-6 md:p-8">
