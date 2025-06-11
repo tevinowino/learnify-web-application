@@ -42,42 +42,59 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, allowedRoles 
       return; 
     }
     
-    // Admin Onboarding Flow
-    if (currentUser.role === 'admin' && currentUser.onboardingStep !== null && currentUser.onboardingStep !== undefined) {
-      const expectedPath = onboardingStepPaths[currentUser.onboardingStep];
-      if (expectedPath && pathname !== expectedPath) {
-        router.replace(expectedPath);
-        return;
+    // Admin Onboarding Flow Logic
+    if (currentUser.role === 'admin') {
+      const currentOnboardingStep = currentUser.onboardingStep;
+      const isOnboardingPath = pathname.startsWith('/admin/onboarding-flow');
+
+      if (currentOnboardingStep !== null && currentOnboardingStep !== undefined) { // Steps 0-4
+        const expectedPath = onboardingStepPaths[currentOnboardingStep];
+        
+        if (expectedPath) {
+          if (pathname !== expectedPath) {
+            // If admin has an active onboarding step but is not on the correct page for that step, redirect them.
+            router.replace(expectedPath);
+            return; 
+          }
+          // If they are on the correct onboarding step page, allow rendering.
+          return; 
+        } else {
+          // Should not happen if onboardingStep is a valid 0-4. Fallback: redirect to first step.
+          router.replace(onboardingStepPaths[0]);
+          return;
+        }
+      } else { // Onboarding is complete (onboardingStep is null or undefined)
+        if (isOnboardingPath) {
+          // If onboarding is complete, but they are trying to access an onboarding URL, redirect to dashboard.
+          router.replace('/admin/dashboard');
+          return;
+        }
       }
-      // If on the correct onboarding step page, allow rendering
-      if (pathname.startsWith('/admin/onboarding-flow')) {
-        return;
-      }
-    } else if (currentUser.role === 'admin' && (currentUser.onboardingStep === null || currentUser.onboardingStep === undefined) && pathname.startsWith('/admin/onboarding-flow')) {
-      // If onboarding is complete but user tries to access onboarding URLs, redirect to dashboard
-      router.replace('/admin/dashboard');
-      return;
     }
 
-
-    // Student Onboarding Flow
+    // Student Onboarding Flow Logic
     if (currentUser.role === 'student' && (!currentUser.classIds || currentUser.classIds.length === 0) && currentUser.status === 'active') {
-      if (pathname !== '/student/onboarding' && pathname !== '/student/profile') {
+      if (pathname !== '/student/onboarding' && pathname !== '/student/profile') { // Allow access to profile during student onboarding too
         router.replace('/student/onboarding');
+        return;
+      }
+       // If on student onboarding or profile, allow rendering
+      if (pathname === '/student/onboarding' || pathname === '/student/profile') {
         return;
       }
     }
     
-    // Role-based access for main app sections
-    if (!pathname.startsWith('/admin/onboarding-flow') && !pathname.startsWith('/student/onboarding') && !allowedRoles.includes(currentUser.role)) {
+    // General Role-based access for main app sections (after onboarding checks)
+    if (!allowedRoles.includes(currentUser.role)) {
       let defaultDashboard = '/';
-      if (currentUser.role === 'admin' && currentUser.schoolId) defaultDashboard = '/admin/dashboard';
-      // Admin without schoolId is handled by onboardingStep check above
+      if (currentUser.role === 'admin') defaultDashboard = '/admin/dashboard';
       else if (currentUser.role === 'teacher') defaultDashboard = '/teacher/dashboard';
-      else if (currentUser.role === 'student' && currentUser.classIds && currentUser.classIds.length > 0) defaultDashboard = '/student/dashboard';
+      else if (currentUser.role === 'student') defaultDashboard = '/student/dashboard';
       else if (currentUser.role === 'parent') defaultDashboard = '/parent/dashboard';
       router.replace(defaultDashboard);
+      return;
     }
+
   }, [currentUser, loading, router, allowedRoles, pathname]);
 
 
@@ -90,10 +107,10 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, allowedRoles 
   }
   
   if (!currentUser && (pathname.startsWith('/auth/login') || pathname.startsWith('/auth/signup'))) {
-    return <>{children}</>; // Allow rendering login/signup pages
+    return <>{children}</>; 
   }
   
-  if (!currentUser) return null; // Should be redirected by now if not on auth pages
+  if (!currentUser) return null; 
 
   if (currentUser.status === 'pending_verification') {
     return pathname === '/auth/pending-verification' ? <>{children}</> : (
@@ -103,32 +120,36 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, allowedRoles 
     );
   }
 
+  // Admin Onboarding UI specific checks (already handled by useEffect redirects if needed)
   if (currentUser.role === 'admin' && currentUser.onboardingStep !== null && currentUser.onboardingStep !== undefined) {
      const expectedPath = onboardingStepPaths[currentUser.onboardingStep];
-     if (pathname === expectedPath) {
+     if (pathname === expectedPath) { // Only render if on the correct onboarding page
        return <>{children}</>;
      }
-     // If not on expected onboarding path, ProtectedRoute's useEffect should redirect.
-     // Show loader while redirecting.
+     // If not on the expected path, the useEffect will redirect, show loader in meantime.
      return (
         <div className="flex h-screen w-full flex-col items-center justify-center bg-background">
-            <Loader message="Navigating to onboarding..." size="large" />
+            <Loader message="Navigating to onboarding step..." size="large" />
         </div>
      );
   }
 
+  // Student Onboarding UI specific checks
   if (currentUser.role === 'student' && (!currentUser.classIds || currentUser.classIds.length === 0) && currentUser.status === 'active') {
      if (pathname === '/student/onboarding' || pathname === '/student/profile') {
          return <>{children}</>;
      }
+     // If not on student onboarding page, useEffect will redirect.
      return (
         <div className="flex h-screen w-full flex-col items-center justify-center bg-background">
-            <Loader message="Redirecting to onboarding..." size="large" />
+            <Loader message="Redirecting to student onboarding..." size="large" />
         </div>
      );
   }
   
-  if (!allowedRoles.includes(currentUser.role) && !pathname.startsWith('/admin/onboarding-flow') && !pathname.startsWith('/student/onboarding')) {
+  // Check if the user's role is allowed for the current route (after onboarding checks)
+  if (!allowedRoles.includes(currentUser.role)) {
+     // The useEffect should have already redirected. This is a fallback loading state.
      return (
       <div className="flex h-screen w-full flex-col items-center justify-center bg-background">
         <Loader message="Verifying access..." size="large" />
