@@ -10,7 +10,6 @@ import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
@@ -18,7 +17,7 @@ import { BookCopy, PlusCircle, Trash2, ArrowRight } from 'lucide-react';
 import Loader from '@/components/shared/Loader';
 import type { OnboardingClassData, Subject, UserProfileWithId, ClassType } from '@/types';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Form } from '@/components/ui/form';
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 
 const classSchema = z.object({
   name: z.string().min(2, "Class name must be at least 2 characters."),
@@ -43,6 +42,7 @@ const createClassesSchema = z.object({
 type CreateClassesFormValues = z.infer<typeof createClassesSchema>;
 
 const NO_TEACHER_VALUE = "__NO_TEACHER__";
+const NO_SUBJECT_VALUE = "__NO_SUBJECT_FOR_CLASS__"; // For subject-based class subject selection
 
 export default function CreateClassesPage() {
   const { currentUser, getSubjectsBySchool, getUsersBySchoolAndRole, onboardingCreateClasses, loading: authLoading } = useAuth();
@@ -57,11 +57,11 @@ export default function CreateClassesPage() {
   const form = useForm<CreateClassesFormValues>({
     resolver: zodResolver(createClassesSchema),
     defaultValues: {
-      classes: [{ name: "", type: "main", compulsorySubjectIds: [] }],
+      classes: [{ name: "", type: "main", compulsorySubjectIds: [], subjectId: NO_SUBJECT_VALUE, classTeacherId: NO_TEACHER_VALUE }],
     },
   });
 
-  const { fields, append, remove, update } = useFieldArray({
+  const { fields, append, remove } = useFieldArray({
     control: form.control,
     name: "classes",
   });
@@ -74,8 +74,8 @@ export default function CreateClassesPage() {
           getSubjectsBySchool(currentUser.schoolId),
           getUsersBySchoolAndRole(currentUser.schoolId, 'teacher')
         ]);
-        setSchoolSubjects(subjects);
-        setSchoolTeachers(teachers);
+        setSchoolSubjects(subjects.sort((a,b) => a.name.localeCompare(b.name)));
+        setSchoolTeachers(teachers.sort((a,b) => (a.displayName || "").localeCompare(b.displayName || "")));
       } catch (error) {
         toast({ title: "Error", description: "Could not load school subjects or teachers.", variant: "destructive" });
       } finally {
@@ -83,6 +83,14 @@ export default function CreateClassesPage() {
       }
     }
   }, [currentUser, getSubjectsBySchool, getUsersBySchoolAndRole, toast]);
+
+  const onboardingStepPaths: Record<number, string> = {
+    0: '/admin/onboarding-flow/create-school',
+    1: '/admin/onboarding-flow/add-subjects',
+    2: '/admin/onboarding-flow/create-classes',
+    3: '/admin/onboarding-flow/invite-users',
+    4: '/admin/onboarding-flow/configure-settings',
+  };
 
   useEffect(() => {
     if (!authLoading && (!currentUser || currentUser.role !== 'admin' || !currentUser.schoolId || currentUser.onboardingStep !== 2)) {
@@ -101,7 +109,7 @@ export default function CreateClassesPage() {
     const classesToSave: OnboardingClassData[] = data.classes.map(c => ({
         name: c.name,
         type: c.type,
-        subjectId: c.type === 'subject_based' ? c.subjectId : undefined,
+        subjectId: c.type === 'subject_based' ? (c.subjectId === NO_SUBJECT_VALUE ? undefined : c.subjectId) : undefined,
         compulsorySubjectIds: c.type === 'main' ? c.compulsorySubjectIds : undefined,
         classTeacherId: c.classTeacherId === NO_TEACHER_VALUE ? undefined : c.classTeacherId,
     }));
@@ -111,26 +119,18 @@ export default function CreateClassesPage() {
 
     if (success) {
       toast({ title: "Classes Created!", description: "You can now proceed to invite users." });
+      // ProtectedRoute will handle redirection based on updated onboardingStep
     } else {
       toast({ title: "Error", description: "Failed to create classes. Please try again.", variant: "destructive" });
     }
   };
 
-  const isLoading = authLoading || isSubmitting || isLoadingData;
+  const isLoadingPage = authLoading || isLoadingData;
 
-  const onboardingStepPaths: Record<number, string> = {
-    0: '/admin/onboarding-flow/create-school',
-    1: '/admin/onboarding-flow/add-subjects',
-    2: '/admin/onboarding-flow/create-classes',
-    3: '/admin/onboarding-flow/invite-users',
-    4: '/admin/onboarding-flow/configure-settings',
-  };
-  
-
-  if (authLoading && !currentUser) {
+  if (isLoadingPage && !currentUser) {
     return <div className="flex h-screen items-center justify-center"><Loader message="Loading..." size="large" /></div>;
   }
-
+  
   return (
     <Card className="w-full card-shadow">
       <CardHeader>
@@ -139,122 +139,186 @@ export default function CreateClassesPage() {
       </CardHeader>
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)}>
-          <CardContent className="space-y-6">
+          <CardContent className="space-y-4">
             <ScrollArea className="max-h-[60vh] pr-3">
-              {fields.map((field, index) => {
+              {fields.map((item, index) => {
                 const classType = form.watch(`classes.${index}.type`);
                 return (
-                  <div key={field.id} className="p-4 border rounded-md mb-4 space-y-3 bg-muted/20">
-                    <div className="flex justify-between items-center">
-                        <Label htmlFor={`classes.${index}.name`} className="font-semibold">Class #{index + 1}</Label>
-                        <Button type="button" variant="ghost" size="icon" onClick={() => remove(index)} disabled={isLoading || fields.length <= 1} className="text-destructive hover:bg-destructive/10">
+                  <div key={item.id} className="p-4 border rounded-lg mb-4 space-y-4 bg-card shadow-sm">
+                    <div className="flex justify-between items-center mb-3">
+                        <h4 className="font-semibold text-lg text-foreground">Class #{index + 1}</h4>
+                        <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => remove(index)}
+                            disabled={isLoadingPage || isSubmitting || fields.length <= 1}
+                            className="text-destructive hover:bg-destructive/10"
+                        >
                             <Trash2 className="h-4 w-4" />
                             <span className="sr-only">Remove Class</span>
                         </Button>
                     </div>
                     
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        <div>
-                            <Label htmlFor={`classes.${index}.name`}>Class Name</Label>
-                            <Input id={`classes.${index}.name`} {...form.register(`classes.${index}.name`)} placeholder="e.g., Form 1 Alpha" disabled={isLoading} />
-                            {form.formState.errors.classes?.[index]?.name && <p className="text-xs text-destructive mt-1">{form.formState.errors.classes[index]?.name?.message}</p>}
-                        </div>
-                        <div>
-                            <Label htmlFor={`classes.${index}.type`}>Class Type</Label>
-                             <Controller
-                                name={`classes.${index}.type`}
-                                control={form.control}
-                                render={({ field: controllerField }) => (
-                                    <Select onValueChange={(value) => { controllerField.onChange(value as ClassType); update(index, { ...form.getValues(`classes.${index}`), type: value as ClassType, subjectId: undefined, compulsorySubjectIds: [] }); }} value={controllerField.value} disabled={isLoading}>
-                                        <SelectTrigger id={`classes.${index}.type`}><SelectValue /></SelectTrigger>
-                                        <SelectContent>
-                                            <SelectItem value="main">Main Class</SelectItem>
-                                            <SelectItem value="subject_based">Subject-Based Class</SelectItem>
-                                        </SelectContent>
-                                    </Select>
-                                )}
-                            />
-                        </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                       <FormField
+                          control={form.control}
+                          name={`classes.${index}.name`}
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Class Name</FormLabel>
+                              <FormControl>
+                                <Input placeholder="e.g., Form 1 Alpha" {...field} disabled={isLoadingPage || isSubmitting} />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                        <FormField
+                          control={form.control}
+                          name={`classes.${index}.type`}
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Class Type</FormLabel>
+                              <Select 
+                                onValueChange={(value) => {
+                                  field.onChange(value as ClassType);
+                                  // Reset conditional fields when type changes
+                                  form.setValue(`classes.${index}.subjectId`, NO_SUBJECT_VALUE);
+                                  form.setValue(`classes.${index}.compulsorySubjectIds`, []);
+                                }} 
+                                value={field.value} 
+                                disabled={isLoadingPage || isSubmitting}
+                              >
+                                <FormControl>
+                                  <SelectTrigger><SelectValue placeholder="Select class type" /></SelectTrigger>
+                                </FormControl>
+                                <SelectContent>
+                                  <SelectItem value="main">Main Class (e.g., Form 1)</SelectItem>
+                                  <SelectItem value="subject_based">Subject-Based (e.g., Math - Form 1)</SelectItem>
+                                </SelectContent>
+                              </Select>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
                     </div>
 
                     {classType === 'subject_based' && (
-                        <div>
-                            <Label htmlFor={`classes.${index}.subjectId`}>Subject for this Class</Label>
-                             <Controller
-                                name={`classes.${index}.subjectId`}
-                                control={form.control}
-                                render={({ field: controllerField }) => (
-                                    <Select onValueChange={controllerField.onChange} value={controllerField.value} disabled={isLoading || schoolSubjects.length === 0}>
-                                        <SelectTrigger id={`classes.${index}.subjectId`}><SelectValue placeholder="Select subject..." /></SelectTrigger>
-                                        <SelectContent>
-                                            {schoolSubjects.map(sub => (<SelectItem key={sub.id} value={sub.id}>{sub.name}</SelectItem>))}
-                                        </SelectContent>
-                                    </Select>
-                                )}
-                            />
-                            {form.formState.errors.classes?.[index]?.subjectId && <p className="text-xs text-destructive mt-1">{form.formState.errors.classes[index]?.subjectId?.message}</p>}
-                        </div>
+                       <FormField
+                          control={form.control}
+                          name={`classes.${index}.subjectId`}
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Subject for this Class</FormLabel>
+                               <Select 
+                                onValueChange={field.onChange} 
+                                value={field.value || NO_SUBJECT_VALUE} 
+                                disabled={isLoadingPage || isSubmitting || schoolSubjects.length === 0}
+                              >
+                                <FormControl>
+                                  <SelectTrigger><SelectValue placeholder="Select subject..." /></SelectTrigger>
+                                </FormControl>
+                                <SelectContent>
+                                  {schoolSubjects.map(sub => (<SelectItem key={sub.id} value={sub.id}>{sub.name}</SelectItem>))}
+                                </SelectContent>
+                              </Select>
+                              {schoolSubjects.length === 0 && <p className="text-xs text-muted-foreground mt-1">No subjects defined for the school yet.</p>}
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
                     )}
 
                     {classType === 'main' && (
-                        <div className="space-y-2">
-                            <Label>Compulsory Subjects for this Main Class (Optional)</Label>
-                            <ScrollArea className="h-32 border rounded-md p-2">
-                                {schoolSubjects.length === 0 && <p className="text-xs text-muted-foreground">No subjects defined yet.</p>}
-                                {schoolSubjects.map(sub => (
-                                    <div key={sub.id} className="flex items-center space-x-2">
-                                    <Controller
-                                        name={`classes.${index}.compulsorySubjectIds`}
-                                        control={form.control}
-                                        render={({ field: controllerField }) => (
-                                            <Checkbox
-                                                id={`classes.${index}.compulsory.${sub.id}`}
-                                                checked={controllerField.value?.includes(sub.id)}
+                       <FormField
+                          control={form.control}
+                          name={`classes.${index}.compulsorySubjectIds`}
+                          render={() => (
+                            <FormItem>
+                              <FormLabel>Compulsory Subjects (Optional)</FormLabel>
+                               {schoolSubjects.length === 0 ? (
+                                 <p className="text-xs text-muted-foreground py-2">No subjects defined to select from.</p>
+                               ) : (
+                                <ScrollArea className="h-32 border rounded-md p-3">
+                                  <div className="space-y-2">
+                                  {schoolSubjects.map((subject) => (
+                                    <FormField
+                                      key={subject.id}
+                                      control={form.control}
+                                      name={`classes.${index}.compulsorySubjectIds`}
+                                      render={({ field }) => {
+                                        return (
+                                          <FormItem className="flex flex-row items-center space-x-3 space-y-0">
+                                            <FormControl>
+                                              <Checkbox
+                                                checked={field.value?.includes(subject.id)}
                                                 onCheckedChange={(checked) => {
-                                                    const currentSubs = controllerField.value || [];
-                                                    return checked ? controllerField.onChange([...currentSubs, sub.id]) : controllerField.onChange(currentSubs.filter(id => id !== sub.id));
+                                                  const currentSubs = field.value || [];
+                                                  return checked
+                                                    ? field.onChange([...currentSubs, subject.id])
+                                                    : field.onChange(currentSubs.filter((value) => value !== subject.id));
                                                 }}
-                                                disabled={isLoading}
-                                            />
-                                        )}
+                                                disabled={isLoadingPage || isSubmitting}
+                                              />
+                                            </FormControl>
+                                            <FormLabel className="font-normal cursor-pointer">
+                                              {subject.name}
+                                            </FormLabel>
+                                          </FormItem>
+                                        );
+                                      }}
                                     />
-                                    <Label htmlFor={`classes.${index}.compulsory.${sub.id}`} className="font-normal cursor-pointer">{sub.name}</Label>
-                                    </div>
-                                ))}
-                            </ScrollArea>
-                        </div>
-                    )}
-                    <div>
-                        <Label htmlFor={`classes.${index}.classTeacherId`}>Class Teacher (Optional)</Label>
-                        <Controller
-                            name={`classes.${index}.classTeacherId`}
-                            control={form.control}
-                            render={({ field: controllerField }) => (
-                                <Select onValueChange={controllerField.onChange} value={controllerField.value ?? NO_TEACHER_VALUE} disabled={isLoading || schoolTeachers.length === 0}>
-                                    <SelectTrigger id={`classes.${index}.classTeacherId`}><SelectValue placeholder="Assign a teacher..." /></SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value={NO_TEACHER_VALUE}>No Specific Teacher</SelectItem>
-                                        {schoolTeachers.map(teacher => (<SelectItem key={teacher.id} value={teacher.id}>{teacher.displayName}</SelectItem>))}
-                                    </SelectContent>
-                                </Select>
-                            )}
+                                  ))}
+                                  </div>
+                                </ScrollArea>
+                               )}
+                              <FormMessage />
+                            </FormItem>
+                          )}
                         />
-                    </div>
+                    )}
+                    <FormField
+                      control={form.control}
+                      name={`classes.${index}.classTeacherId`}
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Class Teacher (Optional)</FormLabel>
+                          <Select 
+                            onValueChange={field.onChange} 
+                            value={field.value || NO_TEACHER_VALUE} 
+                            disabled={isLoadingPage || isSubmitting || schoolTeachers.length === 0}
+                          >
+                            <FormControl>
+                              <SelectTrigger><SelectValue placeholder="Assign a teacher..." /></SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              <SelectItem value={NO_TEACHER_VALUE}>No Specific Teacher</SelectItem>
+                              {schoolTeachers.map(teacher => (<SelectItem key={teacher.id} value={teacher.id}>{teacher.displayName}</SelectItem>))}
+                            </SelectContent>
+                          </Select>
+                          {schoolTeachers.length === 0 && <p className="text-xs text-muted-foreground mt-1">No teachers available to assign.</p>}
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
                   </div>
                 );
               })}
             </ScrollArea>
-            {form.formState.errors.classes && form.formState.errors.classes.message && <p className="text-sm text-destructive mt-2">{form.formState.errors.classes.message}</p>}
-             <Button type="button" variant="outline" onClick={() => append({ name: "", type: "main", compulsorySubjectIds: [] })} disabled={isLoading} className="w-full sm:w-auto button-shadow">
+            {form.formState.errors.classes && form.formState.errors.classes.root?.message && (
+              <p className="text-sm font-medium text-destructive">{form.formState.errors.classes.root.message}</p>
+            )}
+             <Button type="button" variant="outline" onClick={() => append({ name: "", type: "main", compulsorySubjectIds: [], subjectId: NO_SUBJECT_VALUE, classTeacherId: NO_TEACHER_VALUE })} disabled={isLoadingPage || isSubmitting} className="w-full sm:w-auto button-shadow mt-4">
               <PlusCircle className="mr-2 h-4 w-4" /> Add Another Class
             </Button>
           </CardContent>
-          <CardFooter className="flex flex-col sm:flex-row justify-between items-center gap-2">
-            <Button type="button" variant="ghost" onClick={() => router.push('/admin/onboarding-flow/add-subjects')} disabled={isLoading}>
+          <CardFooter className="flex flex-col sm:flex-row justify-between items-center gap-2 pt-6 border-t">
+            <Button type="button" variant="ghost" onClick={() => router.push('/admin/onboarding-flow/add-subjects')} disabled={isLoadingPage || isSubmitting}>
               Back to Subjects
             </Button>
-            <Button type="submit" className="w-full sm:w-auto button-shadow" disabled={isLoading}>
-              {isLoading ? <Loader size="small" className="mr-2"/> : <ArrowRight className="mr-2 h-4 w-4" />}
+            <Button type="submit" className="w-full sm:w-auto button-shadow" disabled={isLoadingPage || isSubmitting}>
+              {isSubmitting ? <Loader size="small" className="mr-2"/> : <ArrowRight className="mr-2 h-4 w-4" />}
               Save Classes & Continue
             </Button>
           </CardFooter>
@@ -263,3 +327,4 @@ export default function CreateClassesPage() {
     </Card>
   );
 }
+
