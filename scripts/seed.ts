@@ -258,53 +258,80 @@ async function seedUsers() {
           updatedAt: Timestamp.now(),
           classIds: [],
           subjects: [],
-          lastTestimonialSurveyAt: faker.datatype.boolean(0.3) ? Timestamp.fromDate(faker.date.recent({ days: 30 })) : null,
-        };
-        await setDoc(doc(db, "users", studentUid), userProfile);
-        studentsForThisSchool.push(userProfile);
-        seededUsers.push(userProfile);
-        console.log(`    Student for ${school.name}: ${studentDisplayName} (${studentEmail})`);
-      }
-    }
-
-    // Parents
-    for (let i = 0; i < Math.min(NUM_PARENTS_PER_SCHOOL, studentsForThisSchool.length); i++) {
-      const childStudent = studentsForThisSchool[i];
-      const parentFirstName = faker.person.firstName();
-      const parentDisplayName = `${parentFirstName} ${childStudent.displayName?.split(' ').pop()}`; // Parent shares child's last name
-      const parentEmail = faker.internet.email({
-        firstName: parentFirstName,
-        lastName: childStudent.displayName?.split(' ').pop(),
-        provider: "learnify.parent.dev",
-      });
-      const parentUid = await createFirebaseUser(
-        parentEmail,
-        "password123",
-        parentDisplayName
-      );
-      if (parentUid) {
-        const parentProfile: UserProfileWithId = {
-          id: parentUid,
-          uid: parentUid,
-          email: parentEmail,
-          displayName: parentDisplayName,
-          role: "parent",
-          schoolId: school.id,
-          schoolName: school.name,
-          childStudentId: childStudent.id,
-          status: "active",
+          metadata: {
+            creationTime: Timestamp.now().toDate().toISOString(),
+            lastSignInTime: Timestamp.now().toDate().toISOString(),
+          },
+          providerId: "password",
+          tenantId: null,
+          refreshToken: "",
           onboardingStep: null,
-          createdAt: Timestamp.now(),
-          updatedAt: Timestamp.now(),
-          classIds: [],
-          subjects: [],
-          lastTestimonialSurveyAt: faker.datatype.boolean(0.15) ? Timestamp.fromDate(faker.date.recent({ days: 30 })) : null,
+          lastTestimonialSurveyAt: faker.datatype.boolean(0.2)
+            ? Timestamp.fromDate(faker.date.recent({ days: 20 }))
+            : null,
         };
-        await setDoc(doc(db, "users", parentUid), parentProfile);
-        seededUsers.push(parentProfile);
-        console.log(`      Parent for ${childStudent.displayName}: ${parentDisplayName} (${parentEmail})`);
+        await db.collection("users").doc(studentUid).set(userProfile);
+        seededStudentIds[schoolId].push(studentUid);
+        console.log(
+          `    Student for ${schoolName}: ${studentDisplayName} (${studentEmail})`
+        );
+
+        // Create a parent for some students
+        if (i < NUM_PARENTS_PER_SCHOOL) {
+          console.log(`Creating parent for student: ${studentDisplayName}`);
+          const parentFirstName = faker.person.firstName();
+          const parentDisplayName = `${parentFirstName} ${studentLastName}`; // Parent usually shares child's last name
+          const parentEmail = faker.internet.email({
+            firstName: parentFirstName,
+            lastName: studentLastName,
+            provider: "learnify.parent.dev",
+          });
+          console.log(
+            `Attempting to create Firebase user for parent: ${parentEmail}`
+          );
+          const parentUid = await createFirebaseUser(
+            parentEmail,
+            "password123",
+            parentDisplayName
+          );
+          if (parentUid) {
+            console.log(
+              `Successfully created Firebase user with UID: ${parentUid}`
+            );
+            const parentProfile: UserProfile = {
+              uid: parentUid,
+              email: parentEmail,
+              displayName: parentDisplayName,
+              role: "parent",
+              schoolId,
+              childStudentId: studentUid,
+              status: "active",
+              createdAt: Timestamp.now(),
+              classIds: [],
+              subjects: [],
+              metadata: {
+                creationTime: Timestamp.now().toDate().toISOString(),
+                lastSignInTime: Timestamp.now().toDate().toISOString(),
+              },
+              providerData: [],
+              providerId: "password",
+              tenantId: null,
+              refreshToken: "",
+              onboardingStep: null,
+              lastTestimonialSurveyAt: faker.datatype.boolean(0.2)
+                ? Timestamp.fromDate(faker.date.recent({ days: 20 }))
+                : null,
+            };
+            await db.collection("users").doc(parentUid).set(parentProfile);
+            seededParentIds[schoolId].push(parentUid);
+            console.log(
+              `      Parent for ${studentDisplayName}: ${parentDisplayName} (${parentEmail})`
+            );
+          }
+        }
       }
     }
+    console.log(`Completed seeding users for school: ${schoolName}`);
   }
   console.log("Finished seeding all users.");
 }
@@ -447,211 +474,328 @@ async function seedClasses() {
 
 async function seedLearningMaterials() {
   console.log("Seeding learning materials...");
-  for (const school of seededSchools) {
-    const schoolTeachers = seededUsers.filter(u => u.schoolId === school.id && u.role === 'teacher');
-    const schoolSpecificSubjects = seededSubjects.filter(s => s.schoolId === school.id);
+  for (const schoolId of seededSchoolIds) {
+    const teachers = seededTeacherIds[schoolId] || [];
+    const schoolSpecificSubjects = allCreatedSubjects.filter(
+      (s) => s.schoolId === schoolId
+    );
 
-    for (const teacher of schoolTeachers) {
-      const classesTaughtByTeacher = seededClasses.filter(c => c.schoolId === school.id && c.teacherId === teacher.id);
+    for (const teacherId of teachers) {
+      const teacherProfileDoc = await db
+        .collection("users")
+        .doc(teacherId)
+        .get();
+      const teacherProfile = teacherProfileDoc.data() as
+        | UserProfile
+        | undefined;
+      if (!teacherProfile) continue;
+
+      const classesTaughtByTeacher = allCreatedClasses.filter(
+        (c) => c.schoolId === schoolId && c.teacherId === teacherId
+      );
 
       for (const classData of classesTaughtByTeacher) {
-        const relevantSubjects = classData.classType === "main"
-          ? schoolSpecificSubjects.filter(s => classData.compulsorySubjectIds?.includes(s.id))
-          : schoolSpecificSubjects.filter(s => s.id === classData.subjectId);
-        
-        if(relevantSubjects.length === 0 && classData.classType === "main") {
-             // For main classes with no compulsory, pick 1-2 general subjects
-             relevantSubjects.push(...faker.helpers.arrayElements(schoolSpecificSubjects, faker.number.int({min:1, max:2})));
-        }
+        const subjectsRelevantToClass =
+          classData.classType === "main"
+            ? classData.compulsorySubjectIds &&
+              classData.compulsorySubjectIds.length > 0
+              ? (classData.compulsorySubjectIds
+                  .map((csId) =>
+                    schoolSpecificSubjects.find((s) => s.id === csId)
+                  )
+                  .filter(Boolean) as Subject[])
+              : faker.helpers.arrayElements(
+                  schoolSpecificSubjects,
+                  Math.min(2, schoolSpecificSubjects.length)
+                )
+            : schoolSpecificSubjects.filter(
+                (s) => s.id === classData.subjectId
+              );
 
-
-        for (const subject of relevantSubjects) {
-          for (let i = 0; i < NUM_MATERIALS_PER_ASSIGNED_CLASS_SUBJECT; i++) {
-            const materialType = faker.helpers.arrayElement<LearningMaterialType>(["text", "link", "pdf_link", "video_link"]);
-            const materialRef = doc(db, "learningMaterials", uuidv4());
-            const material: LearningMaterial = {
-              id: materialRef.id,
+        for (const subject of subjectsRelevantToClass) {
+          for (
+            let i = 0;
+            i < NUM_MATERIALS_PER_TEACHER_ASSIGNED_CLASS_SUBJECT;
+            i++
+          ) {
+            const materialType =
+              faker.helpers.arrayElement<LearningMaterialType>([
+                "text",
+                "link",
+                "pdf_link",
+                "video_link",
+              ]);
+            const materialRef = db.collection("learningMaterials").doc();
+            const material: Omit<
+              LearningMaterial,
+              "id" | "originalFileName" | "attachmentUrl"
+            > = {
               title: `${subject.name} - ${faker.lorem.words(3)}`,
-              content: materialType === "text" ? faker.lorem.paragraphs(2) : faker.internet.url(),
+              content:
+                materialType === "text"
+                  ? faker.lorem.paragraphs(2)
+                  : faker.internet.url(),
               materialType,
-              schoolId: school.id,
-              teacherId: teacher.id,
+              schoolId,
+              teacherId,
               classId: classData.id,
               subjectId: subject.id,
               createdAt: Timestamp.fromDate(faker.date.recent({ days: 30 })),
               updatedAt: Timestamp.fromDate(faker.date.recent({ days: 10 })),
-              attachmentUrl: null, // Not seeding direct uploads for now
-              originalFileName: null,
             };
-            await setDoc(materialRef, material);
+            await materialRef.set({ ...material, id: materialRef.id });
           }
         }
       }
     }
-    console.log(`  Seeded materials for school ${school.name}`);
+    console.log(`  Seeded materials for school ${schoolId}`);
   }
 }
 
 async function seedAssignmentsAndSubmissions() {
   console.log("Seeding assignments and submissions...");
-  for (const school of seededSchools) {
-    const schoolTeachers = seededUsers.filter(u => u.schoolId === school.id && u.role === 'teacher');
-    const schoolSpecificSubjects = seededSubjects.filter(s => s.schoolId === school.id);
+  for (const schoolId of seededSchoolIds) {
+    const teachers = seededTeacherIds[schoolId] || [];
+    const schoolSpecificSubjects = allCreatedSubjects.filter(
+      (s) => s.schoolId === schoolId
+    );
 
-    for (const teacher of schoolTeachers) {
-      const classesTaughtByTeacher = seededClasses.filter(c => c.schoolId === school.id && c.teacherId === teacher.id);
+    for (const teacherId of teachers) {
+      const classesTaughtByTeacher = allCreatedClasses.filter(
+        (c) => c.schoolId === schoolId && c.teacherId === teacherId
+      );
 
       for (const classData of classesTaughtByTeacher) {
-        const studentsInClass = seededUsers.filter(u => u.role === 'student' && u.classIds?.includes(classData.id));
+        const studentsInClass = classData.studentIds || [];
         if (studentsInClass.length === 0) continue;
 
-        const relevantSubjects = classData.classType === "main"
-          ? schoolSpecificSubjects.filter(s => classData.compulsorySubjectIds?.includes(s.id))
-          : schoolSpecificSubjects.filter(s => s.id === classData.subjectId);
+        const subjectsRelevantToClass =
+          classData.classType === "main"
+            ? classData.compulsorySubjectIds &&
+              classData.compulsorySubjectIds.length > 0
+              ? (classData.compulsorySubjectIds
+                  .map((csId) =>
+                    schoolSpecificSubjects.find((s) => s.id === csId)
+                  )
+                  .filter(Boolean) as Subject[])
+              : faker.helpers.arrayElements(
+                  schoolSpecificSubjects,
+                  Math.min(2, schoolSpecificSubjects.length)
+                )
+            : schoolSpecificSubjects.filter(
+                (s) => s.id === classData.subjectId
+              );
 
-        if(relevantSubjects.length === 0 && classData.classType === "main") {
-             relevantSubjects.push(...faker.helpers.arrayElements(schoolSpecificSubjects, faker.number.int({min:1, max:2})));
-        }
-
-        for (const subject of relevantSubjects) {
-          for (let i = 0; i < NUM_ASSIGNMENTS_PER_ASSIGNED_CLASS_SUBJECT; i++) {
-            const assignmentRef = doc(db, "assignments", uuidv4());
+        for (const subject of subjectsRelevantToClass) {
+          for (
+            let i = 0;
+            i < NUM_ASSIGNMENTS_PER_TEACHER_ASSIGNED_CLASS_SUBJECT;
+            i++
+          ) {
+            const assignmentRef = db.collection("assignments").doc();
             const deadline = Timestamp.fromDate(faker.date.soon({ days: 14 }));
-            const assignment: Assignment = {
-              id: assignmentRef.id,
+            const assignment: Omit<Assignment, "id" | "totalSubmissions"> = {
               classId: classData.id,
-              teacherId: teacher.id,
-              schoolId: school.id,
+              teacherId,
+              schoolId,
               subjectId: subject.id,
               title: `Assignment: ${subject.name} - ${faker.lorem.words(2)}`,
               description: faker.lorem.paragraph(),
               deadline,
-              allowedSubmissionFormats: faker.helpers.arrayElements<SubmissionFormat>(["text_entry", "file_link", "file_upload"], faker.number.int({ min: 1, max: 2 })),
-              createdAt: Timestamp.fromDate(faker.date.recent({ days: 7, refDate: deadline.toDate() })),
-              updatedAt: Timestamp.fromDate(faker.date.recent({ days: 3, refDate: deadline.toDate() })),
-              totalSubmissions: 0,
-              attachmentUrl: null,
-              originalFileName: null,
+              allowedSubmissionFormats:
+                faker.helpers.arrayElements<SubmissionFormat>(
+                  ["text_entry", "file_link", "file_upload"],
+                  faker.number.int({ min: 1, max: 2 })
+                ),
+              createdAt: Timestamp.fromDate(
+                faker.date.recent({ days: 7, refDate: deadline.toDate() })
+              ),
+              updatedAt: Timestamp.fromDate(
+                faker.date.recent({ days: 3, refDate: deadline.toDate() })
+              ),
             };
-            await setDoc(assignmentRef, assignment);
+            await assignmentRef.set({
+              ...assignment,
+              id: assignmentRef.id,
+              totalSubmissions: 0,
+            });
 
             let submissionsCount = 0;
-            for (const student of studentsInClass) {
+            for (const studentId of studentsInClass) {
               if (Math.random() < SUBMISSIONS_PER_ASSIGNMENT_PERCENTAGE) {
-                const submissionRef = doc(db, "submissions", uuidv4());
-                const submittedAt = Timestamp.fromDate(faker.date.between({ from: assignment.createdAt.toDate(), to: deadline.toDate() }));
-                const submissionType = faker.helpers.arrayElement(assignment.allowedSubmissionFormats);
-                const status = faker.datatype.boolean(0.6) ? "graded" : submittedAt > deadline ? "late" : "submitted";
+                const submissionRef = db.collection("submissions").doc();
+                const submittedAt = Timestamp.fromDate(
+                  faker.date.between({
+                    from: assignment.createdAt.toDate(),
+                    to: deadline.toDate(),
+                  })
+                );
+                const submissionType = faker.helpers.arrayElement(
+                  assignment.allowedSubmissionFormats
+                );
+                const status = faker.datatype.boolean(0.6)
+                  ? "graded"
+                  : submittedAt > deadline
+                  ? "late"
+                  : "submitted";
 
-                const submission: Submission = {
-                  id: submissionRef.id,
+                const submission: Omit<Submission, "id"> = {
                   assignmentId: assignmentRef.id,
                   classId: classData.id,
-                  studentId: student.id,
+                  studentId,
                   submittedAt,
                   submissionType,
-                  content: submissionType === "text_entry" ? faker.lorem.paragraph() : submissionType === "file_link" ? faker.internet.url() : `https://placehold.co/300x200.png?text=${faker.system.fileName()}`,
-                  originalFileName: submissionType === "file_upload" ? faker.system.commonFileName("pdf") : undefined,
-                  grade: status === "graded" ? faker.number.int({ min: 60, max: 100 }).toString() + "%" : undefined,
-                  feedback: status === "graded" ? faker.lorem.sentence() : undefined,
+                  content:
+                    submissionType === "text_entry"
+                      ? faker.lorem.paragraph()
+                      : submissionType === "file_link"
+                      ? faker.internet.url()
+                      : `https://placehold.co/300x200.png?text=${faker.system.fileName()}`,
+                  originalFileName:
+                    submissionType === "file_upload"
+                      ? faker.system.commonFileName("pdf")
+                      : undefined,
+                  grade:
+                    status === "graded"
+                      ? faker.number.int({ min: 60, max: 100 }).toString() + "%"
+                      : undefined,
+                  feedback:
+                    status === "graded" ? faker.lorem.sentence() : undefined,
                   status,
                   updatedAt: Timestamp.now(),
                 };
-                await setDoc(submissionRef, submission);
+                await submissionRef.set({
+                  ...submission,
+                  id: submissionRef.id,
+                });
                 submissionsCount++;
               }
             }
-            await updateDoc(assignmentRef, { totalSubmissions: submissionsCount });
+            await assignmentRef.update({ totalSubmissions: submissionsCount });
           }
         }
       }
     }
-    console.log(`  Seeded assignments & submissions for school ${school.name}`);
+    console.log(`  Seeded assignments & submissions for school ${schoolId}`);
   }
 }
 
 async function seedExamPeriods() {
   console.log("Seeding exam periods...");
-  for (const school of seededSchools) {
-    const mainClassesInSchool = seededClasses.filter(c => c.schoolId === school.id && c.classType === "main");
+  for (const schoolId of seededSchoolIds) {
+    seededExamPeriodIds[schoolId] = [];
+    const mainClassesInSchool = allCreatedClasses.filter(
+      (c) => c.schoolId === schoolId && c.classType === "main"
+    );
     if (mainClassesInSchool.length === 0) continue;
 
     for (let i = 0; i < NUM_EXAM_PERIODS_PER_SCHOOL; i++) {
-      const examPeriodRef = doc(db, "examPeriods", uuidv4());
-      const startDate = faker.date.soon({ days: 10 + i * 30 }); // Stagger start dates
+      const examPeriodRef = db.collection("examPeriods").doc();
+      const startDate = faker.date.soon({ days: 10 });
       const endDate = faker.date.soon({ days: 5, refDate: startDate });
-      const statusOptions: ExamPeriodStatus[] = ["upcoming", "active", "grading", "completed"];
-      
-      const examPeriod: ExamPeriod = {
-        id: examPeriodRef.id,
-        name: `${faker.helpers.arrayElement(["Mid-Term", "End-Term", "Final"])} Exams ${startDate.getFullYear()} Term ${i + 1}`,
-        schoolId: school.id,
+      const statusOptions: ExamPeriodStatus[] = [
+        "upcoming",
+        "active",
+        "grading",
+        "completed",
+      ];
+      const examPeriod: Omit<ExamPeriod, "id"> = {
+        name: `${faker.helpers.arrayElement([
+          "Mid-Term",
+          "End-Term",
+          "Final",
+        ])} Exams ${startDate.getFullYear()} Term ${i + 1}`,
+        schoolId,
         startDate: Timestamp.fromDate(startDate),
         endDate: Timestamp.fromDate(endDate),
-        assignedClassIds: faker.helpers.arrayElements(mainClassesInSchool.map(c => c.id), faker.number.int({ min: 1, max: Math.min(mainClassesInSchool.length, 3) })),
+        assignedClassIds: faker.helpers.arrayElements(
+          mainClassesInSchool.map((c) => c.id),
+          faker.number.int({
+            min: 1,
+            max: Math.min(mainClassesInSchool.length, 3),
+          })
+        ),
         status: faker.helpers.arrayElement(statusOptions),
         createdAt: Timestamp.now(),
         updatedAt: Timestamp.now(),
       };
-      await setDoc(examPeriodRef, examPeriod);
-      seededExamPeriods.push(examPeriod);
+      await examPeriodRef.set({ ...examPeriod, id: examPeriodRef.id });
+      seededExamPeriodIds[schoolId].push(examPeriodRef.id);
     }
-    console.log(`  Seeded exam periods for school ${school.name}`);
+    console.log(`  Seeded exam periods for school ${schoolId}`);
   }
 }
 
 async function seedExamResults() {
   console.log("Seeding exam results...");
-  for (const school of seededSchools) {
-    const periodsForSchool = seededExamPeriods.filter(p => p.schoolId === school.id);
-    const schoolSpecificSubjects = seededSubjects.filter(s => s.schoolId === school.id);
-    if (periodsForSchool.length === 0 || schoolSpecificSubjects.length === 0) continue;
+  for (const schoolId of seededSchoolIds) {
+    const periods = seededExamPeriodIds[schoolId] || [];
+    const schoolSpecificSubjects = allCreatedSubjects.filter(
+      (s) => s.schoolId === schoolId
+    );
+    if (periods.length === 0 || schoolSpecificSubjects.length === 0) continue;
 
-    for (const period of periodsForSchool) {
-      if (period.status === "upcoming" || period.status === "completed") continue;
+    for (const periodId of periods) {
+      const periodDoc = await db.collection("examPeriods").doc(periodId).get();
+      const examPeriod = periodDoc.data() as ExamPeriod | undefined;
+      if (
+        !examPeriod ||
+        examPeriod.status === "upcoming" ||
+        examPeriod.status === "completed"
+      )
+        continue;
 
-      for (const classId of period.assignedClassIds) {
-        const classDetails = seededClasses.find(c => c.id === classId);
-        if (!classDetails || !classDetails.studentIds || classDetails.studentIds.length === 0) continue;
-        
-        const teacherForClass = seededUsers.find(u => u.id === classDetails.teacherId);
-        if (!teacherForClass) continue;
+      for (const classId of examPeriod.assignedClassIds) {
+        const classDoc = allCreatedClasses.find((c) => c.id === classId);
+        if (
+          !classDoc ||
+          !classDoc.studentIds ||
+          classDoc.studentIds.length === 0
+        )
+          continue;
 
-        const subjectsToGrade = classDetails.classType === "main"
-          ? schoolSpecificSubjects.filter(s => classDetails.compulsorySubjectIds?.includes(s.id))
-          : schoolSpecificSubjects.filter(s => s.id === classDetails.subjectId);
-        
-        if(subjectsToGrade.length === 0 && classDetails.classType === "main") {
-             subjectsToGrade.push(...faker.helpers.arrayElements(schoolSpecificSubjects, faker.number.int({min:1, max:2})));
-        }
+        const classSubjects =
+          classDoc.classType === "main"
+            ? classDoc.compulsorySubjectIds &&
+              classDoc.compulsorySubjectIds.length > 0
+              ? (classDoc.compulsorySubjectIds
+                  .map((csId) =>
+                    schoolSpecificSubjects.find((s) => s.id === csId)
+                  )
+                  .filter(Boolean) as Subject[])
+              : schoolSpecificSubjects // if no compulsory, use all school subjects for main class results for more data
+            : schoolSpecificSubjects.filter((s) => s.id === classDoc.subjectId);
 
-        for (const studentId of classDetails.studentIds) {
-          for (const subject of subjectsToGrade) {
-            if (faker.datatype.boolean(0.8)) { // 80% chance a result is entered
-              const resultRef = doc(db, "examResults", uuidv4());
-              const result: ExamResult = {
-                id: resultRef.id,
+        const teacherId = classDoc.teacherId || seededTeacherIds[schoolId]?.[0];
+        if (!teacherId) continue;
+
+        for (const studentId of classDoc.studentIds) {
+          for (const subject of classSubjects) {
+            if (faker.datatype.boolean(0.8)) {
+              const resultRef = db.collection("examResults").doc();
+              const result: Omit<ExamResult, "id"> = {
                 studentId,
-                examPeriodId: period.id,
+                examPeriodId: periodId,
                 classId,
-                schoolId: school.id,
+                schoolId,
                 subjectId: subject.id,
                 marks: faker.number.int({ min: 40, max: 100 }).toString() + "%",
                 remarks: faker.lorem.sentence(),
-                teacherId: teacherForClass.id,
+                teacherId,
                 createdAt: Timestamp.now(),
                 updatedAt: Timestamp.now(),
               };
-              await setDoc(resultRef, result);
+              await resultRef.set({ ...result, id: resultRef.id });
             }
           }
         }
       }
     }
-    console.log(`  Seeded exam results for school ${school.name}`);
+    console.log(`  Seeded exam results for school ${schoolId}`);
   }
 }
 
+// Helper to ensure date is at start of day for consistent querying
 const startOfDayTimestamp = (date: Date): Timestamp => {
   const d = new Date(date);
   d.setHours(0, 0, 0, 0);
