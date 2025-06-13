@@ -1,12 +1,12 @@
-
-import type { Metadata } from 'next';
+import { Suspense } from 'react';
 import { Inter } from 'next/font/google';
+import type { Metadata } from 'next';
 import './globals.css';
 import { Toaster } from '@/components/ui/toaster';
-import { AuthProvider } from '@/contexts/AuthProvider'; // Updated import
+import { AuthProvider } from '@/contexts/AuthProvider';
 import Navbar from '@/components/shared/Navbar';
 import { siteConfig } from '@/config/site';
-import { ThemeProvider } from "@/components/theme-provider"; 
+import { ThemeProvider } from '@/components/theme-provider';
 
 const inter = Inter({
   subsets: ['latin'],
@@ -19,23 +19,23 @@ export const metadata: Metadata = {
     template: `%s | ${siteConfig.name}`,
   },
   description: siteConfig.description,
-  icons: [ 
+  icons: [
     {
       rel: 'icon',
-      url: '/logo-icon.png', // Standard path for favicon (assuming you have logo-icon.png in public)
+      url: '/logo-icon.png',
     },
     {
-      rel: 'apple-touch-icon', // For Apple devices
-      url: '/logo-icon.png', // Assuming logo.svg can serve as an apple-touch-icon
+      rel: 'apple-touch-icon',
+      url: '/logo-icon.png',
     },
   ],
 };
 
 export default function RootLayout({
   children,
-}: Readonly<{
+}: {
   children: React.ReactNode;
-}>) {
+}) {
   return (
     <html lang="en" suppressHydrationWarning>
       <body className={`${inter.variable} antialiased font-sans`} suppressHydrationWarning>
@@ -45,13 +45,15 @@ export default function RootLayout({
           enableSystem
           disableTransitionOnChange
         >
-          <AuthProvider>
-            <div className="flex flex-col min-h-screen">
-              <Navbar />
-              <main className="flex-grow container mx-auto">{children}</main>
-            </div>
-            <Toaster />
-          </AuthProvider>
+          <Suspense fallback={null}>
+            <AuthProvider>
+              <div className="flex flex-col min-h-screen">
+                <Navbar />
+                <main className="flex-grow container mx-auto">{children}</main>
+              </div>
+              <Toaster />
+            </AuthProvider>
+          </Suspense>
         </ThemeProvider>
       </body>
     </html>
