@@ -45,7 +45,7 @@ export default function HeroSection() {
           </div>
           <div className="hidden lg:flex justify-center items-center animate-fade-in-delay">
             <Image 
-              src="https://placehold.co/600x500.png" // Replace with a relevant hero image
+              src="/phone.png" // Replace with a relevant hero image
               alt="Learnify platform interface showing dashboard and AI features" 
               width={600} 
               height={500}

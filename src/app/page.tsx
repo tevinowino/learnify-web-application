@@ -1,13 +1,13 @@
 
 import HeroSection from '@/components/landing/HeroSection';
 import WhyLearnifySection from '@/components/landing/WhyLearnifySection';
-import FeaturesSection from '@/components/landing/FeaturesSection';
 import WhySetApartSection from '@/components/landing/WhySetApartSection';
 import TestimonialsSection from '@/components/landing/TestimonialsSection';
 import ContactUsSection from '@/components/landing/ContactUsSection';
 import Footer from '@/components/landing/Footer';
 import type { Metadata } from 'next';
 import { siteConfig } from '@/config/site';
+import FeaturesSection from '@/components/landing/AboutSection';
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://learnify-app.example.com';
 
