@@ -154,7 +154,7 @@ export default function TeacherDashboardPage() {
                       For: {assignment.className || 'N/A'}
                     </p>
                     <p className="text-xs text-muted-foreground">
-                      Due: {format(assignment.deadline.toDate(), 'PPp')} ({formatDistanceToNow(assignment.deadline.toDate(), { addSuffix: true })})
+                      Due: {formatDistanceToNow(assignment.deadline.toDate(), { addSuffix: true })}
                     </p>
                   </li>
                 ))}
@@ -201,3 +201,4 @@ export default function TeacherDashboardPage() {
     </div>
   );
 }
+

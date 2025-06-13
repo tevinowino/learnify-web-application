@@ -2,7 +2,7 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
-import { useForm } from 'react-hook-form';
+import { Controller, useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { useRouter } from 'next/navigation';
@@ -14,6 +14,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { useToast } from '@/hooks/use-toast';
 import { Settings, CheckCircle, ArrowRight } from 'lucide-react';
 import Loader from '@/components/shared/Loader';
+import { Form } from '@/components/ui/form';
 
 const configureSettingsSchema = z.object({
   isExamModeActive: z.boolean().default(false),

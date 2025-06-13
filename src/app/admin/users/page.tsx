@@ -5,7 +5,7 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { PlusCircle, Users, Filter, UserX, SearchCheck } from 'lucide-react';
+import { PlusCircle, Users, Filter, UserX, SearchCheck, Search } from 'lucide-react';
 import type { UserProfileWithId, UserRole } from '@/types';
 import Link from 'next/link';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -40,7 +40,7 @@ export default function ManageUsersPage() {
       setIsLoadingUsers(true);
       const schoolUsers = await getUsersBySchool(currentUser.schoolId);
       setAllSchoolUsers(schoolUsers);
-      setFilteredUsers(schoolUsers); 
+      // setFilteredUsers(schoolUsers); // Filtering will be handled by useEffect
       setIsLoadingUsers(false);
     } else if (!authLoading) {
       setIsLoadingUsers(false);
@@ -140,11 +140,15 @@ export default function ManageUsersPage() {
           <CardHeader>
               <CardTitle className="flex items-center"><Filter className="mr-2 h-5 w-5 text-primary"/>Filter & Search Users</CardTitle>
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 pt-2">
-                  <Input 
-                      placeholder="Search by name or email..."
-                      value={searchTerm}
-                      onChange={(e) => setSearchTerm(e.target.value)}
-                  />
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+                    <Input 
+                        placeholder="Search by name or email..."
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        className="pl-10"
+                    />
+                  </div>
                   <Select onValueChange={(value) => setRoleFilter(value as UserRole | 'all')} value={roleFilter}>
                       <SelectTrigger><SelectValue placeholder="Filter by Role" /></SelectTrigger>
                       <SelectContent>
@@ -267,3 +271,4 @@ export default function ManageUsersPage() {
     </TooltipProvider>
   );
 }
+

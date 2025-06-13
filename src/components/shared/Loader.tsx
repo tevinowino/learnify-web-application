@@ -32,3 +32,4 @@ const Loader: React.FC<LoaderProps> = ({ message, size = 'medium', className = '
 };
 
 export default Loader;
+

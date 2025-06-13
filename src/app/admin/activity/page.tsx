@@ -47,7 +47,7 @@ export default function AdminActivityPage() {
 
   if (!currentUser?.schoolId && !authLoading) {
     return (
-      <Card>
+      <Card className="card-shadow">
         <CardHeader>
           <CardTitle>No School Assigned</CardTitle>
           <CardDescription>
@@ -104,3 +104,4 @@ export default function AdminActivityPage() {
     </div>
   );
 }
+

@@ -253,3 +253,4 @@ export default function SchoolSettingsPage() {
     </TooltipProvider>
   );
 }
+

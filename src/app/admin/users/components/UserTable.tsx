@@ -6,7 +6,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Loader2, Edit, ShieldCheck, Briefcase, GraduationCap, UserCheck, UserX } from 'lucide-react';
+import { Loader2, Edit, ShieldCheck, Briefcase, GraduationCap, UserCheck, UserX, UserCircle } from 'lucide-react';
 import Link from 'next/link';
 import type { UserProfileWithId, UserStatus } from '@/types';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'; // Import Tooltip components
@@ -36,7 +36,7 @@ export default function UserTable({
       case 'admin': return <ShieldCheck className="h-4 w-4 mr-1 inline-block" />;
       case 'teacher': return <Briefcase className="h-4 w-4 mr-1 inline-block" />;
       case 'student': return <GraduationCap className="h-4 w-4 mr-1 inline-block" />;
-      default: return null;
+      default: return <UserCircle className="h-4 w-4 mr-1 inline-block" />;
     }
   };
   
@@ -165,3 +165,4 @@ export default function UserTable({
     </div>
   );
 }
+
