@@ -1,4 +1,4 @@
-
+import 'dotenv/config'; // Must be at the very top
 import { initializeApp, cert, type ServiceAccount } from 'firebase-admin/app';
 import { getFirestore, Timestamp, FieldValue } from 'firebase-admin/firestore';
 import { getAuth } from 'firebase-admin/auth';
@@ -20,7 +20,7 @@ import type {
   LearningMaterialType,
   SubmissionFormat,
   ExamPeriodStatus,
-  Notification, // Though not directly seeded extensively, kept for type consistency
+  Notification,
   Testimonial,
 } from '../src/types';
 import { v4 as uuidv4 } from 'uuid';
@@ -30,56 +30,49 @@ const NUM_SCHOOLS = 1;
 const NUM_ADMINS_PER_SCHOOL = 1;
 const NUM_TEACHERS_PER_SCHOOL = 10;
 const NUM_STUDENTS_PER_SCHOOL = 50;
-const NUM_PARENTS_PER_SCHOOL = 30; // Approx 60% of students get a parent
+const NUM_PARENTS_PER_SCHOOL = 30;
 const NUM_SUBJECTS_PER_SCHOOL = 8;
-const NUM_MAIN_CLASSES_PER_SCHOOL = 4; // e.g., Form 1, Form 2, Form 3, Form 4
-// MAX_STUDENTS_PER_MAIN_CLASS adjusted dynamically based on total students and classes
+const NUM_MAIN_CLASSES_PER_SCHOOL = 4;
 const NUM_MATERIALS_PER_TEACHER_ASSIGNED_CLASS_SUBJECT = 2;
 const NUM_ASSIGNMENTS_PER_TEACHER_ASSIGNED_CLASS_SUBJECT = 2;
 const SUBMISSIONS_PER_ASSIGNMENT_PERCENTAGE = 0.75;
-const NUM_EXAM_PERIODS_PER_SCHOOL = 2; // e.g., Mid-Term, End-Term
-const NUM_ATTENDANCE_DAYS_TO_SEED = 10; // Seed attendance for the past 10 school days
+const NUM_EXAM_PERIODS_PER_SCHOOL = 2;
+const NUM_ATTENDANCE_DAYS_TO_SEED = 10;
 const NUM_TESTIMONIALS_TO_SEED = 5;
 
-
 // --- Firebase Admin Setup ---
-let serviceAccountJson: ServiceAccount | undefined = undefined;
-const LEARNIFY_PROJECT_ID = "learnify-project-e7f59"; // Define project ID here
+const LEARNIFY_PROJECT_ID = "learnify-project-e7f59";
+let serviceAccountJson: ServiceAccount | undefined;
 
-if (process.env.FIREBASE_SERVICE_ACCOUNT_JSON_STRING) {
-  try {
+try {
+  if (process.env.FIREBASE_SERVICE_ACCOUNT_JSON_STRING) {
     serviceAccountJson = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_JSON_STRING);
-  } catch (e) {
-    console.error('Failed to parse FIREBASE_SERVICE_ACCOUNT_JSON_STRING:', e);
+
+    if (typeof serviceAccountJson.private_key === 'string') {
+      serviceAccountJson.private_key = serviceAccountJson.private_key.replace(/\\n/g, '\n');
+    }
+
+    console.log('Successfully parsed and prepared Firebase service account JSON.');
   }
-} else {
-  console.warn(
-    'FIREBASE_SERVICE_ACCOUNT_JSON_STRING environment variable not found. ' +
-    'Attempting to use GOOGLE_APPLICATION_CREDENTIALS if set, or default service account for some GCP environments.'
-  );
+} catch (e) {
+  console.error('❌ Failed to parse FIREBASE_SERVICE_ACCOUNT_JSON_STRING:', e);
 }
 
 if (serviceAccountJson) {
   console.log('Initializing Firebase Admin SDK with provided service account JSON.');
   initializeApp({ 
     credential: cert(serviceAccountJson),
-    projectId: LEARNIFY_PROJECT_ID, // Explicitly set project ID
+    projectId: LEARNIFY_PROJECT_ID,
   });
 } else {
-  // If GOOGLE_APPLICATION_CREDENTIALS is set, it will be used automatically.
-  // If running in a GCP environment (like Cloud Functions, App Engine),
-  // Application Default Credentials (ADC) might pick up the project ID automatically.
-  // However, for local seeding, GOOGLE_APPLICATION_CREDENTIALS is the most reliable way
-  // if FIREBASE_SERVICE_ACCOUNT_JSON_STRING is not used.
-  // Adding projectId explicitly here for robustness.
-  initializeApp({
-    projectId: LEARNIFY_PROJECT_ID, // Explicitly set project ID
-  }); 
+  console.error('❌ Failed to initialize Firebase Admin SDK. Service account JSON is missing.');
+  process.exit(1); // Stop execution if Firebase is not initialized
 }
-
 
 const db = getFirestore();
 const adminAuth = getAuth();
+
+// Continue with your seeding logic here...
 
 const createFirebaseUser = async (email: string, pass: string, displayName: string): Promise<string | null> => {
   try {
