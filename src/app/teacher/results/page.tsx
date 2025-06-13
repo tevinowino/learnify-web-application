@@ -29,6 +29,8 @@ export default function TeacherResultsPage() {
     addOrUpdateExamResult,
     getExamResultsForTeacher,
     addActivity,
+    addNotification, // Added
+    getLinkedParentForStudent, // Added
     loading: authLoading 
   } = useAuth();
   const { toast } = useToast();
@@ -54,11 +56,11 @@ export default function TeacherResultsPage() {
         const [classes, subjects, periods] = await Promise.all([
           getClassesByTeacher(currentUser.uid),
           getSubjectsBySchool(currentUser.schoolId),
-          getExamPeriodsBySchool(currentUser.schoolId, async () => null) // Pass dummy getClassDetails if not needed for names here
+          getExamPeriodsBySchool(currentUser.schoolId) 
         ]);
         setTeacherClasses(classes);
         setSchoolSubjects(subjects);
-        setExamPeriods(periods.filter(p => p.status !== 'completed' && p.status !== 'upcoming')); // Only active/grading periods
+        setExamPeriods(periods.filter(p => p.status === 'active' || p.status === 'grading')); 
       } catch (error) {
         toast({title: "Error", description: "Could not load initial data.", variant: "destructive"});
       } finally {
@@ -111,22 +113,39 @@ export default function TeacherResultsPage() {
     setResults(prev => ({
       ...prev,
       [studentId]: {
-        ...prev[studentId],
+        ...(prev[studentId] || { marks: '', remarks: '' }), // Ensure object exists
         [field]: value,
       }
     }));
   };
 
   const handleSubmitResults = async () => {
-    if (!selectedExamPeriodId || !selectedClassId || !selectedSubjectId || Object.keys(results).length === 0 || !currentUser?.uid || !currentUser.schoolId) {
+    if (!selectedExamPeriodId || !selectedClassId || !selectedSubjectId || Object.keys(results).length === 0 || !currentUser?.uid || !currentUser.schoolId || !currentUser.displayName) {
       toast({ title: "Missing Information", description: "Please select exam, class, subject, and enter results for at least one student.", variant: "destructive" });
       return;
     }
+    
+    const activeExamPeriod = examPeriods.find(ep => ep.id === selectedExamPeriodId);
+    if (!activeExamPeriod || (activeExamPeriod.status !== 'active' && activeExamPeriod.status !== 'grading')) {
+        toast({ title: "Cannot Submit", description: "Results can only be entered for 'active' or 'grading' exam periods.", variant: "destructive" });
+        return;
+    }
+    const school = await getSchoolDetailsService(currentUser.schoolId); // Assuming you have getSchoolDetailsService
+    if (!school?.isExamModeActive) {
+        toast({ title: "Exam Mode Off", description: "School-wide Exam Mode is not active. Results cannot be entered.", variant: "destructive" });
+        return;
+    }
+
+
     setIsSubmitting(true);
     let allSuccessful = true;
+    const examPeriodName = examPeriods.find(ep => ep.id === selectedExamPeriodId)?.name || "Selected Exam";
+    const subjectName = schoolSubjects.find(s => s.id === selectedSubjectId)?.name || "Selected Subject";
+    const className = teacherClasses.find(c => c.id === selectedClassId)?.name || "Selected Class";
+
     for (const studentId of Object.keys(results)) {
         const studentResult = results[studentId];
-        if (studentResult.marks.trim() === '') continue; // Skip if no marks entered
+        if (studentResult.marks.trim() === '' && studentResult.remarks.trim() === '') continue; 
 
         const success = await addOrUpdateExamResult({
             studentId,
@@ -141,34 +160,50 @@ export default function TeacherResultsPage() {
         if (!success) {
             allSuccessful = false;
             toast({ title: "Error Saving Result", description: `Failed to save result for student ID ${studentId}.`, variant: "destructive"});
-            // Potentially stop on first error or continue
+        } else {
+            // Notify student and parent
+            const student = studentsInSelectedClass.find(s => s.id === studentId);
+            if (student && student.displayName) {
+                await addNotification({
+                    userId: student.id,
+                    schoolId: currentUser.schoolId,
+                    message: `Your results for ${subjectName} in ${examPeriodName} have been updated by ${currentUser.displayName}.`,
+                    type: 'exam_results_entered',
+                    link: `/student/results`,
+                    actorName: currentUser.displayName
+                });
+                const parent = await getLinkedParentForStudent(student.id);
+                if (parent && parent.schoolId === currentUser.schoolId) {
+                     await addNotification({
+                        userId: parent.id,
+                        schoolId: currentUser.schoolId,
+                        message: `${student.displayName}'s results for ${subjectName} in ${examPeriodName} have been updated.`,
+                        type: 'exam_results_entered',
+                        link: `/parent/results`,
+                        actorName: currentUser.displayName
+                    });
+                }
+            }
         }
     }
     
     if (allSuccessful) {
-        toast({ title: "Results Submitted!", description: `Results for the selected exam, class, and subject have been recorded.` });
-        // Log activity
+        toast({ title: "Results Submitted!", description: `Results for ${examPeriodName} - ${className} - ${subjectName} have been recorded.` });
         if (currentUser.displayName && currentUser.schoolId) {
-            const examPeriod = examPeriods.find(ep => ep.id === selectedExamPeriodId);
-            const className = teacherClasses.find(c => c.id === selectedClassId)?.name;
-            const subjectName = schoolSubjects.find(s => s.id === selectedSubjectId)?.name;
-            if (examPeriod && className && subjectName) {
-                addActivity({
-                    schoolId: currentUser.schoolId,
-                    actorId: currentUser.uid,
-                    actorName: currentUser.displayName,
-                    classId: selectedClassId,
-                    type: 'exam_results_entered',
-                    message: `${currentUser.displayName} entered results for ${examPeriod.name} - ${className} - ${subjectName}.`,
-                    // link: `/teacher/results?examPeriodId=${selectedExamPeriodId}&classId=${selectedClassId}&subjectId=${selectedSubjectId}`
-                });
-            }
+            await addActivity({
+                schoolId: currentUser.schoolId,
+                actorId: currentUser.uid,
+                actorName: currentUser.displayName,
+                classId: selectedClassId,
+                type: 'exam_results_entered',
+                message: `${currentUser.displayName} entered/updated results for ${examPeriodName} - ${className} - ${subjectName}.`,
+            });
         }
     } else {
         toast({ title: "Partial Submission", description: "Some results may not have been saved. Please review.", variant: "destructive" });
     }
     setIsSubmitting(false);
-    fetchStudentsAndExistingResults(); // Refresh results
+    fetchStudentsAndExistingResults(); 
   };
 
   const isLoading = authLoading || isLoadingData;
@@ -184,18 +219,20 @@ export default function TeacherResultsPage() {
       <Card className="card-shadow">
         <CardHeader>
           <CardTitle className="flex items-center"><FileEdit className="mr-2 h-5 w-5 text-primary"/>Select Exam, Class, and Subject</CardTitle>
+          <CardDescription>Results can only be entered for 'Active' or 'Grading' exam periods and if School Exam Mode is ON.</CardDescription>
         </CardHeader>
         <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div>
             <Label htmlFor="exam-period-select">Exam Period</Label>
-            <Select onValueChange={setSelectedExamPeriodId} value={selectedExamPeriodId} disabled={isLoading}>
+            <Select onValueChange={setSelectedExamPeriodId} value={selectedExamPeriodId} disabled={isLoading || examPeriods.length === 0}>
               <SelectTrigger id="exam-period-select"><SelectValue placeholder="Select exam..." /></SelectTrigger>
               <SelectContent>
                 {examPeriods.map(ep => (
-                  <SelectItem key={ep.id} value={ep.id}>{ep.name}</SelectItem>
+                  <SelectItem key={ep.id} value={ep.id}>{ep.name} ({ep.status})</SelectItem>
                 ))}
               </SelectContent>
             </Select>
+            {examPeriods.length === 0 && <p className="text-xs text-muted-foreground mt-1">No active exam periods available for result entry.</p>}
           </div>
           <div>
             <Label htmlFor="class-select-exam">Class</Label>
@@ -208,11 +245,11 @@ export default function TeacherResultsPage() {
               </SelectContent>
             </Select>
             {!selectedExamPeriodId && <p className="text-xs text-muted-foreground mt-1">Select an exam period first.</p>}
-            {selectedExamPeriodId && filteredClassesForExamPeriod.length === 0 && <p className="text-xs text-muted-foreground mt-1">No classes assigned to this exam period for you.</p>}
+            {selectedExamPeriodId && filteredClassesForExamPeriod.length === 0 && <p className="text-xs text-muted-foreground mt-1">No classes assigned to this exam period for you, or period not active.</p>}
           </div>
           <div>
             <Label htmlFor="subject-select-exam">Subject</Label>
-             <Select onValueChange={setSelectedSubjectId} value={selectedSubjectId} disabled={isLoading || !selectedClassId}>
+             <Select onValueChange={setSelectedSubjectId} value={selectedSubjectId} disabled={isLoading || !selectedClassId || schoolSubjects.length === 0}>
               <SelectTrigger id="subject-select-exam"><SelectValue placeholder="Select subject..." /></SelectTrigger>
               <SelectContent>
                 {schoolSubjects.map(sub => (
@@ -221,6 +258,7 @@ export default function TeacherResultsPage() {
               </SelectContent>
             </Select>
             {!selectedClassId && <p className="text-xs text-muted-foreground mt-1">Select a class first.</p>}
+            {schoolSubjects.length === 0 && <p className="text-xs text-muted-foreground mt-1">No subjects configured.</p>}
           </div>
         </CardContent>
       </Card>
@@ -267,7 +305,7 @@ export default function TeacherResultsPage() {
                       </div>
                     </div>
                   ))}
-                  <Button onClick={handleSubmitResults} disabled={isSubmitting || studentsInSelectedClass.length === 0} className="w-full mt-6 button-shadow">
+                  <Button onClick={handleSubmitResults} disabled={isSubmitting || isLoading || studentsInSelectedClass.length === 0} className="w-full mt-6 button-shadow">
                     {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}
                     <Save className="mr-2 h-4 w-4"/> Save All Results
                   </Button>
@@ -279,5 +317,14 @@ export default function TeacherResultsPage() {
       )}
     </div>
   );
+}
+
+// Helper: Moved getSchoolDetailsService to its own file, so import directly or assume it's passed if needed by other funcs.
+// For this component, we'll get school details via currentUser or a specific call if needed.
+// For simplicity, assuming `getSchoolDetailsService` is available if another part of `useAuth` needs it.
+const getSchoolDetailsService = async (schoolId: string) => {
+  if(!schoolId) return null;
+  const schoolDoc = await getDoc(doc(db, "schools", schoolId));
+  return schoolDoc.exists() ? schoolDoc.data() as School : null;
 }
 

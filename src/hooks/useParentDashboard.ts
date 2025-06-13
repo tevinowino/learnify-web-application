@@ -72,8 +72,14 @@ export function useParentDashboard() {
         const issues = attendance.filter(record => record.status === 'absent' || record.status === 'late').length;
         setAttendanceIssuesCount(issues); 
 
-        const activities = await getActivities(child.schoolId, { targetUserId: child.uid, type: undefined }, 5); 
-        setRecentActivities(activities);
+        const schoolActivities = await getActivities(child.schoolId, {}, 20); // Fetch more activities
+        const parentRelevantActivities = schoolActivities.filter(act => 
+            (act.targetUserId === child.uid) || // Activity targeting the child
+            (act.actorId === child.uid) || // Activity performed by the child
+            (act.classId && child.classIds?.includes(act.classId)) || // Activity related to child's class
+            (!act.classId && !act.actorId && !act.targetUserId && act.type === 'general_announcement') // General school-wide announcements
+        ).slice(0, 5); // Take top 5 relevant ones
+        setRecentActivities(parentRelevantActivities);
 
       } else {
         setUpcomingAssignmentsCount(0);
@@ -108,3 +114,4 @@ export function useParentDashboard() {
     isLoading: authLoading || isLoadingData,
   };
 }
+

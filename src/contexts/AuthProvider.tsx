@@ -309,8 +309,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
       if (!userUpdateSuccess) {
           console.error(`CRITICAL: School ${schoolId} created but failed to link to admin ${adminId} or update onboarding step.`);
-          // Consider a rollback or more robust error handling here if school creation without admin link is problematic
-          await SchoolService.deleteSchoolService(schoolId); // Attempt to delete the orphaned school
+          await SchoolService.deleteSchoolService(schoolId); 
           throw new Error("Failed to update admin user profile after school creation. School creation rolled back.");
       }
       
@@ -1460,6 +1459,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     if (currentUser?.email !== 'learnifyke@gmail.com') return false;
     return TestimonialService.updateTestimonialApprovalService(testimonialId, isApproved);
   }, [currentUser]);
+  const getLinkedParentForStudent = useCallback(async (studentId: string) => UserService.getLinkedParentForStudentService(studentId), []);
 
 
   const value: AuthContextType = useMemo(() => ({
@@ -1467,7 +1467,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     loading: authProcessLoading,
     signUp, logIn, logOut,
     onboardingCreateSchool, joinSchoolWithInviteCode, checkAdminOnboardingStatus, getSchoolDetails: SchoolService.getSchoolDetailsService, updateSchoolDetails, regenerateInviteCode, updateAdminOnboardingStep, onboardingAddSubjects, onboardingCreateClasses, onboardingInviteUsers, onboardingCompleteSchoolSetup, createSchool,
-    getUsersBySchool: UserService.getUsersBySchoolService, getUsersBySchoolAndRole: UserService.getUsersBySchoolAndRoleService, adminCreateUserInSchool, updateUserRoleAndSchool, getUserProfile: UserService.getUserProfileService, approveUserForSchool,
+    getUsersBySchool: UserService.getUsersBySchoolService, getUsersBySchoolAndRole: UserService.getUsersBySchoolAndRoleService, adminCreateUserInSchool, updateUserRoleAndSchool, getUserProfile: UserService.getUserProfileService, approveUserForSchool, getLinkedParentForStudent,
     createClassInSchool, getClassesBySchool, getClassDetails, updateClassDetails, enrollStudentInClass, removeStudentFromClass, getStudentsInClass, getStudentsNotInClass, deleteClass, regenerateClassInviteCode, joinClassWithCode,
     getClassesByTeacher, getStudentsInMultipleClasses,
     addLearningMaterial, getLearningMaterialsByTeacher, getLearningMaterialsBySchool, getLearningMaterialsByClass, deleteLearningMaterial, updateLearningMaterial, getLearningMaterialById: MaterialService.getLearningMaterialByIdService,
@@ -1504,7 +1504,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }), [
     currentUser, authProcessLoading, signUp, logIn, logOut,
     onboardingCreateSchool, joinSchoolWithInviteCode, checkAdminOnboardingStatus, updateSchoolDetails, regenerateInviteCode, updateAdminOnboardingStep, onboardingAddSubjects, onboardingCreateClasses, onboardingInviteUsers, onboardingCompleteSchoolSetup, createSchool,
-    adminCreateUserInSchool, updateUserRoleAndSchool, approveUserForSchool,
+    adminCreateUserInSchool, updateUserRoleAndSchool, approveUserForSchool, getLinkedParentForStudent,
     createClassInSchool, getClassesBySchool, getClassDetails, updateClassDetails, enrollStudentInClass, removeStudentFromClass, getStudentsInClass, getStudentsNotInClass, deleteClass, regenerateClassInviteCode, joinClassWithCode,
     getClassesByTeacher, getStudentsInMultipleClasses,
     addLearningMaterial, getLearningMaterialsByTeacher, getLearningMaterialsBySchool, getLearningMaterialsByClass, deleteLearningMaterial, updateLearningMaterial,
@@ -1525,3 +1525,4 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
+

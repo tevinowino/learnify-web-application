@@ -30,6 +30,8 @@ export default function ExamPeriodDetailPage() {
     getExamResultsByPeriodAndClass,
     updateExamPeriod,
     addActivity,
+    addNotification, // Added
+    getLinkedParentForStudent, // Added
     loading: authLoading 
   } = useAuth();
 
@@ -104,15 +106,15 @@ export default function ExamPeriodDetailPage() {
   };
 
   const handleConfirmFinalize = async () => {
-    if (!examPeriod || examPeriod.status === 'completed') return;
+    if (!examPeriod || examPeriod.status === 'completed' || !currentUser || !currentUser.schoolId) return;
     setIsFinalizing(true);
     setIsFinalizeDialogOpen(false);
     const success = await updateExamPeriod(examPeriod.id, { status: 'completed' });
     if (success) {
       toast({ title: "Exam Period Finalized!", description: `"${examPeriod.name}" has been marked as completed.` });
       setExamPeriod(prev => prev ? { ...prev, status: 'completed' } : null);
-      if(currentUser?.schoolId && currentUser.displayName && examPeriod.name) {
-        addActivity({
+      if(currentUser.displayName && examPeriod.name) {
+        await addActivity({
           schoolId: currentUser.schoolId,
           actorId: currentUser.uid,
           actorName: currentUser.displayName,
@@ -120,6 +122,33 @@ export default function ExamPeriodDetailPage() {
           message: `${currentUser.displayName} finalized exam period "${examPeriod.name}".`,
           link: `/admin/exams/${examPeriod.id}`
         });
+
+        // Send notifications to students and parents
+        for (const classId of examPeriod.assignedClassIds) {
+          const studentsInClass = await getStudentsInClass(classId);
+          for (const student of studentsInClass) {
+            await addNotification({
+              userId: student.id,
+              schoolId: currentUser.schoolId,
+              message: `Results for exam period "${examPeriod.name}" are now available.`,
+              type: 'exam_period_finalized',
+              link: `/student/results`,
+              actorName: 'School Administration'
+            });
+
+            const parent = await getLinkedParentForStudent(student.id);
+            if (parent && parent.schoolId === currentUser.schoolId) {
+              await addNotification({
+                userId: parent.id,
+                schoolId: currentUser.schoolId,
+                message: `Results for ${student.displayName} for exam period "${examPeriod.name}" are now available.`,
+                type: 'exam_period_finalized',
+                link: `/parent/results`,
+                actorName: 'School Administration'
+              });
+            }
+          }
+        }
       }
     } else {
       toast({ title: "Error", description: "Failed to finalize exam period.", variant: "destructive" });

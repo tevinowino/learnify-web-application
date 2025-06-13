@@ -4,6 +4,7 @@ import { createUserWithEmailAndPassword, updateProfile as updateFirebaseProfile,
 import { db } from '@/lib/firebase';
 import type { UserProfile, UserProfileWithId, UserRole, UserStatus } from '@/types';
 import { getClassDetailsService } from './classService'; 
+import { getSchoolDetailsService } from './schoolService'; // Added
 
 export const createUserProfileInFirestore = async (
   firebaseUser: FirebaseUserType,
@@ -278,25 +279,18 @@ export const onboardingInviteUsersService = async (
   try {
     const batch = writeBatch(db);
     for (const user of usersToInvite) {
-      // Check if a user with this email already exists in Firestore to prevent re-creating a profile for an existing Firebase Auth user
       const usersRef = collection(db, "users");
       const q = query(usersRef, where("email", "==", user.email));
       const existingUserSnap = await getDocs(q);
 
       if (!existingUserSnap.empty) {
-          // User profile already exists, perhaps update their status or school if applicable
-          // For now, we'll assume if they exist, we don't re-create or significantly alter them here.
-          // This logic might need refinement based on how you want to handle existing users being "invited".
           console.warn(`User profile for ${user.email} already exists. Skipping profile creation.`);
           continue; 
       }
 
-
       const newUserRef = doc(collection(db, "users")); 
       const userProfileData: any = {
-        uid: newUserRef.id, // This will be a new ID, which is problematic if an Auth account exists for this email.
-                           // The ideal flow would be to check Firebase Auth first.
-                           // For simplicity in this onboarding step, we're focusing on Firestore profiles.
+        uid: newUserRef.id, 
         email: user.email,
         displayName: user.displayName,
         role: user.role,
@@ -317,5 +311,27 @@ export const onboardingInviteUsersService = async (
   } catch (error) {
     console.error("Error inviting users during onboarding in service:", error);
     return false;
+  }
+};
+
+export const getLinkedParentForStudentService = async (studentId: string): Promise<UserProfileWithId | null> => {
+  if (!studentId) return null;
+  try {
+    const usersRef = collection(db, "users");
+    const q = query(
+      usersRef,
+      where("childStudentId", "==", studentId),
+      where("role", "==", "parent"),
+      where("status", "==", "active") // Ensure parent account is active
+    );
+    const querySnapshot = await getDocs(q);
+    if (!querySnapshot.empty) {
+      const parentDoc = querySnapshot.docs[0]; // Assuming one parent per student for simplicity
+      return { id: parentDoc.id, ...parentDoc.data() } as UserProfileWithId;
+    }
+    return null;
+  } catch (error) {
+    console.error("Error fetching linked parent for student:", error);
+    return null;
   }
 };
