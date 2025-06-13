@@ -1,7 +1,7 @@
 
 "use client";
 
-import React from "react";
+import React, { Suspense } from "react"; // Added Suspense
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -38,6 +38,7 @@ import {
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import type { UserRole, UserStatus } from "@/types";
+import Loader from '@/components/shared/Loader'; // Import new Loader
 
 const loginSchema = z.object({
   email: z.string().email({ message: "Invalid email address." }),
@@ -77,13 +78,14 @@ type AuthFormProps = {
   mode: "login" | "signup";
 };
 
-export default function AuthForm({ mode }: AuthFormProps) {
+// Extracted the core form logic to a new component
+function AuthFormContent({ mode }: AuthFormProps) {
   const router = useRouter();
-  const searchParams = useSearchParams();
+  const searchParams = useSearchParams(); // This hook causes the issue if not in Suspense
   const { signUp, logIn, loading: authLoading, getSchoolDetails } = useAuth();
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = React.useState(false);
-  const [showPassword, setShowPassword] = React.useState(false); // State for password visibility
+  const [showPassword, setShowPassword] = React.useState(false);
 
   const isSignup = mode === "signup";
   const formSchema = isSignup ? signupSchema : loginSchema;
@@ -194,7 +196,6 @@ export default function AuthForm({ mode }: AuthFormProps) {
   }
   
   const selectedRole = form.watch("role" as keyof (SignupFormValues | LoginFormValues)) as UserRole | undefined;
-
 
   return (
     <Card className="w-full max-w-md shadow-xl">
@@ -374,3 +375,12 @@ export default function AuthForm({ mode }: AuthFormProps) {
   );
 }
 
+
+export default function AuthForm(props: AuthFormProps) {
+  // Wrap the component that uses useSearchParams with Suspense
+  return (
+    <Suspense fallback={<div className="flex justify-center items-center h-64 pt-10"><Loader message="Loading form details..." /></div>}>
+      <AuthFormContent {...props} />
+    </Suspense>
+  );
+}
