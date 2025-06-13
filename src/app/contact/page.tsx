@@ -2,7 +2,7 @@
 'use client';
 
 import React, { useEffect, useRef } from 'react';
-import { useFormState, useFormStatus } from 'react-dom'; // Changed import for useFormState
+import { useFormState, useFormStatus } from 'react-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -11,6 +11,22 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Mail, MessageSquare, Send, Phone, MapPin, Loader2 } from 'lucide-react';
 import { submitContactForm, type ContactFormState } from './actions';
 import { useToast } from '@/hooks/use-toast';
+import type { Metadata } from 'next'; // Cannot define metadata directly in client component
+import { siteConfig } from '@/config/site';
+
+// Metadata needs to be exported from server components or page.tsx if it's a server component
+// For client components, you typically set metadata in the nearest server component parent (e.g., layout.tsx or a server page.tsx)
+// Or, if this page itself was a Server Component, we could do:
+/*
+export const metadata: Metadata = {
+  title: `Contact ${siteConfig.name} | Support and Inquiries`,
+  description: `Get in touch with the ${siteConfig.name} team. Ask questions about our AI education platform, request a demo, or get support. We're here to help!`,
+  keywords: ["contact Learnify", "Learnify support", "education platform inquiry", "AI school software demo", "edtech contact"],
+  alternates: {
+    canonical: '/contact',
+  },
+};
+*/
 
 function SubmitButton() {
   const { pending } = useFormStatus();
@@ -25,7 +41,6 @@ function SubmitButton() {
 export default function ContactPage() {
   const { toast } = useToast();
   const initialState: ContactFormState = { message: '', success: false };
-  // Reverted to useFormState from react-dom
   const [state, formAction] = useFormState(submitContactForm, initialState);
   const formRef = React.useRef<HTMLFormElement>(null);
 
@@ -36,7 +51,7 @@ export default function ContactPage() {
           title: 'Success!',
           description: state.message,
         });
-        formRef.current?.reset(); // Reset form on success
+        formRef.current?.reset(); 
       } else {
         toast({
           title: 'Error',
@@ -46,6 +61,11 @@ export default function ContactPage() {
       }
     }
   }, [state, toast]);
+
+  // Dynamic title setting for client components (if needed, though layout.tsx handles general title)
+  useEffect(() => {
+    document.title = `Contact ${siteConfig.name} | Support and Inquiries`;
+  }, []);
 
   return (
     <div className="container mx-auto py-12 px-4 md:px-6">
@@ -122,4 +142,3 @@ export default function ContactPage() {
     </div>
   );
 }
-

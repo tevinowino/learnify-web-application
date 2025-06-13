@@ -2,6 +2,44 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Users, Zap, Target, Heart, Code, UserCircle } from 'lucide-react';
 import Image from 'next/image';
+import type { Metadata } from 'next';
+import { siteConfig } from '@/config/site';
+
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://learnify-app.example.com';
+
+export const metadata: Metadata = {
+  title: `About ${siteConfig.name} | Our Mission and Vision for AI in Education`,
+  description: `Learn about ${siteConfig.name}'s mission to revolutionize education through AI. Discover our vision for personalized learning, our values, and the team behind our innovative platform.`,
+  keywords: [
+    "About Learnify",
+    "AI education mission",
+    "EdTech vision",
+    "Learnify team",
+    "personalized learning goals",
+    "future of education AI"
+  ],
+  alternates: {
+    canonical: '/about',
+  },
+  openGraph: {
+    title: `About ${siteConfig.name} | AI-Driven Educational Innovation`,
+    description: "Explore Learnify's commitment to transforming education with AI, our core values, and our vision for a personalized learning future.",
+    url: `${APP_URL}/about`,
+    images: [
+      {
+        url: `${APP_URL}/og-about.png`, 
+        width: 1200,
+        height: 630,
+        alt: `About ${siteConfig.name} - Our Mission and Vision`,
+      },
+    ],
+  },
+  twitter: {
+    title: `The Story Behind ${siteConfig.name} | AI in Education`,
+    description: `Discover the mission, vision, and values that drive ${siteConfig.name}, the AI-powered platform reshaping education.`,
+    images: [`${APP_URL}/twitter-about.png`], 
+  },
+};
 
 export default function AboutPage() {
   return (
@@ -41,8 +79,8 @@ export default function AboutPage() {
             <div className="flex flex-col md:flex-row items-center gap-8">
               <div className="md:w-1/3 flex justify-center">
                 <Image
-                  src="https://picsum.photos/seed/tevin/300/300"
-                  alt="Tevin Owino"
+                  src="https://placehold.co/300x300.png"
+                  alt="Tevin Owino - Founding Software Engineer at Learnify"
                   width={200}
                   height={200}
                   className="rounded-full shadow-lg"

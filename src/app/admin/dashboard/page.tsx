@@ -8,7 +8,16 @@ import { useAuth } from '@/hooks/useAuth';
 import { useAdminDashboard } from '@/hooks/useAdminDashboard'; 
 import React from "react";
 import { formatDistanceToNow } from "date-fns";
-import Loader from "@/components/shared/Loader"; // Import new Loader
+import Loader from "@/components/shared/Loader"; 
+import type { Metadata } from 'next'; // Cannot use directly in client component
+
+// If this page were a Server Component, metadata would be:
+/*
+export const metadata: Metadata = {
+  title: "Admin Dashboard",
+  description: "Overview and management tools for school administrators on Learnify.",
+};
+*/
 
 export default function AdminDashboardPage() {
   const { currentUser } = useAuth(); 
@@ -20,6 +29,10 @@ export default function AdminDashboardPage() {
     recentActivities, 
     isLoading 
   } = useAdminDashboard();
+
+  React.useEffect(() => {
+    document.title = "Admin Dashboard | Learnify";
+  }, []);
   
   return (
     <div className="space-y-6">
@@ -139,4 +152,3 @@ export default function AdminDashboardPage() {
     </div>
   );
 }
-
