@@ -73,6 +73,11 @@
 
     const shouldShowMainNav = !pathname.startsWith('/admin') && !pathname.startsWith('/teacher') && !pathname.startsWith('/student') && !pathname.startsWith('/parent');
 
+    // Hide navbar completely if user is in their dashboard
+    if (pathname === '/admin/dashboard' || pathname === '/teacher/dashboard' || pathname === '/student/dashboard' || pathname === '/parent/dashboard') {
+      return null;
+    }
+
     const mobileNavLinksToDisplay = [];
     // Add About and Contact Us to mobile menu only if not in restricted paths
     if (shouldShowMainNav) {
@@ -103,155 +108,156 @@
     }
 
     return (
-      <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-        <div className="container flex h-16 items-center justify-between px-4 md:px-6">
-          <Logo onClick={() => setIsMobileMenuOpen(false)} /> 
-        
-          <nav className="hidden md:flex items-center space-x-1">
-            {/* Show main navigation links on desktop only if not in restricted paths */}
-            {shouldShowMainNav && mainNavLinks.map(item => (
-              <Button variant="ghost" asChild key={item.href}>
-                <Link href={item.href}>{item.label}</Link>
-              </Button>
-            ))}
+      <header className="fixed top-4 left-1/2 -translate-x-1/2 z-50 w-[95%] max-w-7xl">
+        <div className="container mx-auto backdrop-blur-lg bg-background/60 border rounded-2xl shadow-lg px-6 py-4">
+          <div className="flex h-14 items-center justify-between">
+            <Logo onClick={() => setIsMobileMenuOpen(false)} /> 
           
-            {currentUser?.role === 'student' && (
-             <Button variant="ghost" asChild>
-                <Link href="/student/akili">
-                  <Sparkles className="mr-2 h-4 w-4 text-primary" /> Akili Chat
-                </Link>
-              </Button>
-            )}
-            {currentUser?.role === 'teacher' && (
-             <Button variant="ghost" asChild>
-                <Link href="/teacher/mwalimu">
-                  <Brain className="mr-2 h-4 w-4 text-primary" /> Mwalimu AI
-                </Link>
-              </Button>
-            )}
+            <nav className="hidden md:flex items-center space-x-2">
+              {shouldShowMainNav && mainNavLinks.map(item => (
+                <Button variant="ghost" className="rounded-lg hover:bg-accent/20" asChild key={item.href}>
+                  <Link href={item.href}>{item.label}</Link>
+                </Button>
+              ))}
+            
+              {currentUser?.role === 'student' && (
+               <Button variant="ghost" className="rounded-lg hover:bg-primary/10" asChild>
+                  <Link href="/student/akili">
+                    <Sparkles className="mr-2 h-4 w-4 text-primary" /> Akili Chat
+                  </Link>
+                </Button>
+              )}
+              {currentUser?.role === 'teacher' && (
+               <Button variant="ghost" className="rounded-lg hover:bg-primary/10" asChild>
+                  <Link href="/teacher/mwalimu">
+                    <Brain className="mr-2 h-4 w-4 text-primary" /> Mwalimu AI
+                  </Link>
+                </Button>
+              )}
 
-            {!loading && !currentUser && shouldShowMainNav && (
-              <>
-                <Button variant="ghost" asChild>
-                  <Link href="/auth/login">
-                    <LogInIcon className="mr-2 h-4 w-4" /> Login
-                  </Link>
-                </Button>
-                <Button asChild className="button-shadow bg-accent hover:bg-accent/90 text-accent-foreground">
-                  <Link href="/auth/signup">
-                    <UserPlus className="mr-2 h-4 w-4" /> Sign Up
-                  </Link>
-                </Button>
-              </>
-            )}
-            {!loading && currentUser && (
-              <>
-                <NotificationBell /> 
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" className="relative h-9 w-9 rounded-full">
-                      <Avatar className="h-9 w-9">
-                        <AvatarImage src={currentUser.photoURL || undefined} alt={currentUser.displayName || "User"} />
-                        <AvatarFallback>{currentUser.displayName ? currentUser.displayName.charAt(0).toUpperCase() : <UserCircle/>}</AvatarFallback>
-                      </Avatar>
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent className="w-56" align="end" forceMount>
-                    <DropdownMenuLabel className="font-normal">
-                      <div className="flex flex-col space-y-1">
-                        <p className="text-sm font-medium leading-none">{currentUser.displayName || "User"}</p>
-                        <p className="text-xs leading-none text-muted-foreground">
-                          {currentUser.email}
-                        </p>
-                      </div>
-                    </DropdownMenuLabel>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem asChild>
-                      <Link href={getDashboardPath()}>
-                        <LayoutDashboard className="mr-2 h-4 w-4" /> Dashboard
-                      </Link>
-                    </DropdownMenuItem>
-                    <DropdownMenuItem asChild>
-                      <Link href={getProfilePath()}>
-                        <UserCog className="mr-2 h-4 w-4" /> My Profile 
-                      </Link>
-                    </DropdownMenuItem>
-                    {currentUser.role === 'admin' && (
-                      <DropdownMenuItem asChild>
-                        <Link href="/admin/settings">
-                          <Settings className="mr-2 h-4 w-4" /> School Settings
+              {!loading && !currentUser && shouldShowMainNav && (
+                <>
+                  <Button variant="ghost" className="rounded-lg hover:bg-accent/20" asChild>
+                    <Link href="/auth/login">
+                      <LogInIcon className="mr-2 h-4 w-4" /> Login
+                    </Link>
+                  </Button>
+                  <Button asChild className="rounded-lg bg-primary hover:bg-primary/90 text-primary-foreground shadow-md hover:shadow-lg transition-all">
+                    <Link href="/auth/signup">
+                      <UserPlus className="mr-2 h-4 w-4" /> Sign Up
+                    </Link>
+                  </Button>
+                </>
+              )}
+              {!loading && currentUser && (
+                <>
+                  <NotificationBell /> 
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" className="relative h-9 w-9 rounded-full hover:bg-accent/20">
+                        <Avatar className="h-9 w-9">
+                          <AvatarImage src={currentUser.photoURL || undefined} alt={currentUser.displayName || "User"} />
+                          <AvatarFallback>{currentUser.displayName ? currentUser.displayName.charAt(0).toUpperCase() : <UserCircle/>}</AvatarFallback>
+                        </Avatar>
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent className="w-56 rounded-xl shadow-lg" align="end" forceMount>
+                      <DropdownMenuLabel className="font-normal">
+                        <div className="flex flex-col space-y-1">
+                          <p className="text-sm font-medium leading-none">{currentUser.displayName || "User"}</p>
+                          <p className="text-xs leading-none text-muted-foreground">
+                            {currentUser.email}
+                          </p>
+                        </div>
+                      </DropdownMenuLabel>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem asChild className="rounded-lg focus:bg-accent/20">
+                        <Link href={getDashboardPath()}>
+                          <LayoutDashboard className="mr-2 h-4 w-4" /> Dashboard
                         </Link>
                       </DropdownMenuItem>
-                    )}
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem onClick={logOut}>
-                      <LogOut className="mr-2 h-4 w-4" />
-                      Log out
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </>
-            )}
-           {loading && <div className="h-8 w-24 animate-pulse rounded-md bg-muted"></div>}
-           <ThemeToggle />
-          </nav>
-
-          <div className="md:hidden flex items-center gap-2">
-            {currentUser && <NotificationBell />}
-            <ThemeToggle />
-            <Sheet open={isMobileMenuOpen} onOpenChange={setIsMobileMenuOpen}>
-              <SheetTrigger asChild>
-                <Button variant="ghost" size="icon">
-                  <Menu className="h-6 w-6" />
-                  <span className="sr-only">Toggle menu</span>
-                </Button>
-              </SheetTrigger>
-              <SheetContent side="right" className="w-[280px] sm:w-[320px] p-0">
-              <SheetHeader className="p-4 border-b">
-                <SheetTitle>
-                 <Logo onClick={() => setIsMobileMenuOpen(false)} /> 
-                </SheetTitle>
-                </SheetHeader>
-                <nav className="flex flex-col space-y-1 p-2">
-                  {mobileNavLinksToDisplay.map((item) => (
-                      <Button variant={pathname === item.href ? "secondary" : "ghost"} className="w-full justify-start text-left text-base py-3 h-auto" asChild key={item.href} onClick={() => setIsMobileMenuOpen(false)}>
-                        <Link href={item.href} className="flex items-center">
-                          {item.icon}
-                          <span>{item.label}</span>
+                      <DropdownMenuItem asChild className="rounded-lg focus:bg-accent/20">
+                        <Link href={getProfilePath()}>
+                          <UserCog className="mr-2 h-4 w-4" /> My Profile 
                         </Link>
-                      </Button>
-                    )
-                 )}
-                  {currentUser && (
-                    <>
-                      <div className="pt-4 mt-4 border-t">
-                       <div className="px-3 pb-2">
-                            <p className="text-sm font-medium leading-none">{currentUser.displayName || "User"}</p>
-                            <p className="text-xs leading-none text-muted-foreground">
-                              {currentUser.email}
-                            </p>
-                          </div>
-                         <Button variant="ghost" className="w-full justify-start text-left text-base py-3 h-auto" asChild onClick={() => setIsMobileMenuOpen(false)}>
-                              <Link href={getProfilePath()} className="flex items-center">
-                                  <UserCog className="mr-2 h-4 w-4" /> My Profile
-                              </Link>
-                          </Button>
-                          {currentUser.role === 'admin' && (
-                           <Button variant="ghost" className="w-full justify-start text-left text-base py-3 h-auto" asChild onClick={() => setIsMobileMenuOpen(false)}>
-                              <Link href="/admin/settings" className="flex items-center">
-                                  <Settings className="mr-2 h-4 w-4" /> School Settings
-                              </Link>
-                           </Button>
-                          )}
-                          <Button variant="ghost" className="w-full justify-start text-left text-base py-3 h-auto text-destructive hover:text-destructive hover:bg-destructive/10" onClick={() => { logOut(); setIsMobileMenuOpen(false);}}>
-                            <LogOut className="mr-2 h-4 w-4" /> Log Out
-                          </Button>
-                      </div>
-                    </>
-                  )}
-                </nav>
-              </SheetContent>
-            </Sheet>
+                      </DropdownMenuItem>
+                      {currentUser.role === 'admin' && (
+                        <DropdownMenuItem asChild className="rounded-lg focus:bg-accent/20">
+                          <Link href="/admin/settings">
+                            <Settings className="mr-2 h-4 w-4" /> School Settings
+                          </Link>
+                        </DropdownMenuItem>
+                      )}
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem onClick={logOut} className="rounded-lg text-red-500 focus:text-red-500 focus:bg-red-50">
+                        <LogOut className="mr-2 h-4 w-4" />
+                        Log out
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </>
+              )}
+             {loading && <div className="h-8 w-24 animate-pulse rounded-md bg-muted"></div>}
+             <ThemeToggle />
+            </nav>
+
+            <div className="md:hidden flex items-center gap-2">
+              {currentUser && <NotificationBell />}
+              <ThemeToggle />
+              <Sheet open={isMobileMenuOpen} onOpenChange={setIsMobileMenuOpen}>
+                <SheetTrigger asChild>
+                  <Button variant="ghost" size="icon" className="rounded-lg hover:bg-accent/20">
+                    <Menu className="h-6 w-6" />
+                    <span className="sr-only">Toggle menu</span>
+                  </Button>
+                </SheetTrigger>
+                <SheetContent side="right" className="w-[280px] sm:w-[320px] p-0 rounded-l-2xl">
+                <SheetHeader className="p-4 border-b">
+                  <SheetTitle>
+                   <Logo onClick={() => setIsMobileMenuOpen(false)} /> 
+                  </SheetTitle>
+                  </SheetHeader>
+                  <nav className="flex flex-col space-y-1 p-2">
+                    {mobileNavLinksToDisplay.map((item) => (
+                        <Button variant={pathname === item.href ? "secondary" : "ghost"} className="w-full justify-start text-left text-base py-3 h-auto rounded-lg" asChild key={item.href} onClick={() => setIsMobileMenuOpen(false)}>
+                          <Link href={item.href} className="flex items-center">
+                            {item.icon}
+                            <span>{item.label}</span>
+                          </Link>
+                        </Button>
+                      )
+                   )}
+                    {currentUser && (
+                      <>
+                        <div className="pt-4 mt-4 border-t">
+                         <div className="px-3 pb-2">
+                              <p className="text-sm font-medium leading-none">{currentUser.displayName || "User"}</p>
+                              <p className="text-xs leading-none text-muted-foreground">
+                                {currentUser.email}
+                              </p>
+                            </div>
+                           <Button variant="ghost" className="w-full justify-start text-left text-base py-3 h-auto rounded-lg" asChild onClick={() => setIsMobileMenuOpen(false)}>
+                                <Link href={getProfilePath()} className="flex items-center">
+                                    <UserCog className="mr-2 h-4 w-4" /> My Profile
+                                </Link>
+                            </Button>
+                            {currentUser.role === 'admin' && (
+                             <Button variant="ghost" className="w-full justify-start text-left text-base py-3 h-auto rounded-lg" asChild onClick={() => setIsMobileMenuOpen(false)}>
+                                <Link href="/admin/settings" className="flex items-center">
+                                    <Settings className="mr-2 h-4 w-4" /> School Settings
+                                </Link>
+                             </Button>
+                            )}
+                            <Button variant="ghost" className="w-full justify-start text-left text-base py-3 h-auto rounded-lg text-red-500 hover:text-red-500 hover:bg-red-50" onClick={() => { logOut(); setIsMobileMenuOpen(false);}}>
+                              <LogOut className="mr-2 h-4 w-4" /> Log Out
+                            </Button>
+                        </div>
+                      </>
+                    )}
+                  </nav>
+                </SheetContent>
+              </Sheet>
+            </div>
           </div>
         </div>
       </header>

@@ -8,7 +8,7 @@
 
   export default function HeroSection() {
     return (
-      <section className="relative w-full min-h-screen py-16 overflow-hidden bg-gradient-to-br from-primary/20 via-background to-secondary/20 backdrop-blur-sm flex items-center">
+      <section className="relative w-full min-h-screen pb-16 overflow-hidden bg-gradient-to-br from-primary/20 via-background to-secondary/20 backdrop-blur-sm flex items-center pt-28">
         <div className="absolute inset-0 w-full h-full bg-grid-pattern opacity-5"></div>
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_120%,rgba(120,119,198,0.3),rgba(255,255,255,0))]"></div>
         <div className="absolute -top-40 -right-40 w-80 h-80 bg-primary/30 rounded-full blur-[100px]"></div>
