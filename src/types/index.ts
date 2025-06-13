@@ -16,7 +16,7 @@ export interface UserProfile extends FirebaseUser {
   studentAssignments?: Record<string, { status: 'submitted' | 'graded' | 'missing' | 'late'; grade?: string | number }>;
   childStudentId?: string; // For parent role to link to a student
   onboardingStep?: number | null; // 0 to 5, null when completed
-  lastTestimonialSurveyAt?: Timestamp; 
+  lastTestimonialSurveyAt?: Timestamp;
 }
 
 export interface UserProfileWithId extends UserProfile {
