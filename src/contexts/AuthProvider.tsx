@@ -120,6 +120,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
       await updateFirebaseProfile(firebaseUser, { displayName });
       
+      // Directly call the service function which now initializes isAdminAlso
       const profileFromDb = await UserService.createUserProfileInFirestore(
         firebaseUser,
         role,
@@ -128,7 +129,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         finalSchoolName, 
         finalStatus,
         childStudentId,
-        finalOnboardingStep 
+        finalOnboardingStep
       );
       
       const completeUserProfile: UserProfile = {
@@ -511,6 +512,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     try {
        const schoolDoc = await SchoolService.getSchoolDetailsService(schoolId);
        if (!schoolDoc) throw new Error("School not found");
+       // Directly call the service function which now initializes isAdminAlso
        const newUser = await UserService.adminCreateUserService(auth, email, pass, displayName, role, schoolId, schoolDoc.name);
        if (newUser && currentUser?.schoolId && currentUser.displayName && schoolDoc.name && newUser.email) {
             await addActivity({
@@ -570,7 +572,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     catch (error) { return false; }
   }, [currentUser, addActivity, addNotification]);
 
-  const updateUserRoleAndSchool = useCallback(async (userId: string, data: { role?: UserRole; schoolId?: string, schoolName?: string, classIds?: string[], status?: UserStatus, subjects?: string[], onboardingStep?: number | null }): Promise<boolean> => {
+  const updateUserRoleAndSchool = useCallback(async (userId: string, data: { role?: UserRole; schoolId?: string, schoolName?: string, classIds?: string[], status?: UserStatus, subjects?: string[], onboardingStep?: number | null, isAdminAlso?: boolean }): Promise<boolean> => {
      if (!currentUser || currentUser.role !== 'admin') return false;
     try {
         const success = await UserService.updateUserRoleAndSchoolService(userId, data);
@@ -585,6 +587,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
                     emailSubject = `Account Request for ${targetUser.schoolName} Rejected`;
                 } else if (data.role) {
                     activityMessage = `${currentUser.displayName} updated ${targetUser.displayName}'s role to ${data.role}.`;
+                } else if (data.isAdminAlso !== undefined) {
+                    activityMessage = `${currentUser.displayName} ${data.isAdminAlso ? 'granted' : 'revoked'} admin privileges for teacher ${targetUser.displayName}.`;
                 }
                 await addActivity({
                     schoolId: currentUser.schoolId,
@@ -1525,4 +1529,3 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
-

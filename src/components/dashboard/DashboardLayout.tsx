@@ -6,7 +6,7 @@ import type { UserRole } from '@/types';
 import { useAuth } from '@/hooks/useAuth';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
-import { Home, Users, Settings, LogOut as LogOutIcon, Library, FileText, UserCircle2, BookCopy, UserCog, Edit3, ListChecks, FolderOpen, BarChart2, PanelLeft, BookText as BookTextIcon, Shield, HeartHandshake, Users2, FilePieChart, Activity, Sparkles, Brain, MessageSquare } from 'lucide-react'; 
+import { Home, Users, Settings, LogOut as LogOutIcon, Library, FileText, UserCircle2, BookCopy, UserCog, Edit3, ListChecks, FolderOpen, BarChart2, PanelLeft, BookText as BookTextIcon, Shield, HeartHandshake, Users2, FilePieChart, Activity, Sparkles, Brain, Bell, ShieldCheck } from 'lucide-react'; 
 import Logo from '@/components/shared/Logo'; 
 import {
   SidebarProvider,
@@ -24,8 +24,8 @@ import { usePathname } from 'next/navigation';
 import { ScrollArea } from '../ui/scroll-area';
 import { ThemeToggle } from '../ui/theme-toggle'; 
 import NotificationBell from '../shared/NotificationBell';
-import TestimonialPromptDialog from '../shared/TestimonialPromptDialog'; // Added import
-import { Timestamp } from 'firebase/firestore'; // Added import
+import TestimonialPromptDialog from '../shared/TestimonialPromptDialog'; 
+import { Timestamp } from 'firebase/firestore'; 
 
 
 interface DashboardLayoutProps {
@@ -90,11 +90,10 @@ export default function DashboardLayout({ children, userRole }: DashboardLayoutP
         tenDaysAgo.setDate(tenDaysAgo.getDate() - 10);
 
         if (!lastSurveyDate || lastSurveyDate < tenDaysAgo) {
-            // Only open if not on specific auth or onboarding pages
             if (!pathname.startsWith('/auth/') && !pathname.endsWith('/onboarding')) {
                 const timer = setTimeout(() => {
                     setIsTestimonialPromptOpen(true);
-                }, 5000); // Show after 5 seconds
+                }, 5000); 
                 return () => clearTimeout(timer);
             }
         }
@@ -126,6 +125,20 @@ export default function DashboardLayout({ children, userRole }: DashboardLayoutP
                     </SidebarMenuButton>
                   </SidebarMenuItem>
                 ))}
+                 {currentUser?.role === 'teacher' && currentUser?.isAdminAlso === true && (
+                  <SidebarMenuItem>
+                    <SidebarMenuButton
+                      asChild
+                      tooltip="Switch to Admin Dashboard"
+                      className="mt-4 bg-accent/20 hover:bg-accent/30 text-accent-foreground"
+                    >
+                      <Link href="/admin/dashboard">
+                        <ShieldCheck className="mr-3 text-accent" />
+                        <span>Admin View</span>
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                )}
               </SidebarMenu>
             </SidebarContent>
           </ScrollArea>
@@ -186,4 +199,3 @@ export default function DashboardLayout({ children, userRole }: DashboardLayoutP
     </SidebarProvider>
   );
 }
-

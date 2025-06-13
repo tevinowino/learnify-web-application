@@ -21,6 +21,7 @@ export const createUserProfileInFirestore = async (
     email: firebaseUser.email,
     displayName: displayName,
     role: role,
+    isAdminAlso: false, // Initialize isAdminAlso flag
     createdAt: Timestamp.now(),
     updatedAt: Timestamp.now(), // Added updatedAt
     classIds: [],
@@ -64,6 +65,7 @@ export const getUserProfileService = async (userId: string): Promise<UserProfile
       return {
         id: userDocSnap.id,
         ...data,
+        isAdminAlso: data.isAdminAlso || false, // Ensure isAdminAlso defaults to false if not present
         status: data.status || (data.role === 'admin' ? 'active' : 'pending_verification'),
         subjects: data.subjects || [],
         classIds: data.classIds || [],
@@ -106,7 +108,7 @@ export const getUsersBySchoolService = async (schoolId: string): Promise<UserPro
     const usersRef = collection(db, "users");
     const q = query(usersRef, where("schoolId", "==", schoolId));
     const querySnapshot = await getDocs(q);
-    const users = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data(), status: doc.data().status || 'active' } as UserProfileWithId));
+    const users = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data(), isAdminAlso: doc.data().isAdminAlso || false, status: doc.data().status || 'active' } as UserProfileWithId));
     return users.sort((a, b) => (a.displayName || "").localeCompare(b.displayName || ""));
   } catch (error) {
     console.error("Error fetching users by school in service:", error);
@@ -120,7 +122,7 @@ export const getUsersBySchoolAndRoleService = async (schoolId: string, role: Use
     const usersRef = collection(db, "users");
     const q = query(usersRef, where("schoolId", "==", schoolId), where("role", "==", role));
     const querySnapshot = await getDocs(q);
-    const users = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data(), status: doc.data().status || 'active' } as UserProfileWithId));
+    const users = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data(), isAdminAlso: doc.data().isAdminAlso || false, status: doc.data().status || 'active' } as UserProfileWithId));
     return users.sort((a, b) => (a.displayName || "").localeCompare(b.displayName || ""));
   } catch (error) {
     console.error("Error fetching users by school and role in service:", error);
@@ -143,6 +145,7 @@ export const adminCreateUserService = async (
         email: firebaseUser.email,
         displayName: displayName,
         role: role,
+        isAdminAlso: false, // Initialize isAdminAlso flag
         schoolId: schoolId,
         schoolName: schoolName || 'Unknown School',
         createdAt: Timestamp.now(),
@@ -164,7 +167,7 @@ export const adminCreateUserService = async (
   }
 };
 
-export const updateUserRoleAndSchoolService = async (userId: string, data: { role?: UserRole; schoolId?: string, schoolName?: string, classIds?: string[], status?: UserStatus, subjects?: string[], onboardingStep?: number | null }): Promise<boolean> => {
+export const updateUserRoleAndSchoolService = async (userId: string, data: { role?: UserRole; schoolId?: string, schoolName?: string, classIds?: string[], status?: UserStatus, subjects?: string[], onboardingStep?: number | null, isAdminAlso?: boolean }): Promise<boolean> => {
   try {
     const userRef = doc(db, "users", userId);
     const updateData: any = { ...data, updatedAt: Timestamp.now() };
@@ -185,6 +188,11 @@ export const updateUserRoleAndSchoolService = async (userId: string, data: { rol
         updateData.onboardingStep = null;
     }
 
+    if (data.isAdminAlso === undefined) { // Don't remove it if not provided
+        delete updateData.isAdminAlso;
+    }
+
+
     // Ensure schoolName is updated if schoolId is updated and schoolName is provided
     if(data.schoolId && data.schoolName){
       updateData.schoolName = data.schoolName;
@@ -200,7 +208,7 @@ export const updateUserRoleAndSchoolService = async (userId: string, data: { rol
     await updateDoc(userRef, updateData);
     return true;
   } catch (error) {
-    console.error("Error updating user role/school/status/subjects/onboardingStep in service:", error);
+    console.error("Error updating user role/school/status/subjects/onboardingStep/isAdminAlso in service:", error);
     return false;
   }
 };
@@ -294,6 +302,7 @@ export const onboardingInviteUsersService = async (
         email: user.email,
         displayName: user.displayName,
         role: user.role,
+        isAdminAlso: false, // Initialize for invited users
         schoolId: schoolId,
         schoolName: schoolName,
         status: 'pending_verification' as UserStatus, 
@@ -327,7 +336,7 @@ export const getLinkedParentForStudentService = async (studentId: string): Promi
     const querySnapshot = await getDocs(q);
     if (!querySnapshot.empty) {
       const parentDoc = querySnapshot.docs[0]; // Assuming one parent per student for simplicity
-      return { id: parentDoc.id, ...parentDoc.data() } as UserProfileWithId;
+      return { id: parentDoc.id, ...parentDoc.data(), isAdminAlso: parentDoc.data().isAdminAlso || false } as UserProfileWithId;
     }
     return null;
   } catch (error) {

@@ -29,11 +29,15 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, allowedRoles 
   useEffect(() => {
     if (loading) return; 
 
-    // if (!currentUser) {
-    //   const loginPath = `/auth/login?redirectTo=${encodeURIComponent(pathname)}`;
-    //   router.replace(loginPath);
-    //   return;
-    // }
+    if (!currentUser) {
+       // Allow access to auth pages even if not logged in
+      if (!pathname.startsWith('/auth/') && pathname !== '/' && !pathname.startsWith('/about') && !pathname.startsWith('/contact') && !pathname.startsWith('/privacy') && !pathname.startsWith('/terms')) {
+          const loginPath = `/auth/login?redirectTo=${encodeURIComponent(pathname)}`;
+          router.replace(loginPath);
+      }
+      return;
+    }
+
 
     if (currentUser.status === 'pending_verification') {
       if (pathname !== '/auth/pending-verification') {
@@ -52,20 +56,16 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, allowedRoles 
         
         if (expectedPath) {
           if (pathname !== expectedPath) {
-            // If admin has an active onboarding step but is not on the correct page for that step, redirect them.
             router.replace(expectedPath);
             return; 
           }
-          // If they are on the correct onboarding step page, allow rendering.
           return; 
         } else {
-          // Should not happen if onboardingStep is a valid 0-4. Fallback: redirect to first step.
           router.replace(onboardingStepPaths[0]);
           return;
         }
-      } else { // Onboarding is complete (onboardingStep is null or undefined)
+      } else { 
         if (isOnboardingPath) {
-          // If onboarding is complete, but they are trying to access an onboarding URL, redirect to dashboard.
           router.replace('/admin/dashboard');
           return;
         }
@@ -74,18 +74,24 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, allowedRoles 
 
     // Student Onboarding Flow Logic
     if (currentUser.role === 'student' && (!currentUser.classIds || currentUser.classIds.length === 0) && currentUser.status === 'active') {
-      if (pathname !== '/student/onboarding' && pathname !== '/student/profile') { // Allow access to profile during student onboarding too
+      if (pathname !== '/student/onboarding' && pathname !== '/student/profile') { 
         router.replace('/student/onboarding');
         return;
       }
-       // If on student onboarding or profile, allow rendering
       if (pathname === '/student/onboarding' || pathname === '/student/profile') {
         return;
       }
     }
     
-    // General Role-based access for main app sections (after onboarding checks)
-    if (!allowedRoles.includes(currentUser.role)) {
+    // General Role-based access for main app sections
+    let canAccess = false;
+    if (allowedRoles.includes('admin') && (currentUser.role === 'admin' || (currentUser.role === 'teacher' && currentUser.isAdminAlso === true))) {
+        canAccess = true;
+    } else if (allowedRoles.includes(currentUser.role!)) { // Added ! to assert role is not null here
+        canAccess = true;
+    }
+
+    if (!canAccess) {
       let defaultDashboard = '/';
       if (currentUser.role === 'admin') defaultDashboard = '/admin/dashboard';
       else if (currentUser.role === 'teacher') defaultDashboard = '/teacher/dashboard';
@@ -98,7 +104,7 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, allowedRoles 
   }, [currentUser, loading, router, allowedRoles, pathname]);
 
 
-  if (loading || (!currentUser && !pathname.startsWith('/auth/'))) {
+  if (loading || (!currentUser && !pathname.startsWith('/auth/') && pathname !== '/' && !pathname.startsWith('/about') && !pathname.startsWith('/contact') && !pathname.startsWith('/privacy') && !pathname.startsWith('/terms'))) {
     return (
       <div className="flex h-screen w-full flex-col items-center justify-center bg-background">
        <Loader message="Authenticating..." size="large" />
@@ -106,7 +112,7 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, allowedRoles 
     );
   }
   
-  if (!currentUser && (pathname.startsWith('/auth/login') || pathname.startsWith('/auth/signup'))) {
+  if (!currentUser && (pathname.startsWith('/auth/') || pathname === '/' || pathname.startsWith('/about') || pathname.startsWith('/contact') || pathname.startsWith('/privacy') || pathname.startsWith('/terms'))) {
     return <>{children}</>; 
   }
   
@@ -123,10 +129,9 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, allowedRoles 
   // Admin Onboarding UI specific checks (already handled by useEffect redirects if needed)
   if (currentUser.role === 'admin' && currentUser.onboardingStep !== null && currentUser.onboardingStep !== undefined) {
      const expectedPath = onboardingStepPaths[currentUser.onboardingStep];
-     if (pathname === expectedPath) { // Only render if on the correct onboarding page
+     if (pathname === expectedPath) { 
        return <>{children}</>;
      }
-     // If not on the expected path, the useEffect will redirect, show loader in meantime.
      return (
         <div className="flex h-screen w-full flex-col items-center justify-center bg-background">
             <Loader message="Navigating to onboarding step..." size="large" />
@@ -139,7 +144,6 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, allowedRoles 
      if (pathname === '/student/onboarding' || pathname === '/student/profile') {
          return <>{children}</>;
      }
-     // If not on student onboarding page, useEffect will redirect.
      return (
         <div className="flex h-screen w-full flex-col items-center justify-center bg-background">
             <Loader message="Redirecting to student onboarding..." size="large" />
@@ -147,9 +151,14 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, allowedRoles 
      );
   }
   
-  // Check if the user's role is allowed for the current route (after onboarding checks)
-  if (!allowedRoles.includes(currentUser.role)) {
-     // The useEffect should have already redirected. This is a fallback loading state.
+  let canAccessCurrentPage = false;
+  if (allowedRoles.includes('admin') && (currentUser.role === 'admin' || (currentUser.role === 'teacher' && currentUser.isAdminAlso === true))) {
+      canAccessCurrentPage = true;
+  } else if (currentUser.role && allowedRoles.includes(currentUser.role)) {
+      canAccessCurrentPage = true;
+  }
+
+  if (!canAccessCurrentPage) {
      return (
       <div className="flex h-screen w-full flex-col items-center justify-center bg-background">
         <Loader message="Verifying access..." size="large" />

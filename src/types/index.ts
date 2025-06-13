@@ -8,6 +8,7 @@ export type UserStatus = 'pending_verification' | 'active' | 'rejected' | 'disab
 
 export interface UserProfile extends FirebaseUser {
   role: UserRole;
+  isAdminAlso?: boolean; // Added for teachers with admin access
   schoolId?: string;
   schoolName?: string;
   status?: UserStatus;
@@ -306,4 +307,3 @@ export interface OnboardingInvitedUserData {
   displayName: string;
   role: 'teacher' | 'student';
 }
-
