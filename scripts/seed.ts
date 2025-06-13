@@ -47,33 +47,32 @@ let serviceAccountJson: ServiceAccount | undefined = undefined;
 const LEARNIFY_PROJECT_ID = "learnify-project-e7f59"; // Define project ID here
 
 if (process.env.FIREBASE_SERVICE_ACCOUNT_JSON_STRING) {
+  console.log('Attempting to parse FIREBASE_SERVICE_ACCOUNT_JSON_STRING...');
   try {
     serviceAccountJson = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_JSON_STRING);
+    console.log('Successfully parsed FIREBASE_SERVICE_ACCOUNT_JSON_STRING.');
   } catch (e) {
     console.error('Failed to parse FIREBASE_SERVICE_ACCOUNT_JSON_STRING:', e);
+    console.warn('Falling back to GOOGLE_APPLICATION_CREDENTIALS or Application Default Credentials.');
   }
 } else {
-  console.warn(
+  console.log(
     'FIREBASE_SERVICE_ACCOUNT_JSON_STRING environment variable not found. ' +
-    'Attempting to use GOOGLE_APPLICATION_CREDENTIALS if set, or default service account for some GCP environments.'
+    'Will attempt to use GOOGLE_APPLICATION_CREDENTIALS or default service account for some GCP environments.'
   );
 }
 
 if (serviceAccountJson) {
-  console.log('Initializing Firebase Admin SDK with provided service account JSON.');
+  console.log('Initializing Firebase Admin SDK with provided service account JSON string.');
   initializeApp({ 
     credential: cert(serviceAccountJson),
-    projectId: LEARNIFY_PROJECT_ID, // Explicitly set project ID
+    projectId: LEARNIFY_PROJECT_ID,
   });
 } else {
-  // If GOOGLE_APPLICATION_CREDENTIALS is set, it will be used automatically.
-  // If running in a GCP environment (like Cloud Functions, App Engine),
-  // Application Default Credentials (ADC) might pick up the project ID automatically.
-  // However, for local seeding, GOOGLE_APPLICATION_CREDENTIALS is the most reliable way
-  // if FIREBASE_SERVICE_ACCOUNT_JSON_STRING is not used.
-  // Adding projectId explicitly here for robustness.
+  console.log('Initializing Firebase Admin SDK using GOOGLE_APPLICATION_CREDENTIALS or Application Default Credentials.');
+  console.log('Ensure GOOGLE_APPLICATION_CREDENTIALS environment variable is set correctly if running locally and not using FIREBASE_SERVICE_ACCOUNT_JSON_STRING.');
   initializeApp({
-    projectId: LEARNIFY_PROJECT_ID, // Explicitly set project ID
+    projectId: LEARNIFY_PROJECT_ID,
   }); 
 }
 
@@ -604,5 +603,3 @@ async function runAllSeeders() {
 }
 
 runAllSeeders();
-
-

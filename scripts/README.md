@@ -12,11 +12,16 @@ This script is used to populate your Firestore database with mock data for testi
     *   Navigate to the "Service accounts" tab.
     *   Click on "Generate new private key" and download the JSON file.
     *   **Important:** Keep this file secure and do **NOT** commit it to your Git repository.
-    *   You need to make these credentials available to the script. The recommended way is to set the `GOOGLE_APPLICATION_CREDENTIALS` environment variable to the absolute path of this downloaded JSON key file.
-        ```bash
-        export GOOGLE_APPLICATION_CREDENTIALS="/path/to/your/serviceAccountKey.json"
-        ```
-        Alternatively, if you are running in an environment where you can securely store a JSON string (e.g., Vercel environment variables), you can set `FIREBASE_SERVICE_ACCOUNT_JSON_STRING` to the stringified content of the service account JSON file. The script will attempt to parse this.
+    *   You need to make these credentials available to the script. There are two main ways:
+        *   **Recommended for Local Development: `GOOGLE_APPLICATION_CREDENTIALS` Environment Variable**
+            *   Set the `GOOGLE_APPLICATION_CREDENTIALS` environment variable to the absolute path of the downloaded JSON key file.
+                *   On macOS/Linux: `export GOOGLE_APPLICATION_CREDENTIALS="/path/to/your/serviceAccountKey.json"`
+                *   On Windows (PowerShell): `$env:GOOGLE_APPLICATION_CREDENTIALS="/path/to/your/serviceAccountKey.json"`
+                *   (Replace `/path/to/your/serviceAccountKey.json` with the actual path to your file).
+            *   This is the most common method for local development with Firebase Admin SDK.
+        *   **Alternative: `FIREBASE_SERVICE_ACCOUNT_JSON_STRING` Environment Variable**
+            *   If you are running in an environment where you can securely store a JSON string (e.g., Vercel environment variables, GitHub Actions secrets), you can set `FIREBASE_SERVICE_ACCOUNT_JSON_STRING` to the stringified content of the service account JSON file. The script will attempt to parse this.
+            *   To get the stringified content: `cat /path/to/your/serviceAccountKey.json | jq -c .` (requires `jq`) or copy-paste the content of the JSON file, ensuring it's a valid single-line JSON string.
 
 ## Setup
 
@@ -36,7 +41,7 @@ This script is used to populate your Firestore database with mock data for testi
 
 ## Running the Seeder
 
-1.  **Set Up Credentials:** Make sure your Firebase Admin SDK credentials are set up as described in the "Prerequisites" section (preferably using `GOOGLE_APPLICATION_CREDENTIALS`).
+1.  **Set Up Credentials:** Make sure your Firebase Admin SDK credentials are set up as described in the "Prerequisites" section. **For local development, setting `GOOGLE_APPLICATION_CREDENTIALS` is usually the simplest and most reliable method if `FIREBASE_SERVICE_ACCOUNT_JSON_STRING` is not being used.**
 
 2.  **Execute the Script:**
     From the root of your project, run:
@@ -51,6 +56,17 @@ This script is used to populate your Firestore database with mock data for testi
     ```
 
 3.  **Monitor Output:** The script will log its progress to the console, indicating which collections are being seeded and when it's complete. Check for any error messages.
+
+## Troubleshooting
+
+*   **"Could not load the default credentials" Error:**
+    *   This means the script cannot find authentication credentials for your Firebase project.
+    *   Ensure your `GOOGLE_APPLICATION_CREDENTIALS` environment variable is correctly set to the **absolute path** of your downloaded service account JSON key file.
+    *   Verify the JSON file itself is valid and has not been corrupted.
+    *   If using `FIREBASE_SERVICE_ACCOUNT_JSON_STRING`, ensure it's a valid, single-line JSON string.
+    *   Ensure the service account has the necessary Firestore and Authentication permissions in your Firebase project (usually "Firebase Admin SDK Administrator Service Agent" or at least "Editor" or specific Firestore/Auth admin roles).
+*   **"Unable to detect a Project Id" Error:**
+    *   This usually means the `projectId` could not be inferred from the credentials. The script now explicitly sets the Project ID during initialization, which should mitigate this. However, if it persists, double-check that your service account JSON file contains a `project_id` field or that the Project ID specified in `scripts/seed.ts` (`LEARNIFY_PROJECT_ID`) matches your Firebase project.
 
 ## Important Notes
 
