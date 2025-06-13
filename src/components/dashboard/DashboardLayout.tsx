@@ -6,7 +6,7 @@ import type { UserRole } from '@/types';
 import { useAuth } from '@/hooks/useAuth';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
-import { Home, Users, Settings, LogOut as LogOutIcon, Library, FileText, UserCircle2, BookCopy, UserCog, Edit3, ListChecks, FolderOpen, BarChart2, PanelLeft, BookText as BookTextIcon, Shield, HeartHandshake, Users2, FilePieChart, Activity, Sparkles, Brain, Bell, ShieldCheck } from 'lucide-react'; 
+import { Home, Users, Settings, LogOut as LogOutIcon, Library, FileText, UserCircle2, BookCopy, UserCog, Edit3, ListChecks, FolderOpen, BarChart2, PanelLeft, BookText as BookTextIcon, Shield, HeartHandshake, Users2, FilePieChart, Activity, Sparkles, Brain, Bell, ShieldCheck, MessageSquare } from 'lucide-react'; 
 import Logo from '@/components/shared/Logo'; 
 import {
   SidebarProvider,
