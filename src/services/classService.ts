@@ -72,7 +72,7 @@ export const onboardingCreateClassesService = async (schoolId: string, classesDa
 
 export const getClassesBySchoolService = async (
   schoolId: string,
-  getUserProfile: typeof GetUserProfileServiceType
+  getUserProfile: GetUserProfileServiceType
 ): Promise<ClassWithTeacherInfo[]> => {
   if (!schoolId) return [];
   try {
@@ -109,7 +109,7 @@ export const getClassesBySchoolService = async (
 
 export const getClassesByIdsService = async (
   classIds: string[],
-  getUserProfile: typeof GetUserProfileServiceType,
+  getUserProfile: GetUserProfileServiceType,
   getAssignmentsForClass: (classId: string) => Promise<any[]> 
 ): Promise<ClassWithTeacherInfo[]> => {
   if (!classIds || classIds.length === 0) return [];
@@ -153,7 +153,7 @@ export const getClassesByIdsService = async (
 
 export const getClassDetailsService = async (
   classId: string,
-  getUserProfile: typeof GetUserProfileServiceType
+  getUserProfile: GetUserProfileServiceType
 ): Promise<ClassWithTeacherInfo | null> => {
   try {
     const classRef = doc(db, "classes", classId);
@@ -162,8 +162,14 @@ export const getClassDetailsService = async (
       const classData = classSnap.data() as Class;
       let teacherDisplayName = 'N/A';
       if (classData.teacherId) {
-        const teacherProfile = await getUserProfile(classData.teacherId);
-        teacherDisplayName = teacherProfile?.displayName || 'N/A';
+        if (typeof getUserProfile !== 'function') {
+          console.error('CRITICAL: getUserProfile is not a function in getClassDetailsService for classId:', classId, 'teacherId:', classData.teacherId, 'Actual type:', typeof getUserProfile);
+          // Potentially throw an error or return with 'N/A' but log heavily.
+          // For now, we'll proceed as if it might be an issue with the caller, but this is a safeguard.
+        } else {
+            const teacherProfile = await getUserProfile(classData.teacherId);
+            teacherDisplayName = teacherProfile?.displayName || 'N/A';
+        }
       }
       let subjectName = undefined;
       if (classData.classType === 'subject_based' && classData.subjectId) {
@@ -264,7 +270,7 @@ export const removeStudentFromClassService = async (classId: string, studentId: 
 
 export const getStudentsInClassService = async (
     classId: string,
-    getUserProfile: typeof GetUserProfileServiceType
+    getUserProfile: GetUserProfileServiceType
   ): Promise<UserProfileWithId[]> => {
   const classDetails = await getClassDetailsService(classId, getUserProfile); 
   if (!classDetails || !classDetails.studentIds || classDetails.studentIds.length === 0) {
@@ -296,11 +302,11 @@ export const getStudentsNotInClassService = async (
   schoolId: string,
   classId: string,
   getUsersBySchoolAndRole: (schoolId: string, role: UserProfile['role']) => Promise<UserProfileWithId[]>,
-  getStudentsInClass: (classId: string) => Promise<UserProfileWithId[]>,
-  getUserProfile: typeof GetUserProfileServiceType 
+  getStudentsInClass: (classId: string, getUserProfile: GetUserProfileServiceType) => Promise<UserProfileWithId[]>,
+  getUserProfile: GetUserProfileServiceType
 ): Promise<UserProfileWithId[]> => {
   const allSchoolStudents = await getUsersBySchoolAndRole(schoolId, 'student');
-  const studentsInCurrentClass = await getStudentsInClass(classId); 
+  const studentsInCurrentClass = await getStudentsInClass(classId, getUserProfile); 
   const studentIdsInClass = new Set(studentsInCurrentClass.map(s => s.id));
   return allSchoolStudents.filter(student => !studentIdsInClass.has(student.id) && student.status === 'active');
 };
@@ -451,3 +457,5 @@ export const joinClassWithCodeService = async (classCode: string, studentId: str
       return false;
     }
   };
+
+    
