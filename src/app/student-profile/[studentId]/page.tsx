@@ -15,7 +15,7 @@ import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { StudentProfileHeader } from '@/components/student-profile/StudentProfileHeader';
 import { StudentSubjectsCard } from '@/components/student-profile/StudentSubjectsCard';
-import { StudentAssignmentsSummaryCard } from '@/components/student-profile/StudentAssignmentSummaryCard';
+import { StudentAssignmentSummaryCard } from '@/components/student-profile/StudentAssignmentSummaryCard';
 import { StudentExamResultsSummaryCard } from '@/components/student-profile/StudentExamResultsSummaryCard';
 import { StudentActivityItem } from '@/components/student-profile/StudentActivityItem';
 import Loader from '@/components/shared/Loader';
@@ -238,7 +238,7 @@ export default function StudentProfilePage() {
       </div>
       
       <div className="grid md:grid-cols-2 gap-6">
-        <StudentAssignmentsSummaryCard assignments={assignments} />
+        <StudentAssignmentSummaryCard assignments={assignments} />
         <StudentExamResultsSummaryCard results={examResults} />
       </div>
       

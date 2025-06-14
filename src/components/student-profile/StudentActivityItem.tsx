@@ -30,4 +30,3 @@ export const StudentActivityItem: React.FC<StudentActivityItemProps> = ({ activi
     </li>
   );
 };
-```

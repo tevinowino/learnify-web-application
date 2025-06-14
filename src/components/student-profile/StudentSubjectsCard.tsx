@@ -52,4 +52,3 @@ export const StudentSubjectsCard: React.FC<StudentSubjectsCardProps> = ({ subjec
     </Card>
   );
 };
-```
