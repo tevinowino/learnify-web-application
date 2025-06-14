@@ -199,3 +199,4 @@ export default function DashboardLayout({ children, userRole }: DashboardLayoutP
     </SidebarProvider>
   );
 }
+
