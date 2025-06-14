@@ -37,3 +37,4 @@ export const StudentProfileHeader: React.FC<StudentProfileHeaderProps> = ({ stud
     </Card>
   );
 };
+```

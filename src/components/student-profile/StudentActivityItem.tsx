@@ -1,3 +1,4 @@
+
 import React from 'react';
 import type { Activity } from '@/types';
 import { formatDistanceToNow } from 'date-fns';
@@ -29,3 +30,4 @@ export const StudentActivityItem: React.FC<StudentActivityItemProps> = ({ activi
     </li>
   );
 };
+```

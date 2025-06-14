@@ -38,3 +38,4 @@ export const StudentExamResultsSummaryCard: React.FC<StudentExamResultsSummaryCa
     </Card>
   );
 };
+```

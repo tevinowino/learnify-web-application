@@ -2,7 +2,7 @@
 "use client";
 import type { ReactNode }from 'react';
 import { createContext } from 'react';
-import type { UserProfile, UserRole, School, LearningMaterial, UserProfileWithId, Class, ClassWithTeacherInfo, LearningMaterialWithTeacherInfo, Assignment, Submission, SubmissionFormat, LearningMaterialType, AssignmentWithClassInfo, SubmissionWithStudentName, AssignmentWithClassAndSubmissionInfo, UserStatus, Activity, Subject, ExamPeriod, ExamPeriodWithClassNames, ExamResult, ExamResultWithStudentInfo, ClassType, Notification, AttendanceRecord, AttendanceStatus, Testimonial, OnboardingSchoolData, OnboardingSubjectData, OnboardingClassData, OnboardingInvitedUserData } from '@/types';
+import type { UserProfile, UserRole, School, LearningMaterial, UserProfileWithId, Class, ClassWithTeacherInfo, LearningMaterialWithTeacherInfo, Assignment, Submission, SubmissionFormat, LearningMaterialType, AssignmentWithClassInfo, SubmissionWithStudentName, AssignmentWithClassAndSubmissionInfo, UserStatus, Activity, Subject, ExamPeriod, ExamPeriodWithClassNames, ExamResult, ExamResultWithStudentInfo, ClassType, Notification, AttendanceRecord, AttendanceStatus, Testimonial, OnboardingSchoolData, OnboardingSubjectData, OnboardingClassData, OnboardingInvitedUserData, AnalyzeStudentPerformanceInput, AnalyzeStudentPerformanceOutput } from '@/types';
 import type { getClassDetailsService as GetClassDetailsServiceType } from '@/services/classService';
 
 // This will be the full type provided by the AuthProvider
@@ -34,10 +34,10 @@ export interface AuthContextType {
   getUsersBySchool: (schoolId: string) => Promise<UserProfileWithId[]>;
   getUsersBySchoolAndRole: (schoolId: string, role: UserRole) => Promise<UserProfileWithId[]>;
   adminCreateUserInSchool: (email: string, pass: string, displayName: string, role: UserRole, schoolId: string) => Promise<UserProfileWithId | null>;
-  updateUserRoleAndSchool: (userId: string, data: { role?: UserRole; schoolId?: string, classIds?: string[], status?: UserStatus, subjects?: string[] }) => Promise<boolean>;
+  updateUserRoleAndSchool: (userId: string, data: { role?: UserRole; schoolId?: string, classIds?: string[], status?: UserStatus, subjects?: string[], isAdminAlso?: boolean }) => Promise<boolean>;
   getUserProfile: (userId: string) => Promise<UserProfileWithId | null>;
   approveUserForSchool: (userId: string, schoolId: string) => Promise<boolean>;
-  getLinkedParentForStudent: (studentId: string) => Promise<UserProfileWithId | null>; // Added
+  getLinkedParentForStudent: (studentId: string) => Promise<UserProfileWithId | null>; 
 
   // Admin & Teacher Class Management
   createClassInSchool: (
@@ -148,7 +148,9 @@ export interface AuthContextType {
   getApprovedTestimonials: (limitCount?: number) => Promise<Testimonial[]>;
   getAllTestimonialsForAdmin: () => Promise<Testimonial[]>;
   updateTestimonialApproval: (testimonialId: string, isApproved: boolean) => Promise<boolean>;
+
+  // AI Flows
+  analyzeStudentPerformance: (input: AnalyzeStudentPerformanceInput) => Promise<AnalyzeStudentPerformanceOutput>;
 }
 
 export const AuthContext = createContext<AuthContextType | undefined>(undefined);
-

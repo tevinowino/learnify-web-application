@@ -17,7 +17,7 @@ export interface UserProfile extends FirebaseUser {
   studentAssignments?: Record<string, { status: 'submitted' | 'graded' | 'missing' | 'late'; grade?: string | number }>;
   childStudentId?: string; // For parent role to link to a student
   onboardingStep?: number | null; // 0 to 5, null when completed
-  lastTestimonialSurveyAt?: Timestamp;
+  lastTestimonialSurveyAt?: Timestamp | null; // Updated to allow null
 }
 
 export interface UserProfileWithId extends UserProfile {
@@ -299,7 +299,6 @@ export interface OnboardingClassData {
   type: ClassType;
   subjectId?: string;
   compulsorySubjectIds?: string[];
-  // classTeacherId removed
 }
 
 export interface OnboardingInvitedUserData {
@@ -307,3 +306,21 @@ export interface OnboardingInvitedUserData {
   displayName: string;
   role: 'teacher' | 'student';
 }
+
+// For AI Student Performance Analysis
+export interface AnalyzeStudentPerformanceInput {
+  studentName: string;
+  examResultsSummary: string; // e.g., "Math: 85% (Mid-Term), Science: 72% (Mid-Term)"
+  assignmentSummary: string; // e.g., "Average assignment score: 80%. Completes 90% on time. Struggles with essay questions."
+  attendanceSummary?: string; // e.g., "95% attendance. 2 lates in the past month."
+  // Potentially add list of subjects or specific areas of concern from teacher/parent
+}
+
+export interface AnalyzeStudentPerformanceOutput {
+  strengths: string; // Paragraph describing student's strengths
+  weaknesses: string; // Paragraph describing areas for improvement
+  recommendations: string; // Actionable recommendations
+  overallSummary: string; // A concise overall summary
+}
+
+```
