@@ -4,7 +4,7 @@ import { createUserWithEmailAndPassword, updateProfile as updateFirebaseProfile,
 import { db } from '@/lib/firebase';
 import type { UserProfile, UserProfileWithId, UserRole, UserStatus } from '@/types';
 import { getClassDetailsService } from './classService'; 
-import { getSchoolDetailsService } from './schoolService'; // Added
+import { getSchoolDetailsService } from './schoolService';
 
 export const createUserProfileInFirestore = async (
   firebaseUser: FirebaseUserType,
@@ -21,9 +21,9 @@ export const createUserProfileInFirestore = async (
     email: firebaseUser.email,
     displayName: displayName,
     role: role,
-    isAdminAlso: false, // Initialize isAdminAlso flag
+    isAdminAlso: false, 
     createdAt: Timestamp.now(),
-    updatedAt: Timestamp.now(), // Added updatedAt
+    updatedAt: Timestamp.now(), 
     classIds: [],
     subjects: [],
     studentAssignments: {},
@@ -37,11 +37,9 @@ export const createUserProfileInFirestore = async (
   if (userProfileData.lastTestimonialSurveyAt === undefined) userProfileData.lastTestimonialSurveyAt = null;
 
 
-  // If admin is new and creating a school (onboardingStep 0), schoolId/Name are not set yet on the user profile explicitly by this function call.
-  // They will be set later when the school is actually created.
   if (role === 'admin' && userProfileData.onboardingStep === 0) {
-    delete userProfileData.schoolId; // Omit if undefined
-    delete userProfileData.schoolName; // Omit if undefined
+    delete userProfileData.schoolId; 
+    delete userProfileData.schoolName; 
   }
   if (childStudentId === undefined) delete userProfileData.childStudentId;
 
@@ -65,7 +63,7 @@ export const getUserProfileService = async (userId: string): Promise<UserProfile
       return {
         id: userDocSnap.id,
         ...data,
-        isAdminAlso: data.isAdminAlso || false, // Ensure isAdminAlso defaults to false if not present
+        isAdminAlso: data.isAdminAlso || false, 
         status: data.status || (data.role === 'admin' ? 'active' : 'pending_verification'),
         subjects: data.subjects || [],
         classIds: data.classIds || [],
@@ -79,6 +77,23 @@ export const getUserProfileService = async (userId: string): Promise<UserProfile
     return null;
   }
 };
+
+export const getAllUsersService = async (firestoreDb: typeof db): Promise<UserProfileWithId[]> => {
+  try {
+    const usersRef = collection(firestoreDb, "users");
+    const querySnapshot = await getDocs(usersRef);
+    return querySnapshot.docs.map(docSnap => ({ 
+      id: docSnap.id, 
+      ...docSnap.data(),
+      isAdminAlso: docSnap.data().isAdminAlso || false,
+      status: docSnap.data().status || 'active',
+    } as UserProfileWithId));
+  } catch (error) {
+    console.error("Error fetching all users in service:", error);
+    return [];
+  }
+};
+
 
 export const updateUserDisplayNameService = async (userId: string, displayName: string): Promise<boolean> => {
   try {
@@ -145,7 +160,7 @@ export const adminCreateUserService = async (
         email: firebaseUser.email,
         displayName: displayName,
         role: role,
-        isAdminAlso: false, // Initialize isAdminAlso flag
+        isAdminAlso: false, 
         schoolId: schoolId,
         schoolName: schoolName || 'Unknown School',
         createdAt: Timestamp.now(),
@@ -188,16 +203,14 @@ export const updateUserRoleAndSchoolService = async (userId: string, data: { rol
         updateData.onboardingStep = null;
     }
 
-    if (data.isAdminAlso === undefined) { // Don't remove it if not provided
+    if (data.isAdminAlso === undefined) { 
         delete updateData.isAdminAlso;
     }
 
 
-    // Ensure schoolName is updated if schoolId is updated and schoolName is provided
     if(data.schoolId && data.schoolName){
       updateData.schoolName = data.schoolName;
     } else if (data.schoolId && !data.schoolName) {
-      // If schoolId is updated but schoolName is not, attempt to fetch it
       const schoolDetails = await getDoc(doc(db, "schools", data.schoolId));
       if(schoolDetails.exists()){
         updateData.schoolName = schoolDetails.data().name;
@@ -302,7 +315,7 @@ export const onboardingInviteUsersService = async (
         email: user.email,
         displayName: user.displayName,
         role: user.role,
-        isAdminAlso: false, // Initialize for invited users
+        isAdminAlso: false, 
         schoolId: schoolId,
         schoolName: schoolName,
         status: 'pending_verification' as UserStatus, 
@@ -331,11 +344,11 @@ export const getLinkedParentForStudentService = async (studentId: string): Promi
       usersRef,
       where("childStudentId", "==", studentId),
       where("role", "==", "parent"),
-      where("status", "==", "active") // Ensure parent account is active
+      where("status", "==", "active") 
     );
     const querySnapshot = await getDocs(q);
     if (!querySnapshot.empty) {
-      const parentDoc = querySnapshot.docs[0]; // Assuming one parent per student for simplicity
+      const parentDoc = querySnapshot.docs[0]; 
       return { id: parentDoc.id, ...parentDoc.data(), isAdminAlso: parentDoc.data().isAdminAlso || false } as UserProfileWithId;
     }
     return null;

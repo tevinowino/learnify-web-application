@@ -16,20 +16,30 @@ import { seedExamResultsInFirestore } from './seeders/seedExamResults';
 import { seedAttendanceRecordsInFirestore } from './seeders/seedAttendance';
 import { seedTestimonialsInFirestore } from './seeders/seedTestimonials';
 
+// Import necessary service functions if seeders need to fetch existing data when run standalone
+import { getAllSchoolsService } from '../src/services/schoolService'; // Assuming this exists or will be added
+import { getAllUsersService } from '../src/services/userService'; // Assuming this exists or will be added
+import { getAllSubjectsService } from '../src/services/subjectService'; // Assuming this exists or will be added
+import { getAllClassesService } from '../src/services/classService'; // Assuming this exists or will be added
+import { getAllExamPeriodsService } from '../src/services/examService'; // Assuming this exists or will be added
+
+import type { School, UserProfileWithId, Subject, ClassWithTeacherInfo, ExamPeriod } from '../src/types';
+
+
 // --- Configuration ---
 const NUM_SCHOOLS = 1;
 const NUM_ADMINS_PER_SCHOOL = 1;
-const NUM_TEACHERS_PER_SCHOOL = 3; // Reduced for faster seeding
-const NUM_STUDENTS_PER_SCHOOL = 10; // Reduced
-const NUM_PARENTS_PER_SCHOOL = 5;  // Reduced
-const NUM_SUBJECTS_PER_SCHOOL = 5; // Reduced
+const NUM_TEACHERS_PER_SCHOOL = 3;
+const NUM_STUDENTS_PER_SCHOOL = 10;
+const NUM_PARENTS_PER_SCHOOL = 5;
+const NUM_SUBJECTS_PER_SCHOOL = 5;
 const NUM_MAIN_CLASSES_PER_SCHOOL = 2;
-const NUM_MATERIALS_PER_CLASS_SUBJECT = 1; // Reduced
-const NUM_ASSIGNMENTS_PER_CLASS_SUBJECT = 1; // Reduced
-const SUBMISSIONS_PER_ASSIGNMENT_PERCENTAGE = 0.5; // Reduced
-const NUM_EXAM_PERIODS_PER_SCHOOL = 1; // Reduced
-const NUM_ATTENDANCE_DAYS_TO_SEED = 3; // Reduced
-const NUM_TESTIMONIALS_TO_SEED = 2; // Reduced
+const NUM_MATERIALS_PER_CLASS_SUBJECT = 1;
+const NUM_ASSIGNMENTS_PER_CLASS_SUBJECT = 1;
+const SUBMISSIONS_PER_ASSIGNMENT_PERCENTAGE = 0.5;
+const NUM_EXAM_PERIODS_PER_SCHOOL = 1;
+const NUM_ATTENDANCE_DAYS_TO_SEED = 3;
+const NUM_TESTIMONIALS_TO_SEED = 2;
 
 
 // --- Firebase Admin Setup ---
@@ -58,11 +68,11 @@ try {
 
 const db = getFirestore();
 const adminAuth = getAuth();
+const specificSeederToRun = process.argv[2]?.toLowerCase();
 
-async function seedDatabase() {
+async function seedAll() {
+  console.log("🚀 Starting FULL database seed Orchestration...");
   try {
-    console.log("🚀 Starting database seed Orchestration...");
-
     const schools = await seedSchoolsInFirestore(db, NUM_SCHOOLS);
     if (schools.length === 0) {
         console.error("No schools seeded. Aborting further seeding.");
@@ -80,16 +90,15 @@ async function seedDatabase() {
 
     const seededSubjects = await seedSubjectsInFirestore(db, updatedSchools, NUM_SUBJECTS_PER_SCHOOL);
     if (seededSubjects.length === 0 && NUM_SUBJECTS_PER_SCHOOL > 0) {
-        console.warn("No subjects were seeded. Subsequent data related to subjects might be incomplete.");
+        console.warn("No subjects were seeded.");
     }
 
     const seededClasses = await seedClassesInFirestore(db, updatedSchools, seededUsers, seededSubjects, NUM_MAIN_CLASSES_PER_SCHOOL);
     if (seededClasses.length === 0 && NUM_MAIN_CLASSES_PER_SCHOOL > 0) {
-        console.warn("No classes were seeded. Subsequent data related to classes might be incomplete.");
+        console.warn("No classes were seeded.");
     }
     
     const seededExamPeriods = await seedExamPeriodsInFirestore(db, updatedSchools, seededClasses, NUM_EXAM_PERIODS_PER_SCHOOL);
-    // Exam periods can be empty if no classes were available to assign them to.
     
     await seedLearningMaterialsInFirestore(db, seededClasses, seededUsers, seededSubjects, updatedSchools, NUM_MATERIALS_PER_CLASS_SUBJECT);
     
@@ -104,10 +113,105 @@ async function seedDatabase() {
     
     await seedTestimonialsInFirestore(db, updatedSchools, seededUsers, NUM_TESTIMONIALS_TO_SEED);
 
-    console.log("✅ Database seeding orchestration complete!");
+    console.log("✅ Full database seeding orchestration complete!");
   } catch (error) {
-    console.error("❌ Error during database seeding orchestration:", error);
+    console.error("❌ Error during full database seeding orchestration:", error);
   }
 }
 
-seedDatabase();
+async function runSpecificSeeder(seederName: string) {
+    console.log(`🚀 Attempting to run specific seeder: ${seederName}`);
+    // IMPORTANT: Running seeders individually requires dependencies to be met
+    // either by prior standalone runs or existing data.
+    // This version will attempt to fetch minimal prerequisites.
+
+    let schools: School[] = [];
+    let users: UserProfileWithId[] = [];
+    let subjects: Subject[] = [];
+    let classes: ClassWithTeacherInfo[] = [];
+    let examPeriods: ExamPeriod[] = [];
+
+    try {
+        switch (seederName) {
+            case 'schools':
+                await seedSchoolsInFirestore(db, NUM_SCHOOLS);
+                break;
+            case 'users':
+                schools = await getAllSchoolsService(db);
+                if (!schools.length) { console.error("❌ Schools must exist to seed users. Run `pnpm seed:schools` first."); break; }
+                await seedUsersInFirestore(db, adminAuth, schools, NUM_ADMINS_PER_SCHOOL, NUM_TEACHERS_PER_SCHOOL, NUM_STUDENTS_PER_SCHOOL, NUM_PARENTS_PER_SCHOOL);
+                break;
+            case 'subjects':
+                schools = await getAllSchoolsService(db);
+                if (!schools.length) { console.error("❌ Schools must exist to seed subjects. Run `pnpm seed:schools` first."); break; }
+                await seedSubjectsInFirestore(db, schools, NUM_SUBJECTS_PER_SCHOOL);
+                break;
+            case 'classes':
+                schools = await getAllSchoolsService(db);
+                if (!schools.length) { console.error("❌ Schools must exist. Run `pnpm seed:schools` first."); break; }
+                users = await getAllUsersService(db); // Assuming this fetches all users across all schools, or filter by schoolId if needed.
+                if (!users.length) { console.error("❌ Users must exist. Run `pnpm seed:users` first."); break; }
+                subjects = await getAllSubjectsService(db); // Assuming this fetches all subjects
+                if (!subjects.length) { console.error("❌ Subjects must exist. Run `pnpm seed:subjects` first."); break; }
+                await seedClassesInFirestore(db, schools, users, subjects, NUM_MAIN_CLASSES_PER_SCHOOL);
+                break;
+            case 'learningmaterials':
+                schools = await getAllSchoolsService(db);
+                classes = await getAllClassesService(db); 
+                users = await getAllUsersService(db);
+                subjects = await getAllSubjectsService(db);
+                if (!schools.length || !classes.length || !users.length || !subjects.length) { console.error("❌ Prerequisites (schools, classes, users, subjects) missing for learning materials."); break;}
+                await seedLearningMaterialsInFirestore(db, classes, users, subjects, schools, NUM_MATERIALS_PER_CLASS_SUBJECT);
+                break;
+            case 'assignments':
+                schools = await getAllSchoolsService(db);
+                classes = await getAllClassesService(db);
+                users = await getAllUsersService(db);
+                subjects = await getAllSubjectsService(db);
+                if (!schools.length || !classes.length || !users.length || !subjects.length) { console.error("❌ Prerequisites missing for assignments."); break;}
+                await seedAssignmentsAndSubmissionsInFirestore(db, classes, users, subjects, schools, NUM_ASSIGNMENTS_PER_CLASS_SUBJECT, SUBMISSIONS_PER_ASSIGNMENT_PERCENTAGE);
+                break;
+            case 'examperiods':
+                schools = await getAllSchoolsService(db);
+                classes = await getAllClassesService(db);
+                if (!schools.length || !classes.length) { console.error("❌ Prerequisites (schools, classes) missing for exam periods."); break;}
+                await seedExamPeriodsInFirestore(db, schools, classes, NUM_EXAM_PERIODS_PER_SCHOOL);
+                break;
+            case 'examresults':
+                schools = await getAllSchoolsService(db);
+                examPeriods = await getAllExamPeriodsService(db);
+                classes = await getAllClassesService(db);
+                users = await getAllUsersService(db);
+                subjects = await getAllSubjectsService(db);
+                 if (!schools.length || !examPeriods.length || !classes.length || !users.length || !subjects.length) { console.error("❌ Prerequisites missing for exam results."); break;}
+                await seedExamResultsInFirestore(db, examPeriods, classes, users, subjects, schools);
+                break;
+            case 'attendance':
+                schools = await getAllSchoolsService(db);
+                classes = await getAllClassesService(db);
+                users = await getAllUsersService(db);
+                if (!schools.length || !classes.length || !users.length) { console.error("❌ Prerequisites (schools, classes, users) missing for attendance."); break;}
+                await seedAttendanceRecordsInFirestore(db, schools, classes, users, NUM_ATTENDANCE_DAYS_TO_SEED);
+                break;
+            case 'testimonials':
+                schools = await getAllSchoolsService(db);
+                users = await getAllUsersService(db);
+                 if (!schools.length || !users.length ) { console.error("❌ Prerequisites (schools, users) missing for testimonials."); break;}
+                await seedTestimonialsInFirestore(db, schools, users, NUM_TESTIMONIALS_TO_SEED);
+                break;
+            default:
+                console.log(`❌ Unknown seeder: ${seederName}. Available: schools, users, subjects, classes, learningmaterials, assignments, examperiods, examresults, attendance, testimonials, or 'all'.`);
+                return;
+        }
+        console.log(`✅ Specific seeding for "${seederName}" complete!`);
+    } catch (error) {
+        console.error(`❌ Error during specific seeding for "${seederName}":`, error);
+    }
+}
+
+if (specificSeederToRun && specificSeederToRun !== 'all') {
+    runSpecificSeeder(specificSeederToRun);
+} else {
+    seedAll();
+}
+

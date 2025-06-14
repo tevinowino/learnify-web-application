@@ -63,6 +63,18 @@ export const getSubjectsBySchoolService = async (schoolId: string): Promise<Subj
   }
 };
 
+export const getAllSubjectsService = async (firestoreDb: typeof db): Promise<Subject[]> => {
+  try {
+    const subjectsRef = collection(firestoreDb, "subjects");
+    const querySnapshot = await getDocs(subjectsRef);
+    return querySnapshot.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() } as Subject));
+  } catch (error) {
+    console.error("Error fetching all subjects in service:", error);
+    return [];
+  }
+};
+
+
 export const getSubjectByIdService = async (subjectId: string): Promise<Subject | null> => {
   if (!subjectId) return null;
   try {

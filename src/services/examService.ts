@@ -10,7 +10,7 @@ export const createExamPeriodService = async (examPeriodData: Omit<ExamPeriod, '
   try {
     const dataWithTimestamps: Omit<ExamPeriod, 'id'> = {
       ...examPeriodData,
-      status: 'upcoming', // Default status
+      status: 'upcoming', 
       createdAt: Timestamp.now(),
       updatedAt: Timestamp.now(),
     };
@@ -22,6 +22,33 @@ export const createExamPeriodService = async (examPeriodData: Omit<ExamPeriod, '
     return null;
   }
 };
+
+export const getAllExamPeriodsService = async (
+    firestoreDb: typeof db,
+    getClassDetails: GetClassDetailsServiceType
+  ): Promise<ExamPeriodWithClassNames[]> => {
+  try {
+    const examPeriodsRef = collection(firestoreDb, "examPeriods");
+    const querySnapshot = await getDocs(query(examPeriodsRef, orderBy("startDate", "desc")));
+    const periodsPromises = querySnapshot.docs.map(async (docSnapshot) => {
+      const period = { id: docSnapshot.id, ...docSnapshot.data() } as ExamPeriod;
+      const classNames: string[] = [];
+      if (period.assignedClassIds && period.assignedClassIds.length > 0) {
+        const classDocsPromises = period.assignedClassIds.map(classId => getClassDetails(classId, async () => null));
+        const classDocs = await Promise.all(classDocsPromises);
+        classDocs.forEach(classDoc => {
+          if (classDoc) classNames.push(classDoc.name);
+        });
+      }
+      return { ...period, assignedClassNames: classNames };
+    });
+    return Promise.all(periodsPromises);
+  } catch (error) {
+    console.error("Error fetching all exam periods:", error);
+    return [];
+  }
+};
+
 
 export const getExamPeriodsBySchoolService = async (
     schoolId: string,
@@ -64,7 +91,7 @@ export const getExamPeriodByIdService = async (
       const period = { id: docSnap.id, ...docSnap.data() } as ExamPeriod;
       const classNames: string[] = [];
         if (period.assignedClassIds && period.assignedClassIds.length > 0) {
-            const classDocsPromises = period.assignedClassIds.map(classId => getClassDetails(classId, async () => null)); // Pass dummy getUserProfile
+            const classDocsPromises = period.assignedClassIds.map(classId => getClassDetails(classId, async () => null)); 
             const classDocs = await Promise.all(classDocsPromises);
             classDocs.forEach(classDoc => {
                 if (classDoc) classNames.push(classDoc.name);
@@ -181,7 +208,7 @@ export const getExamResultsByStudentService = async (
           subjectName = subject?.name || result.subjectId;
       }
       if (getExamPeriodById && result.examPeriodId) {
-          const examPeriod = await getExamPeriodById(result.examPeriodId, async () => null); // Pass dummy getClassDetails
+          const examPeriod = await getExamPeriodById(result.examPeriodId, async () => null); 
           examPeriodName = examPeriod?.name || result.examPeriodId;
       }
 
@@ -202,7 +229,7 @@ export const getExamResultsByPeriodAndClassService = async (
   examPeriodId: string,
   classId: string,
   schoolId: string,
-  subjectId: string, // Added subjectId as it's specific to the results needed
+  subjectId: string, 
   getSubjectById?: GetSubjectByIdServiceType
 ): Promise<ExamResultWithStudentInfo[]> => {
    try {
@@ -210,7 +237,7 @@ export const getExamResultsByPeriodAndClassService = async (
       where("examPeriodId", "==", examPeriodId),
       where("classId", "==", classId),
       where("schoolId", "==", schoolId),
-      where("subjectId", "==", subjectId) // Query for specific subject
+      where("subjectId", "==", subjectId) 
     );
     const querySnapshot = await getDocs(q);
     const resultsPromises = querySnapshot.docs.map(async (docSnapshot) => {
@@ -220,8 +247,6 @@ export const getExamResultsByPeriodAndClassService = async (
           const subject = await getSubjectById(result.subjectId);
           subjectName = subject?.name || result.subjectId;
        }
-       // Student info is not directly fetched here, as it's often for aggregated views or teacher entry
-       // If student names are needed, getUserProfile should be passed and used similarly to other services.
       return { ...result, subjectName };
     });
     return Promise.all(resultsPromises);

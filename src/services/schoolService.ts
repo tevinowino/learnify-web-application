@@ -52,10 +52,6 @@ export const createSchoolService = async (schoolName: string, adminId: string): 
     
     await setDoc(schoolRef, schoolData);
     
-    // Note: Linking admin to this school should happen in AuthProvider or a higher-level function
-    // to ensure consistency, especially if the user profile might not exist yet.
-    // For this specific function, if it's called outside onboarding, the calling context should handle user updates.
-
     return schoolRef.id;
   } catch (error) {
     console.error("Error creating school in service:", error);
@@ -75,11 +71,8 @@ export const joinSchoolWithInviteCodeService = async (inviteCode: string, userId
     }
 
     const schoolDoc = querySnapshot.docs[0];
-    const schoolId = schoolDoc.id;
+    // const schoolId = schoolDoc.id; // Not strictly needed to return here
     const schoolData = schoolDoc.data() as School;
-
-    // The user document update should ideally happen in AuthProvider after this service call returns.
-    // This service focuses on finding the school.
     
     return schoolData;
   } catch (error) {
@@ -99,6 +92,18 @@ export const getSchoolDetailsService = async (schoolId: string): Promise<School 
     return null;
   }
 };
+
+export const getAllSchoolsService = async (firestoreDb: typeof db): Promise<School[]> => {
+  try {
+    const schoolsRef = collection(firestoreDb, "schools");
+    const querySnapshot = await getDocs(schoolsRef);
+    return querySnapshot.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() } as School));
+  } catch (error) {
+    console.error("Error fetching all schools in service:", error);
+    return [];
+  }
+};
+
 
 export const updateSchoolDetailsService = async (schoolId: string, data: Partial<Pick<School, 'name' | 'isExamModeActive' | 'setupComplete' | 'schoolType' | 'country' | 'phoneNumber'>>): Promise<boolean> => {
   try {
@@ -128,9 +133,6 @@ export const deleteSchoolService = async (schoolId: string): Promise<boolean> =>
   try {
     const schoolRef = doc(db, "schools", schoolId);
     await deleteDoc(schoolRef);
-    // Note: This is a basic delete. A more robust delete might involve
-    // deleting all associated users, classes, subjects, materials, assignments etc.
-    // which would require more complex batch operations or Cloud Functions.
     console.log(`School document ${schoolId} deleted.`);
     return true;
   } catch (error) {

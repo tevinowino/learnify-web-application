@@ -8,7 +8,7 @@ import { getSubjectByIdService } from './subjectService';
 export const createClassService = async (
   className: string, 
   schoolId: string, 
-  teacherId: string, // Can be empty string if not assigned
+  teacherId: string, 
   classType: ClassType,
   compulsorySubjectIds?: string[],
   subjectId?: string | null
@@ -19,7 +19,7 @@ export const createClassService = async (
     const classData: Omit<Class, 'id'> = {
       name: className,
       schoolId: schoolId,
-      teacherId: teacherId || undefined, // Store as undefined if empty
+      teacherId: teacherId || undefined, 
       studentIds: [],
       classInviteCode: classInviteCode,
       classType: classType,
@@ -44,9 +44,10 @@ export const onboardingCreateClassesService = async (schoolId: string, classesDa
     const classesCollectionRef = collection(db, "classes");
 
     for (const classInfo of classesData) {
+      if (!classInfo.name.trim()) continue;
       const classDocRef = doc(classesCollectionRef);
       const classInviteCode = `C-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
-      const newClass: Omit<Class, 'teacherId'> & { teacherId?: string } = { // Make teacherId optional for newClass
+      const newClass: Omit<Class, 'teacherId'> & { teacherId?: string } = { 
         id: classDocRef.id,
         name: classInfo.name,
         schoolId,
@@ -58,7 +59,6 @@ export const onboardingCreateClassesService = async (schoolId: string, classesDa
         createdAt: Timestamp.now(),
         updatedAt: Timestamp.now(),
       };
-      // teacherId is omitted as it's not part of OnboardingClassData anymore
       batch.set(classDocRef, newClass);
     }
     await batch.commit();
@@ -106,6 +106,35 @@ export const getClassesBySchoolService = async (
     return [];
   }
 };
+
+export const getAllClassesService = async (
+    firestoreDb: typeof db, 
+    getUserProfile: GetUserProfileServiceType // Pass getUserProfile if needed for teacher display name
+  ): Promise<ClassWithTeacherInfo[]> => {
+  try {
+    const classesRef = collection(firestoreDb, "classes");
+    const querySnapshot = await getDocs(classesRef);
+    const classesPromises = querySnapshot.docs.map(async (docSnapshot) => {
+      const classData = docSnapshot.data() as Class;
+      let teacherDisplayName = 'N/A';
+      if (classData.teacherId) {
+        const teacherProfile = await getUserProfile(classData.teacherId);
+        teacherDisplayName = teacherProfile?.displayName || 'N/A';
+      }
+      let subjectName = undefined;
+      if (classData.classType === 'subject_based' && classData.subjectId) {
+        const subject = await getSubjectByIdService(classData.subjectId);
+        subjectName = subject?.name;
+      }
+      return { ...classData, id: docSnapshot.id, teacherDisplayName, subjectName };
+    });
+    return Promise.all(classesPromises);
+  } catch (error) {
+    console.error("Error fetching all classes in service:", error);
+    return [];
+  }
+};
+
 
 export const getClassesByIdsService = async (
   classIds: string[],
@@ -164,8 +193,6 @@ export const getClassDetailsService = async (
       if (classData.teacherId) {
         if (typeof getUserProfile !== 'function') {
           console.error('CRITICAL: getUserProfile is not a function in getClassDetailsService for classId:', classId, 'teacherId:', classData.teacherId, 'Actual type:', typeof getUserProfile);
-          // Potentially throw an error or return with 'N/A' but log heavily.
-          // For now, we'll proceed as if it might be an issue with the caller, but this is a safeguard.
         } else {
             const teacherProfile = await getUserProfile(classData.teacherId);
             teacherDisplayName = teacherProfile?.displayName || 'N/A';
@@ -196,7 +223,6 @@ export const updateClassDetailsService = async (classId: string, data: Partial<P
     if (data.classType && data.classType !== 'main') {
         updateData.compulsorySubjectIds = [];
     }
-    // If teacherId is explicitly being set to "no teacher" (represented by undefined or empty string from UI), store as null.
     if (data.teacherId === undefined || data.teacherId === '') {
         updateData.teacherId = null;
     }
@@ -457,5 +483,3 @@ export const joinClassWithCodeService = async (classCode: string, studentId: str
       return false;
     }
   };
-
-    

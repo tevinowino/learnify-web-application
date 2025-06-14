@@ -10,7 +10,18 @@
     "start": "next start",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
-    "seed": "tsx scripts/seed.ts"
+    "seed": "tsx scripts/seed.ts all",
+    "seed:schools": "tsx scripts/seed.ts schools",
+    "seed:users": "tsx scripts/seed.ts users",
+    "seed:subjects": "tsx scripts/seed.ts subjects",
+    "seed:classes": "tsx scripts/seed.ts classes",
+    "seed:materials": "tsx scripts/seed.ts learningmaterials",
+    "seed:assignments": "tsx scripts/seed.ts assignments",
+    "seed:examperiods": "tsx scripts/seed.ts examperiods",
+    "seed:examresults": "tsx scripts/seed.ts examresults",
+    "seed:attendance": "tsx scripts/seed.ts attendance",
+    "seed:testimonials": "tsx scripts/seed.ts testimonials",
+    "clear:users": "tsx scripts/clearAllUsers/seed.ts"
   },
   "dependencies": {
     "@emailjs/browser": "^4.3.3",
