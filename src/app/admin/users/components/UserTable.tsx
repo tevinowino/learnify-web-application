@@ -6,7 +6,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Loader2, Edit, ShieldCheck, Briefcase, GraduationCap, UserCheck, UserX, UserCircle } from 'lucide-react';
+import { Loader2, Edit, ShieldCheck, Briefcase, GraduationCap, UserCheck, UserX, UserCircle, Eye } from 'lucide-react';
 import Link from 'next/link';
 import type { UserProfileWithId, UserStatus } from '@/types';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'; // Import Tooltip components
@@ -132,30 +132,45 @@ export default function UserTable({
                     </Tooltip>
                   </>
                 ) : (
-                  currentUserId !== user.id && user.role !== 'admin' && (user.status === 'active' || user.status === 'disabled') && (
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button variant="outline" size="icon" asChild className="button-shadow">
-                          <Link href={`/admin/users/${user.id}/edit`}>
-                            <Edit className="h-4 w-4"/>
-                            <span className="sr-only">Edit User</span>
-                          </Link>
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent><p>Edit User</p></TooltipContent>
-                    </Tooltip>
-                  )
-                )}
-                {(!isPendingTab && (currentUserId === user.id || user.role === 'admin')) && (user.status === 'active' || user.status === 'disabled') && (
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button variant="outline" size="icon" disabled className="opacity-50">
-                            <Edit className="h-4 w-4"/>
-                             <span className="sr-only">Edit User (Disabled)</span>
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent><p>Cannot edit own admin account or other admins</p></TooltipContent>
-                    </Tooltip>
+                  <>
+                    {user.role === 'student' && (
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button variant="outline" size="icon" asChild className="button-shadow">
+                            <Link href={`/student-profile/${user.id}`}>
+                              <Eye className="h-4 w-4"/>
+                              <span className="sr-only">View Profile</span>
+                            </Link>
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent><p>View Student Profile</p></TooltipContent>
+                      </Tooltip>
+                    )}
+                    {currentUserId !== user.id && user.role !== 'admin' && (user.status === 'active' || user.status === 'disabled') && (
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button variant="outline" size="icon" asChild className="button-shadow">
+                            <Link href={`/admin/users/${user.id}/edit`}>
+                              <Edit className="h-4 w-4"/>
+                              <span className="sr-only">Edit User</span>
+                            </Link>
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent><p>Edit User</p></TooltipContent>
+                      </Tooltip>
+                    )}
+                    {(currentUserId === user.id || user.role === 'admin') && (user.status === 'active' || user.status === 'disabled') && (
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button variant="outline" size="icon" disabled className="opacity-50">
+                              <Edit className="h-4 w-4"/>
+                              <span className="sr-only">Edit User (Disabled)</span>
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent><p>Cannot edit own admin account or other admins</p></TooltipContent>
+                      </Tooltip>
+                    )}
+                  </>
                 )}
               </TableCell>
             </TableRow>
@@ -165,4 +180,3 @@ export default function UserTable({
     </div>
   );
 }
-

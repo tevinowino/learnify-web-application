@@ -27,9 +27,8 @@ const AnalyzeStudentPerformanceOutputSchema = z.object({
   overallSummary: z.string().describe("A concise overall summary of the student's performance and potential."),
 });
 
-// Exporting the Zod schemas for potential use elsewhere if needed, though types.ts is primary
-export { AnalyzeStudentPerformanceInputSchema, AnalyzeStudentPerformanceOutputSchema };
-
+// Types are already exported from @/types, which is the correct pattern.
+// We keep the Zod schemas defined here for the prompt, but do not export them directly.
 
 export async function analyzeStudentPerformance(
   input: AnalyzeStudentPerformanceInput
@@ -79,3 +78,4 @@ const analyzeStudentPerformanceFlow = ai.defineFlow(
     return output;
   }
 );
+
