@@ -91,7 +91,7 @@ export default function AdminAttendancePage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-3xl font-bold">View Attendance Records</h1>
+      <h1 className="text-2xl sm:text-3xl font-bold">View Attendance Records</h1>
       
       <Card className="card-shadow">
         <CardHeader>
@@ -153,28 +153,30 @@ export default function AdminAttendancePage() {
                     <p>No attendance records found for this class on this date.</p>
                 </div>
               ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Student Name</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Marked By</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {attendanceRecords.map(record => (
-                      <TableRow key={record.id}>
-                        <TableCell className="font-medium">{record.studentName || 'Unknown Student'}</TableCell>
-                        <TableCell>
-                          <Badge variant={getStatusBadgeVariant(record.status)} className="capitalize text-xs px-2 py-0.5">
-                            {record.status}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>{record.markedByName || 'N/A'}</TableCell>
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Student Name</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead>Marked By</TableHead>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                    </TableHeader>
+                    <TableBody>
+                      {attendanceRecords.map(record => (
+                        <TableRow key={record.id}>
+                          <TableCell className="font-medium whitespace-nowrap">{record.studentName || 'Unknown Student'}</TableCell>
+                          <TableCell>
+                            <Badge variant={getStatusBadgeVariant(record.status)} className="capitalize text-xs px-2 py-0.5">
+                              {record.status}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="whitespace-nowrap">{record.markedByName || 'N/A'}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
               )
             }
           </CardContent>
@@ -183,3 +185,4 @@ export default function AdminAttendancePage() {
     </div>
   );
 }
+

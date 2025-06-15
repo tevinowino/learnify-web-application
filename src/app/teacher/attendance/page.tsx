@@ -48,7 +48,7 @@ export default function TeacherAttendancePage() {
     if (currentUser?.uid) {
       setIsLoadingData(true);
       const classes = await getClassesByTeacher(currentUser.uid);
-      setTeacherClasses(classes.filter(c => c.classType === 'main')); // Only main classes for attendance
+      setTeacherClasses(classes.filter(c => c.classType === 'main').sort((a,b) => a.name.localeCompare(b.name)));
       setIsLoadingData(false);
     }
   }, [currentUser, getClassesByTeacher]);
@@ -122,7 +122,7 @@ export default function TeacherAttendancePage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-3xl font-bold">Mark Attendance</h1>
+      <h1 className="text-2xl sm:text-3xl font-bold">Mark Attendance</h1>
       
       <Card className="card-shadow">
         <CardHeader>
@@ -182,43 +182,45 @@ export default function TeacherAttendancePage() {
                 <p className="text-muted-foreground text-center py-4">No students in this class, or class not selected.</p>
               ) : (
                 <div className="space-y-4">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead className="w-[60%]">Student Name</TableHead>
-                        <TableHead className="text-right w-[40%]">Status</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {studentsInSelectedClass.map(student => (
-                        <TableRow key={student.id}>
-                          <TableCell className="font-medium">{student.displayName}</TableCell>
-                          <TableCell className="text-right">
-                            <div className="flex gap-2 justify-end">
-                              <Button
-                                variant={attendanceRecords[student.id] === 'present' ? 'default' : 'outline'}
-                                size="sm"
-                                onClick={() => handleStatusChange(student.id, 'present')}
-                                disabled={isSubmitting}
-                                className={cn("w-24", attendanceRecords[student.id] === 'present' && "bg-primary hover:bg-primary/90")}
-                              >
-                                <Check className="mr-1 h-4 w-4"/> Present
-                              </Button>
-                              <Button
-                                variant={attendanceRecords[student.id] === 'absent' ? 'destructive' : 'outline'}
-                                size="sm"
-                                onClick={() => handleStatusChange(student.id, 'absent')}
-                                disabled={isSubmitting}
-                                className="w-24"
-                              >
-                               <X className="mr-1 h-4 w-4"/> Absent
-                              </Button>
-                            </div>
-                          </TableCell>
+                  <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead className="w-[50%] sm:w-[60%]">Student Name</TableHead>
+                          <TableHead className="text-right w-[50%] sm:w-[40%]">Status</TableHead>
                         </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
+                      </TableHeader>
+                      <TableBody>
+                        {studentsInSelectedClass.map(student => (
+                          <TableRow key={student.id}>
+                            <TableCell className="font-medium whitespace-nowrap">{student.displayName}</TableCell>
+                            <TableCell className="text-right">
+                              <div className="flex flex-col space-y-1 sm:flex-row sm:space-y-0 sm:gap-2 sm:justify-end">
+                                <Button
+                                  variant={attendanceRecords[student.id] === 'present' ? 'default' : 'outline'}
+                                  size="sm"
+                                  onClick={() => handleStatusChange(student.id, 'present')}
+                                  disabled={isSubmitting}
+                                  className={cn("w-full sm:w-24", attendanceRecords[student.id] === 'present' && "bg-primary hover:bg-primary/90")}
+                                >
+                                  <Check className="mr-1 h-4 w-4"/> Present
+                                </Button>
+                                <Button
+                                  variant={attendanceRecords[student.id] === 'absent' ? 'destructive' : 'outline'}
+                                  size="sm"
+                                  onClick={() => handleStatusChange(student.id, 'absent')}
+                                  disabled={isSubmitting}
+                                  className="w-full sm:w-24"
+                                >
+                                <X className="mr-1 h-4 w-4"/> Absent
+                                </Button>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
                   <Button onClick={handleSubmitAttendance} disabled={isSubmitting || isLoading || studentsInSelectedClass.length === 0} className="w-full mt-6 button-shadow">
                     {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}
                     <Save className="mr-2 h-4 w-4"/> Submit Attendance
@@ -232,3 +234,4 @@ export default function TeacherAttendancePage() {
     </div>
   );
 }
+

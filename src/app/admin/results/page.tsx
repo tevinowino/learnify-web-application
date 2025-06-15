@@ -73,8 +73,8 @@ export default function AdminEnterResultsPage() {
           getExamPeriodsBySchool(currentUser.schoolId) 
         ]);
         setSchoolDetails(school);
-        setAllSchoolClasses(classes);
-        setSchoolSubjects(subjects);
+        setAllSchoolClasses(classes.sort((a,b) => a.name.localeCompare(b.name)));
+        setSchoolSubjects(subjects.sort((a,b) => a.name.localeCompare(b.name)));
         setExamPeriods(periods.filter(p => p.status === 'active' || p.status === 'grading')); 
       } catch (error) {
         toast({title: "Error", description: "Could not load initial data for result entry.", variant: "destructive"});
@@ -226,7 +226,7 @@ export default function AdminEnterResultsPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-3xl font-bold">Admin: Enter Exam Results</h1>
+      <h1 className="text-2xl sm:text-3xl font-bold">Admin: Enter Exam Results</h1>
       
       {!schoolDetails?.isExamModeActive && !isLoadingSelectors && (
         <Card className="border-destructive bg-destructive/10">
@@ -235,8 +235,8 @@ export default function AdminEnterResultsPage() {
             </CardHeader>
             <CardContent>
                 <p className="text-destructive-foreground">
-                    School-wide Exam Mode is currently OFF. Teachers and admins cannot enter or edit exam results.
-                    Please activate Exam Mode in <Link href="/admin/settings" className="underline hover:text-foreground">School Settings</Link> to proceed.
+                    School-wide Exam Mode is currently OFF. Results cannot be entered or edited.
+                    Please activate Exam Mode in <Link href="/admin/settings" className="underline hover:text-foreground">School Settings</Link>.
                 </p>
             </CardContent>
         </Card>
@@ -303,46 +303,48 @@ export default function AdminEnterResultsPage() {
                 <p className="text-muted-foreground text-center">No students in this class, or selection incomplete.</p>
               ) : (
                 <div className="space-y-4">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead className="w-[30%]">Student</TableHead>
-                        <TableHead className="w-[25%]">Marks/Grade (%)</TableHead>
-                        <TableHead className="w-[45%]">Remarks (Optional)</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {studentsInSelectedClass.map(student => (
-                        <TableRow key={student.id}>
-                          <TableCell>
-                            <div className="font-medium">{student.displayName}</div>
-                            <div className="text-xs text-muted-foreground">{student.email}</div>
-                          </TableCell>
-                          <TableCell>
-                            <Input 
-                              id={`marks-${student.id}`}
-                              value={results[student.id]?.marks || ''}
-                              onChange={(e) => handleResultChange(student.id, 'marks', e.target.value)}
-                              placeholder="e.g., 85"
-                              disabled={isSubmitting || !schoolDetails?.isExamModeActive}
-                              className="w-full max-w-xs"
-                            />
-                          </TableCell>
-                          <TableCell>
-                            <Textarea
-                              id={`remarks-${student.id}`}
-                              value={results[student.id]?.remarks || ''}
-                              onChange={(e) => handleResultChange(student.id, 'remarks', e.target.value)}
-                              placeholder="e.g., Excellent work!"
-                              rows={1}
-                              disabled={isSubmitting || !schoolDetails?.isExamModeActive}
-                              className="min-h-[40px]"
-                            />
-                          </TableCell>
+                  <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead className="w-[40%] sm:w-[30%]">Student</TableHead>
+                          <TableHead className="w-[30%] sm:w-[25%]">Marks/Grade (%)</TableHead>
+                          <TableHead className="w-[30%] sm:w-[45%]">Remarks (Optional)</TableHead>
                         </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
+                      </TableHeader>
+                      <TableBody>
+                        {studentsInSelectedClass.map(student => (
+                          <TableRow key={student.id}>
+                            <TableCell>
+                              <div className="font-medium whitespace-nowrap">{student.displayName}</div>
+                              <div className="text-xs text-muted-foreground whitespace-nowrap">{student.email}</div>
+                            </TableCell>
+                            <TableCell>
+                              <Input 
+                                id={`marks-${student.id}`}
+                                value={results[student.id]?.marks || ''}
+                                onChange={(e) => handleResultChange(student.id, 'marks', e.target.value)}
+                                placeholder="e.g., 85"
+                                disabled={isSubmitting || !schoolDetails?.isExamModeActive}
+                                className="w-full min-w-[100px] sm:max-w-xs"
+                              />
+                            </TableCell>
+                            <TableCell>
+                              <Textarea
+                                id={`remarks-${student.id}`}
+                                value={results[student.id]?.remarks || ''}
+                                onChange={(e) => handleResultChange(student.id, 'remarks', e.target.value)}
+                                placeholder="e.g., Excellent work!"
+                                rows={1}
+                                disabled={isSubmitting || !schoolDetails?.isExamModeActive}
+                                className="min-h-[40px]"
+                              />
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
                   <Button onClick={handleSubmitResults} disabled={isSubmitting || isLoadingData || studentsInSelectedClass.length === 0 || !schoolDetails?.isExamModeActive} className="w-full mt-6 button-shadow">
                     {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}
                     <Save className="mr-2 h-4 w-4"/> Save All Results
@@ -356,5 +358,4 @@ export default function AdminEnterResultsPage() {
     </div>
   );
 }
-
     

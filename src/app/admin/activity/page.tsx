@@ -11,7 +11,7 @@ import { formatDistanceToNow } from 'date-fns';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button'; 
-import Loader from '@/components/shared/Loader'; // Import new Loader
+import Loader from '@/components/shared/Loader';
 
 export default function AdminActivityPage() {
   const { currentUser, getActivities, loading: authLoading } = useAuth();
@@ -76,7 +76,7 @@ export default function AdminActivityPage() {
               <p className="text-xl font-semibold text-muted-foreground">No activities recorded yet.</p>
             </div>
           ) : (
-            <ScrollArea className="h-[70vh]">
+            <ScrollArea className="h-[calc(100vh-20rem)] sm:h-[70vh]">
               <ul className="space-y-3 pr-4">
                 {activities.map(activity => (
                   <li key={activity.id} className="p-4 border rounded-md hover:bg-muted/50 transition-colors">

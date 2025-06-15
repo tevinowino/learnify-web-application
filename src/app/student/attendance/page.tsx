@@ -15,7 +15,8 @@ import { Timestamp } from 'firebase/firestore';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
 import Loader from '@/components/shared/Loader';
-import { useRouter } from 'next/navigation';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation'; 
 import { Label } from '@/components/ui/label';
 import {
   Table,
@@ -90,7 +91,7 @@ export default function StudentAttendancePage() {
       <Button variant="outline" onClick={() => router.push('/student/dashboard')} className="mb-4 button-shadow">
         <ArrowLeft className="mr-2 h-4 w-4" /> Back to Dashboard
       </Button>
-      <h1 className="text-3xl font-bold">My Attendance Record</h1>
+      <h1 className="text-2xl sm:text-3xl font-bold">My Attendance Record</h1>
       
       <Card className="card-shadow">
         <CardHeader>
@@ -153,30 +154,32 @@ export default function StudentAttendancePage() {
                 <p>No attendance records found for the selected period.</p>
               </div>
             ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Date</TableHead>
-                    <TableHead>Class</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Marked By</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {attendanceRecords.map(record => (
-                    <TableRow key={record.id}>
-                      <TableCell>{format(record.date.toDate(), 'PPP')}</TableCell>
-                      <TableCell>{record.className || 'N/A'}</TableCell>
-                      <TableCell>
-                        <Badge variant={getStatusBadgeVariant(record.status)} className="capitalize text-xs px-2 py-0.5">
-                          {record.status}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>{record.markedByName || 'Teacher'}</TableCell>
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Date</TableHead>
+                      <TableHead>Class</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Marked By</TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+                  </TableHeader>
+                  <TableBody>
+                    {attendanceRecords.map(record => (
+                      <TableRow key={record.id}>
+                        <TableCell className="whitespace-nowrap">{format(record.date.toDate(), 'PPP')}</TableCell>
+                        <TableCell className="whitespace-nowrap">{record.className || 'N/A'}</TableCell>
+                        <TableCell>
+                          <Badge variant={getStatusBadgeVariant(record.status)} className="capitalize text-xs px-2 py-0.5">
+                            {record.status}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="whitespace-nowrap">{record.markedByName || 'Teacher'}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
             )
           }
         </CardContent>

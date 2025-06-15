@@ -4,8 +4,8 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Loader2, Trophy, CalendarDays, BookOpen, User, AlertTriangle, ArrowLeft } from "lucide-react";
-import type { ExamResultWithStudentInfo, UserProfileWithId } from '@/types'; 
+import { Loader2, Trophy, CalendarDays, BookOpen, User, AlertTriangle, ArrowLeft, FileText as ReportIcon } from "lucide-react";
+import type { ExamResultWithStudentInfo, UserProfileWithId, ExamPeriod } from '@/types'; 
 import { format } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
@@ -22,7 +22,8 @@ export default function ParentChildResultsPage() {
     getSubjectById, 
     getExamPeriodById, 
     getClassDetails, 
-    getUserProfile, 
+    getUserProfile,
+    getExamPeriodsBySchool,
     loading: authLoading 
   } = useAuth();
   const { toast } = useToast();
@@ -30,6 +31,7 @@ export default function ParentChildResultsPage() {
 
   const [childProfile, setChildProfile] = useState<UserProfileWithId | null>(null); 
   const [resultsByPeriod, setResultsByPeriod] = useState<Record<string, ExamResultWithStudentInfo[]>>({});
+  const [examPeriods, setExamPeriods] = useState<ExamPeriod[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   const fetchChildAndResults = useCallback(async () => {
@@ -43,10 +45,11 @@ export default function ParentChildResultsPage() {
       setChildProfile(child);
 
       if (child && child.uid) { 
-        const fetchedResults = await getExamResultsForStudent(
-          child.uid, 
-          currentUser.schoolId
-        );
+        const [fetchedResults, schoolExamPeriods] = await Promise.all([
+            getExamResultsForStudent(child.uid, currentUser.schoolId),
+            getExamPeriodsBySchool(currentUser.schoolId)
+        ]);
+        setExamPeriods(schoolExamPeriods);
 
         const grouped: Record<string, ExamResultWithStudentInfo[]> = {};
         for (const result of fetchedResults) {
@@ -67,7 +70,7 @@ export default function ParentChildResultsPage() {
           }
           grouped[examPeriodName].push({ ...result, subjectName, examPeriodName });
         }
-        // Sort results within each period by subject name
+        
         for (const period in grouped) {
             grouped[period].sort((a, b) => (a.subjectName || '').localeCompare(b.subjectName || ''));
         }
@@ -78,7 +81,7 @@ export default function ParentChildResultsPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [currentUser, getUserProfile, getExamResultsForStudent, authLoading, toast, getSubjectById, getExamPeriodById, getClassDetails]);
+  }, [currentUser, getUserProfile, getExamResultsForStudent, getExamPeriodsBySchool, authLoading, toast, getSubjectById, getExamPeriodById, getClassDetails]);
 
   useEffect(() => {
     fetchChildAndResults();
@@ -92,7 +95,7 @@ export default function ParentChildResultsPage() {
     );
   }
 
-  if (!currentUser?.childStudentId) {
+  if (!currentUser?.childStudentId && !authLoading) {
     return (
       <Card className="card-shadow">
         <CardHeader>
@@ -100,7 +103,7 @@ export default function ParentChildResultsPage() {
         </CardHeader>
         <CardContent>
             <p>Please link your child's account on your profile page to view their exam results.</p>
-            <Button asChild className="mt-4 button-shadow">
+            <Button asChild className="mt-4 button-shadow w-full sm:w-auto">
                 <Link href="/parent/profile">Go to Profile to Link Child</Link>
             </Button>
         </CardContent>
@@ -115,7 +118,7 @@ export default function ParentChildResultsPage() {
        <Button variant="outline" onClick={() => router.push('/parent/dashboard')} className="mb-4 button-shadow">
             <ArrowLeft className="mr-2 h-4 w-4" /> Back to Dashboard
         </Button>
-      <h1 className="text-3xl font-bold">Child's Exam Results</h1>
+      <h1 className="text-2xl sm:text-3xl font-bold">Child's Exam Results</h1>
       {childProfile && <p className="text-muted-foreground">Viewing results for: {childProfile.displayName}</p>}
 
       <Card className="card-shadow">
@@ -140,38 +143,49 @@ export default function ParentChildResultsPage() {
               {Object.entries(resultsByPeriod).map(([periodName, periodResults]) => (
                 <AccordionItem value={periodName} key={periodName} className="border rounded-md shadow-sm hover:shadow-md transition-shadow">
                   <AccordionTrigger className="px-4 py-3 text-lg hover:no-underline hover:bg-muted/50 rounded-t-md">
-                     <div className="flex items-center">
-                        <CalendarDays className="mr-2 h-5 w-5 text-primary/80" /> {periodName}
+                     <div className="flex items-center justify-between w-full">
+                        <span className="flex items-center">
+                            <CalendarDays className="mr-2 h-5 w-5 text-primary/80" /> {periodName}
+                        </span>
+                       {periodResults.length > 0 && examPeriods.find(p=>p.name === periodName)?.status === 'completed' && childProfile && (
+                           <Button variant="link" size="sm" asChild onClick={(e) => e.stopPropagation()} className="text-xs h-auto py-0 px-1 mr-2">
+                               <Link href={`/student-profile/${childProfile.id}?examPeriodId=${periodResults[0].examPeriodId}&view=reportCard`}>
+                                <ReportIcon className="mr-1 h-3.5 w-3.5"/> View Report Card
+                               </Link>
+                           </Button>
+                       )}
                      </div>
                   </AccordionTrigger>
                   <AccordionContent className="px-0 pb-2 pt-0">
                     {periodResults.length === 0 ? (
                         <p className="text-sm text-muted-foreground p-4">No results found for this period.</p>
                     ) : (
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead className="w-[40%]">Subject</TableHead>
-                          <TableHead className="w-[20%] text-center">Marks (%)</TableHead>
-                          <TableHead>Remarks</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {periodResults.map(result => (
-                          <TableRow key={result.id}>
-                            <TableCell className="font-medium flex items-center">
-                                <BookOpen className="mr-2 h-4 w-4 text-secondary-foreground/70"/>
-                                {result.subjectName || 'Unknown Subject'}
-                            </TableCell>
-                            <TableCell className="text-center font-semibold">{result.marks}</TableCell>
-                            <TableCell className="text-sm text-muted-foreground italic">
-                                {result.remarks || 'N/A'}
-                                <p className="text-xs text-muted-foreground/70 mt-1">Graded: {format(result.updatedAt.toDate(), 'PP')}</p>
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
+                    <div className="overflow-x-auto">
+                        <Table>
+                        <TableHeader>
+                            <TableRow>
+                            <TableHead className="w-[40%]">Subject</TableHead>
+                            <TableHead className="w-[20%] text-center">Marks (%)</TableHead>
+                            <TableHead>Remarks</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            {periodResults.map(result => (
+                            <TableRow key={result.id}>
+                                <TableCell className="font-medium flex items-center whitespace-nowrap">
+                                    <BookOpen className="mr-2 h-4 w-4 text-secondary-foreground/70"/>
+                                    {result.subjectName || 'Unknown Subject'}
+                                </TableCell>
+                                <TableCell className="text-center font-semibold whitespace-nowrap">{result.marks}</TableCell>
+                                <TableCell className="text-sm text-muted-foreground italic">
+                                    {result.remarks || 'N/A'}
+                                    <p className="text-xs text-muted-foreground/70 mt-1 whitespace-nowrap">Graded: {format(result.updatedAt.toDate(), 'PP')}</p>
+                                </TableCell>
+                            </TableRow>
+                            ))}
+                        </TableBody>
+                        </Table>
+                    </div>
                     )}
                   </AccordionContent>
                 </AccordionItem>
@@ -183,3 +197,4 @@ export default function ParentChildResultsPage() {
     </div>
   );
 }
+
