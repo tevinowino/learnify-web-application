@@ -6,7 +6,7 @@ import type { UserRole } from '@/types';
 import { useAuth } from '@/hooks/useAuth';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
-import { Home, Users, Settings, LogOut as LogOutIcon, Library, FileText, UserCircle2, BookCopy, UserCog, Edit3, ListChecks, FolderOpen, BarChart2, PanelLeft, BookText as BookTextIcon, Shield, HeartHandshake, Users2, FilePieChart, Activity, Sparkles, Brain, Bell, ShieldCheck, MessageSquare, ClipboardCheck } from 'lucide-react'; 
+import { Home, Users, Settings, LogOut as LogOutIcon, Library, FileText, UserCircle2, BookCopy, UserCog, Edit3, ListChecks, FolderOpen, BarChart2, PanelLeft, BookText as BookTextIcon, Shield, HeartHandshake, Users2, FilePieChart, Activity, Sparkles, Brain, Bell, ShieldCheck, MessageSquare, ClipboardCheck, LayoutDashboard as DashboardIconLucide } from 'lucide-react'; 
 import Logo from '@/components/shared/Logo'; 
 import {
   SidebarProvider,
@@ -26,6 +26,15 @@ import { ThemeToggle } from '../ui/theme-toggle';
 import NotificationBell from '../shared/NotificationBell';
 import TestimonialPromptDialog from '../shared/TestimonialPromptDialog'; 
 import { Timestamp } from 'firebase/firestore'; 
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuLabel,
+    DropdownMenuSeparator,
+    DropdownMenuTrigger,
+  } from "@/components/ui/dropdown-menu";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
 
 interface DashboardLayoutProps {
@@ -102,6 +111,27 @@ export default function DashboardLayout({ children, userRole }: DashboardLayoutP
     }
   }, [currentUser, authLoading, pathname]);
 
+  const getDashboardPath = () => {
+    if (!currentUser || !currentUser.role) return '/auth/login';
+    switch (currentUser.role) {
+      case 'admin': return '/admin/dashboard';
+      case 'teacher': return '/teacher/dashboard';
+      case 'student': return '/student/dashboard';
+      case 'parent': return '/parent/dashboard';
+      default: return '/';
+    }
+  };
+
+  const getProfilePath = () => {
+    if (!currentUser || !currentUser.role) return '/auth/login';
+    switch (currentUser.role) {
+        case 'admin': return '/admin/profile';
+        case 'teacher': return '/teacher/profile';
+        case 'student': return '/student/profile';
+        case 'parent': return '/parent/profile';
+        default: return '/';
+    }
+  };
 
   return (
     <SidebarProvider>
@@ -169,6 +199,9 @@ export default function DashboardLayout({ children, userRole }: DashboardLayoutP
                 <PanelLeft />
                 <span className="sr-only">Toggle sidebar</span>
               </SidebarTrigger>
+               <div className="md:hidden">
+                 <Logo />
+               </div>
             </div>
 
              <div className="flex-1 text-left sm:text-center md:text-left md:pl-0"> 
@@ -181,6 +214,58 @@ export default function DashboardLayout({ children, userRole }: DashboardLayoutP
             <div className="flex items-center gap-2">
                 <NotificationBell />
                 <ThemeToggle />
+                {currentUser && (
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" className="relative h-9 w-9 rounded-full hover:bg-accent/20">
+                        <Avatar className="h-9 w-9">
+                          <AvatarImage src={currentUser.photoURL || undefined} alt={currentUser.displayName || "User"} />
+                          <AvatarFallback>{currentUser.displayName ? currentUser.displayName.charAt(0).toUpperCase() : <UserCircle2/>}</AvatarFallback>
+                        </Avatar>
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent className="w-56 rounded-xl shadow-lg" align="end" forceMount>
+                      <DropdownMenuLabel className="font-normal">
+                        <div className="flex flex-col space-y-1">
+                          <p className="text-sm font-medium leading-none">{currentUser.displayName || "User"}</p>
+                          <p className="text-xs leading-none text-muted-foreground">
+                            {currentUser.email}
+                          </p>
+                        </div>
+                      </DropdownMenuLabel>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem asChild className="rounded-lg focus:bg-accent/20">
+                        <Link href={getDashboardPath()}>
+                          <DashboardIconLucide className="mr-2 h-4 w-4" /> Dashboard {/* Changed icon */}
+                        </Link>
+                      </DropdownMenuItem>
+                      <DropdownMenuItem asChild className="rounded-lg focus:bg-accent/20">
+                        <Link href={getProfilePath()}>
+                          <UserCog className="mr-2 h-4 w-4" /> My Profile 
+                        </Link>
+                      </DropdownMenuItem>
+                      {currentUser.role === 'admin' && (
+                        <DropdownMenuItem asChild className="rounded-lg focus:bg-accent/20">
+                          <Link href="/admin/settings">
+                            <Settings className="mr-2 h-4 w-4" /> School Settings
+                          </Link>
+                        </DropdownMenuItem>
+                      )}
+                       {currentUser.role === 'teacher' && currentUser.isAdminAlso === true && (
+                        <DropdownMenuItem asChild className="rounded-lg focus:bg-accent/20">
+                            <Link href="/admin/dashboard">
+                                <ShieldCheck className="mr-2 h-4 w-4 text-accent" /> Admin View
+                            </Link>
+                        </DropdownMenuItem>
+                      )}
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem onClick={logOut} className="rounded-lg text-red-500 focus:text-red-500 focus:bg-red-50">
+                        <LogOutIcon className="mr-2 h-4 w-4" />
+                        Log out
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                )}
             </div>
           </header>
           
@@ -201,5 +286,3 @@ export default function DashboardLayout({ children, userRole }: DashboardLayoutP
     </SidebarProvider>
   );
 }
-
-

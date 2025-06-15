@@ -1,3 +1,4 @@
+
   "use client";
 
   import Link from 'next/link';
@@ -5,7 +6,7 @@
   import { Button } from '@/components/ui/button';
   import Logo from './Logo';
   import { siteConfig } from '@/config/site';
-  import { LogOut, LayoutDashboard, UserCircle, UserPlus, LogInIcon, Menu, HomeIcon, InfoIcon, MessageSquareIcon, UserCog, Sparkles, Settings, Brain, Bell } from 'lucide-react';
+  import { LogOut, LayoutDashboard, UserCircle, UserPlus, LogInIcon, Menu, HomeIcon, InfoIcon, MessageSquareIcon, UserCog, Sparkles, Settings, Brain, Bell, ShieldCheck } from 'lucide-react'; // Added LayoutDashboard, UserCog, Settings, Brain, Bell, ShieldCheck
   import {
     DropdownMenu,
     DropdownMenuContent,
@@ -31,6 +32,9 @@
     const { currentUser, logOut, loading } = useAuth();
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
     const pathname = usePathname();
+
+    // This Navbar is now primarily for public-facing pages.
+    // Dashboard-specific navigation is handled in DashboardLayout.
 
     const getDashboardPath = () => {
       if (!currentUser || !currentUser.role) return '/auth/login';
@@ -66,27 +70,12 @@
           case "Home": icon = <HomeIcon className="mr-2 h-4 w-4" />; break;
           case "About": icon = <InfoIcon className="mr-2 h-4 w-4" />; break;
           case "Contact Us": icon = <MessageSquareIcon className="mr-2 h-4 w-4" />; break;
-          default: icon = <span className="mr-2 h-4 w-4" />; // Placeholder
+          default: icon = <span className="mr-2 h-4 w-4" />; 
       }
       return { ...item, label: item.title, icon };
     });
 
-    const shouldShowMainNav = !pathname.startsWith('/admin') && !pathname.startsWith('/teacher') && !pathname.startsWith('/student') && !pathname.startsWith('/parent');
-
-    // Hide navbar completely if user is in their dashboard
-    if (pathname === '/admin/dashboard' || pathname === '/teacher/dashboard' || pathname === '/student/dashboard' || pathname === '/parent/dashboard') {
-      return null;
-    }
-
-    const mobileNavLinksToDisplay = [];
-    // Add About and Contact Us to mobile menu only if not in restricted paths
-    if (shouldShowMainNav) {
-      mainNavLinks.forEach(item => {
-        if (item.title === "About" || item.title === "Contact Us") {
-          mobileNavLinksToDisplay.push(item);
-        }
-      });
-    }
+    const mobileNavLinksToDisplay = [...mainNavLinks]; 
 
     if (currentUser) {
       mobileNavLinksToDisplay.unshift({ href: getDashboardPath(), label: "Dashboard", icon: <LayoutDashboard className="mr-2 h-4 w-4" /> });
@@ -97,14 +86,8 @@
         mobileNavLinksToDisplay.push({ href: "/teacher/mwalimu", label: "Mwalimu AI", icon: <Brain className="mr-2 h-4 w-4" /> });
       }
     } else {
-      // If not logged in and not in restricted paths, add Home, Login, Signup to mobile menu
-      if (shouldShowMainNav) {
-        const homeLink = mainNavLinks.find(link => link.title === "Home");
-        if (homeLink) mobileNavLinksToDisplay.unshift(homeLink);
-      
-        mobileNavLinksToDisplay.push({ href: "/auth/login", label: "Login", icon: <LogInIcon className="mr-2 h-4 w-4" /> });
-        mobileNavLinksToDisplay.push({ href: "/auth/signup", label: "Sign Up", icon: <UserPlus className="mr-2 h-4 w-4" /> });
-      }
+      mobileNavLinksToDisplay.push({ href: "/auth/login", label: "Login", icon: <LogInIcon className="mr-2 h-4 w-4" /> });
+      mobileNavLinksToDisplay.push({ href: "/auth/signup", label: "Sign Up", icon: <UserPlus className="mr-2 h-4 w-4" /> });
     }
 
     return (
@@ -114,28 +97,13 @@
             <Logo onClick={() => setIsMobileMenuOpen(false)} /> 
           
             <nav className="hidden md:flex items-center space-x-2">
-              {shouldShowMainNav && mainNavLinks.map(item => (
+              {mainNavLinks.map(item => (
                 <Button variant="ghost" className="rounded-lg hover:bg-accent/20" asChild key={item.href}>
                   <Link href={item.href}>{item.label}</Link>
                 </Button>
               ))}
             
-              {currentUser?.role === 'student' && (
-               <Button variant="ghost" className="rounded-lg hover:bg-primary/10" asChild>
-                  <Link href="/student/akili">
-                    <Sparkles className="mr-2 h-4 w-4 text-primary" /> Akili Chat
-                  </Link>
-                </Button>
-              )}
-              {currentUser?.role === 'teacher' && (
-               <Button variant="ghost" className="rounded-lg hover:bg-primary/10" asChild>
-                  <Link href="/teacher/mwalimu">
-                    <Brain className="mr-2 h-4 w-4 text-primary" /> Mwalimu AI
-                  </Link>
-                </Button>
-              )}
-
-              {!loading && !currentUser && shouldShowMainNav && (
+              {!loading && !currentUser && (
                 <>
                   <Button variant="ghost" className="rounded-lg hover:bg-accent/20" asChild>
                     <Link href="/auth/login">
@@ -181,11 +149,11 @@
                           <UserCog className="mr-2 h-4 w-4" /> My Profile 
                         </Link>
                       </DropdownMenuItem>
-                      {currentUser.role === 'admin' && (
+                       {currentUser.role === 'teacher' && currentUser.isAdminAlso === true && (
                         <DropdownMenuItem asChild className="rounded-lg focus:bg-accent/20">
-                          <Link href="/admin/settings">
-                            <Settings className="mr-2 h-4 w-4" /> School Settings
-                          </Link>
+                            <Link href="/admin/dashboard">
+                                <ShieldCheck className="mr-2 h-4 w-4 text-accent" /> Admin View
+                            </Link>
                         </DropdownMenuItem>
                       )}
                       <DropdownMenuSeparator />
@@ -241,12 +209,12 @@
                                     <UserCog className="mr-2 h-4 w-4" /> My Profile
                                 </Link>
                             </Button>
-                            {currentUser.role === 'admin' && (
-                             <Button variant="ghost" className="w-full justify-start text-left text-base py-3 h-auto rounded-lg" asChild onClick={() => setIsMobileMenuOpen(false)}>
-                                <Link href="/admin/settings" className="flex items-center">
-                                    <Settings className="mr-2 h-4 w-4" /> School Settings
-                                </Link>
-                             </Button>
+                            {currentUser.role === 'teacher' && currentUser.isAdminAlso === true && (
+                                <Button variant="ghost" className="w-full justify-start text-left text-base py-3 h-auto rounded-lg" asChild onClick={() => setIsMobileMenuOpen(false)}>
+                                    <Link href="/admin/dashboard" className="flex items-center text-accent">
+                                        <ShieldCheck className="mr-2 h-4 w-4" /> Admin View
+                                    </Link>
+                                </Button>
                             )}
                             <Button variant="ghost" className="w-full justify-start text-left text-base py-3 h-auto rounded-lg text-red-500 hover:text-red-500 hover:bg-red-50" onClick={() => { logOut(); setIsMobileMenuOpen(false);}}>
                               <LogOut className="mr-2 h-4 w-4" /> Log Out

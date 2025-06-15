@@ -1,20 +1,23 @@
 
+"use client"; 
+
 import { Suspense } from 'react';
 import { Inter } from 'next/font/google';
-import type { Metadata } from 'next';
+import type { Metadata } from 'next'; 
 import './globals.css';
 import { Toaster } from '@/components/ui/toaster';
 import { AuthProvider } from '@/contexts/AuthProvider';
 import Navbar from '@/components/shared/Navbar';
 import { siteConfig } from '@/config/site';
 import { ThemeProvider } from '@/components/theme-provider';
+import { usePathname } from 'next/navigation'; 
 
 const inter = Inter({
   subsets: ['latin'],
   variable: '--font-inter',
 });
 
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://learnify-app.example.com'; // Fallback if not set
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://learnify-app.example.com';
 
 export const metadata: Metadata = {
   metadataBase: new URL(APP_URL),
@@ -51,7 +54,7 @@ export const metadata: Metadata = {
     siteName: siteConfig.name,
     images: [
       {
-        url: `${APP_URL}/og-image.png`, // Replace with your actual OG image path
+        url: `${APP_URL}/og-image.png`, 
         width: 1200,
         height: 630,
         alt: `${siteConfig.name} - Revolutionizing Education with AI`,
@@ -62,21 +65,19 @@ export const metadata: Metadata = {
     card: 'summary_large_image',
     title: `${siteConfig.name} - AI-Powered Education Platform`,
     description: siteConfig.description,
-    // site: '@yourtwitterhandle', // Optional: Your Twitter handle
-    // creator: '@creatorhandle', // Optional: Creator's Twitter handle
-    images: [`${APP_URL}/twitter-image.png`], // Replace with your actual Twitter image path
+    images: [`${APP_URL}/twitter-image.png`], 
   },
   icons: [
     {
       rel: 'icon',
-      url: '/logo-icon.png', // Ensure this path is correct
+      url: '/logo-icon.png', 
     },
     {
       rel: 'apple-touch-icon',
-      url: '/logo-icon.png', // Ensure this path is correct
+      url: '/logo-icon.png', 
     },
   ],
-  manifest: `${APP_URL}/site.webmanifest`, // Optional: if you have a webmanifest
+  manifest: `${APP_URL}/site.webmanifest`, 
 };
 
 export default function RootLayout({
@@ -84,17 +85,18 @@ export default function RootLayout({
 }: {
   children: React.ReactNode;
 }) {
+  const pathname = usePathname();
+  const isDashboardRoute = pathname.startsWith('/admin') ||
+                           pathname.startsWith('/teacher') ||
+                           pathname.startsWith('/student') ||
+                           pathname.startsWith('/parent');
+
   const organizationJsonLd = {
     "@context": "https://schema.org",
     "@type": "Organization",
     "name": siteConfig.name,
     "url": APP_URL,
-    "logo": `${APP_URL}/logo-icon.png`, // Ensure this path is correct
-    "sameAs": [ // Optional: Add social media links if you have them
-      // "https://www.facebook.com/yourlearnify",
-      // "https://www.twitter.com/yourlearnify",
-      // "https://www.linkedin.com/company/yourlearnify"
-    ]
+    "logo": `${APP_URL}/logo-icon.png`, 
   };
 
   const websiteJsonLd = {
@@ -106,12 +108,11 @@ export default function RootLayout({
       "@type": "SearchAction",
       "target": {
         "@type": "EntryPoint",
-        "urlTemplate": `${APP_URL}/search?q={search_term_string}` // If you have a search page
+        "urlTemplate": `${APP_URL}/search?q={search_term_string}` 
       },
       "query-input": "required name=search_term_string"
     }
   };
-
 
   return (
     <html lang="en" suppressHydrationWarning>
@@ -135,8 +136,10 @@ export default function RootLayout({
           <Suspense fallback={null}>
             <AuthProvider>
               <div className="flex flex-col min-h-screen">
-                <Navbar />
-                <main className="flex-grow container mx-auto">{children}</main>
+                {!isDashboardRoute && <Navbar />} 
+                <main className={`flex-grow ${!isDashboardRoute ? 'container mx-auto' : ''}`}>
+                  {children}
+                </main>
               </div>
               <Toaster />
             </AuthProvider>
