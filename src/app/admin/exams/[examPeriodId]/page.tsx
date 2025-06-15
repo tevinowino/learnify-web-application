@@ -12,12 +12,13 @@ import { format } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
 import { Badge } from '@/components/ui/badge';
 import Link from 'next/link';
-import Loader from '@/components/shared/Loader'; // Import new Loader
+import Loader from '@/components/shared/Loader'; 
 import FinalizeExamPeriodDialog from '../components/FinalizeExamPeriodDialog';
 
 
 export default function ExamPeriodDetailPage() {
-  const params = useParams<{ examPeriodId: string }>();
+  const paramsFromHook = useParams<{ examPeriodId: string }>();
+  const params = React.use(paramsFromHook); // Unwrap params
   const router = useRouter();
   const examPeriodId = params.examPeriodId;
   const { toast } = useToast();
@@ -30,8 +31,8 @@ export default function ExamPeriodDetailPage() {
     getExamResultsByPeriodAndClass,
     updateExamPeriod,
     addActivity,
-    addNotification, // Added
-    getLinkedParentForStudent, // Added
+    addNotification, 
+    getLinkedParentForStudent, 
     loading: authLoading 
   } = useAuth();
 
@@ -89,7 +90,7 @@ export default function ExamPeriodDetailPage() {
   }, [fetchData]);
 
   const checkAllResultsSubmitted = () => {
-    if (!examPeriod || schoolSubjects.length === 0) return true; // If no subjects, technically all are "submitted"
+    if (!examPeriod || schoolSubjects.length === 0) return true; 
     for (const classId of examPeriod.assignedClassIds) {
         for (const subject of schoolSubjects) {
             const status = classResultStatus[classId]?.[subject.id];
@@ -123,7 +124,6 @@ export default function ExamPeriodDetailPage() {
           link: `/admin/exams/${examPeriod.id}`
         });
 
-        // Send notifications to students and parents
         for (const classId of examPeriod.assignedClassIds) {
           const studentsInClass = await getStudentsInClass(classId);
           for (const student of studentsInClass) {
