@@ -18,7 +18,7 @@ import FinalizeExamPeriodDialog from '../components/FinalizeExamPeriodDialog';
 
 export default function ExamPeriodDetailPage() {
   const paramsFromHook = useParams<{ examPeriodId: string }>();
-  const params = React.use(paramsFromHook); // Unwrap params
+  const params = paramsFromHook; // Correctly assign directly
   const router = useRouter();
   const examPeriodId = params.examPeriodId;
   const { toast } = useToast();
