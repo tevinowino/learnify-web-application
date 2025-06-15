@@ -13,6 +13,7 @@ export const createExamPeriodService = async (examPeriodData: Omit<ExamPeriod, '
       status: 'upcoming', 
       createdAt: Timestamp.now(),
       updatedAt: Timestamp.now(),
+      // assignmentScope and scopeDetail will be part of examPeriodData from the calling function
     };
     const docRef = await addDoc(collection(db, "examPeriods"), dataWithTimestamps);
     await updateDoc(doc(db, "examPeriods", docRef.id), { id: docRef.id });
@@ -34,11 +35,16 @@ export const getAllExamPeriodsService = async (
       const period = { id: docSnapshot.id, ...docSnapshot.data() } as ExamPeriod;
       const classNames: string[] = [];
       if (period.assignedClassIds && period.assignedClassIds.length > 0) {
-        const classDocsPromises = period.assignedClassIds.map(classId => getClassDetails(classId, async () => null));
+        // Fetch names for a subset if the list is too long for performance
+        const idsToFetch = period.assignedClassIds.slice(0, 5); // Example: fetch first 5 for display
+        const classDocsPromises = idsToFetch.map(classId => getClassDetails(classId, async () => null));
         const classDocs = await Promise.all(classDocsPromises);
         classDocs.forEach(classDoc => {
           if (classDoc) classNames.push(classDoc.name);
         });
+        if (period.assignedClassIds.length > 5) {
+            classNames.push(`...and ${period.assignedClassIds.length - 5} more`);
+        }
       }
       return { ...period, assignedClassNames: classNames };
     });
@@ -63,11 +69,15 @@ export const getExamPeriodsBySchoolService = async (
         const period = { id: docSnapshot.id, ...docSnapshot.data() } as ExamPeriod;
         const classNames: string[] = [];
         if (period.assignedClassIds && period.assignedClassIds.length > 0) {
-            const classDocsPromises = period.assignedClassIds.map(classId => getClassDetails(classId, async () => null));
+            const idsToFetch = period.assignedClassIds.slice(0, 5); // Display first 5
+            const classDocsPromises = idsToFetch.map(classId => getClassDetails(classId, async () => null)); // Pass a dummy getUserProfile if not needed for class name
             const classDocs = await Promise.all(classDocsPromises);
             classDocs.forEach(classDoc => {
                 if (classDoc) classNames.push(classDoc.name);
             });
+            if (period.assignedClassIds.length > 5) {
+                classNames.push(`...and ${period.assignedClassIds.length - 5} more`);
+            }
         }
         return { ...period, assignedClassNames: classNames };
     });
@@ -91,6 +101,7 @@ export const getExamPeriodByIdService = async (
       const period = { id: docSnap.id, ...docSnap.data() } as ExamPeriod;
       const classNames: string[] = [];
         if (period.assignedClassIds && period.assignedClassIds.length > 0) {
+            // For detail view, we might want all names or paginate if too many
             const classDocsPromises = period.assignedClassIds.map(classId => getClassDetails(classId, async () => null)); 
             const classDocs = await Promise.all(classDocsPromises);
             classDocs.forEach(classDoc => {
@@ -109,7 +120,18 @@ export const getExamPeriodByIdService = async (
 export const updateExamPeriodService = async (examPeriodId: string, data: Partial<ExamPeriod>): Promise<boolean> => {
   try {
     const docRef = doc(db, "examPeriods", examPeriodId);
-    await updateDoc(docRef, { ...data, updatedAt: Timestamp.now() });
+    const updateData = { ...data, updatedAt: Timestamp.now() };
+    
+    // Ensure scopeDetail is nulled if assignmentScope is not 'form_grade'
+    if (data.assignmentScope && data.assignmentScope !== 'form_grade') {
+      updateData.scopeDetail = null;
+    } else if (data.assignmentScope === 'form_grade' && data.scopeDetail === undefined) {
+      // If scope is form_grade but no detail provided, explicitly set to null if not already
+      // (though form validation should catch this)
+      updateData.scopeDetail = null;
+    }
+
+    await updateDoc(docRef, updateData);
     return true;
   } catch (error) {
     console.error("Error updating exam period:", error);

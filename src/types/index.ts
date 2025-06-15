@@ -1,326 +1,149 @@
+import type { User as FirebaseUserType } from 'firebase/auth';
+import type { Timestamp as FirestoreTimestamp } from 'firebase/firestore';
+import type { z } from 'zod';
+import type {
+  UserProfileSchema,
+  UserRoleSchema,
+  UserStatusSchema,
+  UserProfileWithIdSchema,
+  SchoolSchema,
+  OnboardingSchoolDataSchema,
+  SubjectSchema,
+  OnboardingSubjectDataSchema,
+  ClassSchema,
+  ClassTypeSchema,
+  OnboardingClassDataSchema,
+  LearningMaterialSchema,
+  LearningMaterialTypeSchema,
+  AssignmentSchema,
+  SubmissionFormatSchema,
+  SubmissionSchema,
+  SubmissionStatusSchema,
+  ExamPeriodSchema,
+  ExamPeriodStatusSchema,
+  ExamResultSchema,
+  ActivitySchema,
+  ActivityTypeSchema,
+  AttendanceRecordSchema,
+  AttendanceStatusSchema,
+  NotificationSchema,
+  TestimonialSchema,
+  OnboardingInvitedUserDataSchema,
+  AnalyzeStudentPerformanceInputSchema,
+  AnalyzeStudentPerformanceOutputSchema,
+  AkiliChatInputSchema,
+  AkiliChatOutputSchema,
+  MwalimuChatInputSchema,
+  MwalimuChatOutputSchema,
+  GenerateLearningPathInputSchema,
+  GenerateLearningPathOutputSchema,
+  SummarizeLearningMaterialInputSchema,
+  SummarizeLearningMaterialOutputSchema,
+} from './schemas';
 
-import type { User as FirebaseUser } from 'firebase/auth';
-import type { Timestamp } from 'firebase/firestore';
 
-export type UserRole = 'admin' | 'teacher' | 'student' | 'parent' | null;
+// Re-export Timestamp for convenience if needed elsewhere, though schemas handle it
+export type Timestamp = FirestoreTimestamp;
 
-export type UserStatus = 'pending_verification' | 'active' | 'rejected' | 'disabled';
+// Base User Types
+export type UserRole = z.infer<typeof UserRoleSchema>;
+export type UserStatus = z.infer<typeof UserStatusSchema>;
 
-export interface UserProfile extends FirebaseUser {
-  role: UserRole;
-  isAdminAlso?: boolean; // Added for teachers with admin access
-  schoolId?: string;
-  schoolName?: string;
-  status?: UserStatus;
-  classIds?: string[];
-  subjects?: string[]; // Array of subject IDs
-  studentAssignments?: Record<string, { status: 'submitted' | 'graded' | 'missing' | 'late'; grade?: string | number }>;
-  childStudentId?: string; // For parent role to link to a student
-  onboardingStep?: number | null; // 0 to 5, null when completed
-  lastTestimonialSurveyAt?: Timestamp | null; // Updated to allow null
-}
+// We combine FirebaseUser with our Firestore profile data for the currentUser object
+export type UserProfile = Omit<FirebaseUserType, 'photoURL' | 'emailVerified' | 'displayName' | 'email'> & z.infer<typeof UserProfileSchema>;
+export type UserProfileWithId = z.infer<typeof UserProfileWithIdSchema>;
 
-export interface UserProfileWithId extends UserProfile {
-  id: string;
-}
+// School
+export type School = z.infer<typeof SchoolSchema>;
+export type OnboardingSchoolData = z.infer<typeof OnboardingSchoolDataSchema>;
 
-export interface School {
-  id:string;
-  name: string;
-  adminId: string; // The admin who created/manages the school
-  inviteCode: string;
-  schoolType?: string; // e.g., Primary, Secondary, K-12
-  country?: string;
-  phoneNumber?: string;
-  setupComplete?: boolean; // True once onboarding is finished
-  isExamModeActive?: boolean;
-  createdAt?: Timestamp;
-  updatedAt?: Timestamp;
-}
 
-export interface Subject {
-  id: string;
-  name: string;
-  schoolId: string;
-  isCompulsory?: boolean; // Added for onboarding
-  createdAt: Timestamp;
-  updatedAt?: Timestamp;
-}
+// Subject
+export type Subject = z.infer<typeof SubjectSchema>;
+export type OnboardingSubjectData = z.infer<typeof OnboardingSubjectDataSchema>;
 
-export type LearningMaterialType = 'text' | 'link' | 'video_link' | 'pdf_link' | 'pdf_upload';
 
-export interface LearningMaterial {
-  id: string;
-  title: string;
-  content: string;
-  materialType: LearningMaterialType;
-  schoolId: string;
-  teacherId: string;
-  classId?: string | null;
-  subjectId?: string | null;
-  attachmentUrl?: string | null;
-  originalFileName?: string | null;
-  createdAt: Timestamp;
-  updatedAt?: Timestamp;
-}
-
-export interface LearningMaterialWithTeacherInfo extends LearningMaterial {
-  teacherDisplayName?: string;
-  className?: string;
-  subjectName?: string;
-}
-
-export type ClassType = 'main' | 'subject_based';
-
-export interface Class {
-  id: string;
-  name: string;
-  schoolId: string;
-  teacherId?: string; // Optional teacher ID
-  studentIds?: string[];
-  classInviteCode?: string;
-  classType: ClassType;
-  compulsorySubjectIds?: string[]; // For main classes
-  subjectId?: string | null; // For subject-based classes
-  createdAt: Timestamp;
-  updatedAt?: Timestamp;
-}
-
-export interface ClassWithTeacherInfo extends Class {
+// Class
+export type ClassType = z.infer<typeof ClassTypeSchema>;
+export type Class = z.infer<typeof ClassSchema>;
+export interface ClassWithTeacherInfo extends Class { // Keep interface for now if it has methods or complex derived types
   teacherDisplayName?: string;
   submittedAssignmentsCount?: number;
   totalAssignmentsCount?: number;
   compulsorySubjectNames?: string[];
   subjectName?: string;
 }
+export type OnboardingClassData = z.infer<typeof OnboardingClassDataSchema>;
 
-export type SubmissionFormat = 'text_entry' | 'file_link' | 'file_upload';
-
-export interface Assignment {
-  id: string;
-  classId: string;
-  teacherId: string;
-  schoolId: string;
-  title: string;
-  description: string;
-  deadline: Timestamp;
-  allowedSubmissionFormats: SubmissionFormat[];
-  subjectId?: string | null;
-  attachmentUrl?: string | null;
-  originalFileName?: string | null;
-  createdAt: Timestamp;
-  updatedAt?: Timestamp;
-  totalSubmissions?: number;
-  status?: 'submitted' | 'graded' | 'missing' | 'late';
-}
-
-export interface AssignmentWithClassInfo extends Assignment {
+// Learning Material
+export type LearningMaterialType = z.infer<typeof LearningMaterialTypeSchema>;
+export type LearningMaterial = z.infer<typeof LearningMaterialSchema>;
+export interface LearningMaterialWithTeacherInfo extends LearningMaterial { // Keep interface
+  teacherDisplayName?: string;
   className?: string;
   subjectName?: string;
 }
 
-export interface AssignmentWithClassAndSubmissionInfo extends AssignmentWithClassInfo {
-  submissionStatus?: 'submitted' | 'graded' | 'missing' | 'late';
-  submissionGrade?: string | number;
+// Assignment
+export type SubmissionFormat = z.infer<typeof SubmissionFormatSchema>;
+export type Assignment = z.infer<typeof AssignmentSchema>;
+export interface AssignmentWithClassInfo extends Assignment { // Keep interface
+  className?: string;
+  subjectName?: string;
+}
+export interface AssignmentWithClassAndSubmissionInfo extends AssignmentWithClassInfo { // Keep interface
+  submissionStatus?: 'submitted' | 'graded' | 'missing' | 'late'; // Derived, not directly in AssignmentSchema
+  submissionGrade?: string | number; // Derived
 }
 
-
-export interface Submission {
-  id: string;
-  assignmentId: string;
-  classId: string;
-  studentId: string;
-  submittedAt: Timestamp;
-  content: string;
-  submissionType: SubmissionFormat;
-  originalFileName?: string;
-  grade?: string | number;
-  feedback?: string;
-  status: 'submitted' | 'graded' | 'late';
-  updatedAt?: Timestamp; 
-}
-
-export interface SubmissionWithStudentName extends Submission {
+// Submission
+export type SubmissionStatus = z.infer<typeof SubmissionStatusSchema>;
+export type Submission = z.infer<typeof SubmissionSchema>;
+export interface SubmissionWithStudentName extends Submission { // Keep interface
   studentDisplayName?: string;
   studentEmail?: string;
 }
 
-export interface ClassStudentProgress {
-  studentId: string;
-  studentName: string;
-  completedAssignments: number;
-  overallGrade?: string;
-}
-
-export type ExamPeriodStatus = 'upcoming' | 'active' | 'grading' | 'completed';
-
-export interface ExamPeriod {
-  id: string;
-  name: string;
-  schoolId: string;
-  startDate: Timestamp;
-  endDate: Timestamp;
-  assignedClassIds: string[];
-  status: ExamPeriodStatus;
-  createdAt: Timestamp;
-  updatedAt: Timestamp;
-}
-
-export interface ExamPeriodWithClassNames extends ExamPeriod {
+// Exam Period
+export type ExamPeriodStatus = z.infer<typeof ExamPeriodStatusSchema>;
+export type ExamPeriod = z.infer<typeof ExamPeriodSchema>;
+export interface ExamPeriodWithClassNames extends ExamPeriod { // Keep interface
     assignedClassNames?: string[];
 }
 
-
-export interface ExamResult {
-  id: string;
-  studentId: string;
-  examPeriodId: string;
-  classId: string;
-  schoolId: string;
-  subjectId: string;
-  marks: string | number;
-  remarks?: string;
-  teacherId: string;
-  createdAt: Timestamp;
-  updatedAt: Timestamp;
-}
-
-export interface ExamResultWithStudentInfo extends ExamResult {
+// Exam Result
+export type ExamResult = z.infer<typeof ExamResultSchema>;
+export interface ExamResultWithStudentInfo extends ExamResult { // Keep interface
     studentName?: string;
     studentEmail?: string;
-    subjectName?: string;
-    examPeriodName?: string;
+    subjectName?: string; // Now derived and added
+    examPeriodName?: string; // Now derived and added
 }
 
+// Activity
+export type ActivityType = z.infer<typeof ActivityTypeSchema>;
+export type Activity = z.infer<typeof ActivitySchema>;
 
-export interface Activity {
-  id: string;
-  schoolId: string;
-  classId?: string;
-  actorId?: string;
-  actorName?: string;
-  targetUserId?: string;
-  targetUserName?: string;
-  type:
-    | 'assignment_created'
-    | 'assignment_updated'
-    | 'assignment_deleted'
-    | 'material_uploaded'
-    | 'material_updated'
-    | 'material_deleted'
-    | 'submission_received'
-    | 'submission_graded'
-    | 'student_joined_class'
-    | 'student_removed_from_class'
-    | 'student_onboarded'
-    | 'class_created'
-    | 'class_updated'
-    | 'class_deleted'
-    | 'subject_created'
-    | 'subject_updated'
-    | 'subject_deleted'
-    | 'user_registered'
-    | 'user_approved'
-    | 'user_rejected'
-    | 'user_profile_updated'
-    | 'attendance_marked'
-    | 'exam_period_created'
-    | 'exam_period_updated'
-    | 'exam_period_finalized'
-    | 'exam_results_entered'
-    | 'school_settings_updated'
-    | 'school_onboarding_step'
-    | 'invite_code_regenerated'
-    | 'parent_linked_child'
-    | 'testimonial_submitted' 
-    | 'general_announcement';
-  message: string;
-  link?: string;
-  timestamp: Timestamp;
-}
+// Attendance
+export type AttendanceStatus = z.infer<typeof AttendanceStatusSchema>;
+export type AttendanceRecord = z.infer<typeof AttendanceRecordSchema>;
 
-export type AttendanceStatus = 'present' | 'absent' | 'late' | 'excused';
+// Notification
+export type Notification = z.infer<typeof NotificationSchema>;
 
-export interface AttendanceRecord {
-  id: string; 
-  studentId: string;
-  studentName?: string; 
-  classId: string;
-  className?: string; 
-  schoolId: string;
-  date: Timestamp; 
-  status: AttendanceStatus;
-  markedBy: string; 
-  markedByName?: string; 
-  createdAt: Timestamp;
-  updatedAt: Timestamp;
-}
+// Testimonial
+export type Testimonial = z.infer<typeof TestimonialSchema>;
+export type OnboardingInvitedUserData = z.infer<typeof OnboardingInvitedUserDataSchema>;
 
-export interface Notification {
-  id: string;
-  userId: string;
-  schoolId: string;
-  message: string;
-  link?: string;
-  isRead: boolean;
-  createdAt: Timestamp;
-  type: Activity['type'] | 'general_announcement' | 'system_update';
-  actorName?: string;
-}
 
-export interface Testimonial {
-  id: string;
-  userId: string;
-  userName: string;
-  userRole: UserRole;
-  schoolId?: string; 
-  schoolName?: string; 
-  rating: number; 
-  feedbackText: string;
-  isApprovedForDisplay: boolean;
-  submittedAt: Timestamp;
-}
-
-// For Onboarding
-export interface OnboardingSchoolData {
-  schoolName: string;
-  schoolType: string;
-  country: string;
-  phoneNumber: string;
-}
-
-export interface OnboardingSubjectData {
-  name: string;
-  isCompulsory?: boolean;
-}
-
-export interface OnboardingClassData {
-  name: string;
-  type: ClassType;
-  subjectId?: string;
-  compulsorySubjectIds?: string[];
-}
-
-export interface OnboardingInvitedUserData {
-  email: string;
-  displayName: string;
-  role: 'teacher' | 'student';
-}
-
-// For AI Student Performance Analysis
-export interface AnalyzeStudentPerformanceInput {
-  studentName: string;
-  examResultsSummary: string; // e.g., "Math: 85% (Mid-Term), Science: 72% (Mid-Term)"
-  assignmentSummary: string; // e.g., "Average assignment score: 80%. Completes 90% on time. Struggles with essay questions."
-  attendanceSummary?: string; // e.g., "95% attendance. 2 lates in the past month."
-  // Potentially add list of subjects or specific areas of concern from teacher/parent
-}
-
-export interface AnalyzeStudentPerformanceOutput {
-  strengths: string; // Paragraph describing student's strengths
-  weaknesses: string; // Paragraph describing areas for improvement
-  recommendations: string; // Actionable recommendations
-  overallSummary: string; // A concise overall summary
-}
-
-```
+// AI Flow Types (inferred from schemas)
+export type AnalyzeStudentPerformanceInput = z.infer<typeof AnalyzeStudentPerformanceInputSchema>;
+export type AnalyzeStudentPerformanceOutput = z.infer<typeof AnalyzeStudentPerformanceOutputSchema>;
+export type AkiliChatInput = z.infer<typeof AkiliChatInputSchema>;
+export type AkiliChatOutput = z.infer<typeof AkiliChatOutputSchema>;
+export type MwalimuChatInput = z.infer<typeof MwalimuChatInputSchema>;
+export type MwalimuChatOutput = z.infer<typeof MwalimuChatOutputSchema>;
+export type GenerateLearningPathInput = z.infer<typeof GenerateLearningPathInputSchema>;
+export type GenerateLearningPathOutput = z.infer<typeof GenerateLearningPathOutputSchema>;
+export type SummarizeLearningMaterialInput = z.infer<typeof SummarizeLearningMaterialInputSchema>;
+export type SummarizeLearningMaterialOutput = z.infer<typeof SummarizeLearningMaterialOutputSchema>;
