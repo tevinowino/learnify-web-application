@@ -21,7 +21,15 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select"; // Added this import
+} from "@/components/ui/select";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 
 export default function TeacherAttendancePage() {
   const { currentUser, getClassesByTeacher, getStudentsInClass, saveAttendanceRecords, getAttendanceForClassDate, loading: authLoading } = useAuth();
@@ -40,7 +48,7 @@ export default function TeacherAttendancePage() {
     if (currentUser?.uid) {
       setIsLoadingData(true);
       const classes = await getClassesByTeacher(currentUser.uid);
-      setTeacherClasses(classes);
+      setTeacherClasses(classes.filter(c => c.classType === 'main')); // Only main classes for attendance
       setIsLoadingData(false);
     }
   }, [currentUser, getClassesByTeacher]);
@@ -103,7 +111,7 @@ export default function TeacherAttendancePage() {
     
     if (success) {
       toast({ title: "Attendance Submitted!", description: `Attendance for ${teacherClasses.find(c=>c.id===selectedClassId)?.name} on ${format(attendanceDate, 'PPP')} has been recorded.` });
-      fetchStudentsAndPrevAttendance(); // Refresh to show submitted data if needed, or clear form
+      fetchStudentsAndPrevAttendance(); 
     } else {
       toast({ title: "Submission Failed", description: "Could not save attendance records.", variant: "destructive" });
     }
@@ -122,10 +130,10 @@ export default function TeacherAttendancePage() {
         </CardHeader>
         <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
-            <Label htmlFor="class-select">Class</Label>
+            <Label htmlFor="class-select">Class (Main Classes Only)</Label>
             <Select onValueChange={setSelectedClassId} value={selectedClassId} disabled={isLoading || teacherClasses.length === 0}>
               <SelectTrigger id="class-select">
-                <SelectValue placeholder={teacherClasses.length === 0 ? "No classes assigned" : "Select a class..."} />
+                <SelectValue placeholder={teacherClasses.length === 0 ? "No main classes assigned" : "Select a class..."} />
               </SelectTrigger>
               <SelectContent>
                 {teacherClasses.map(cls => (
@@ -166,38 +174,52 @@ export default function TeacherAttendancePage() {
         <Card className="card-shadow">
           <CardHeader>
             <CardTitle className="flex items-center"><Users2 className="mr-2 h-5 w-5 text-primary"/>Student List</CardTitle>
-            <CardDescription>Mark attendance for {teacherClasses.find(c=>c.id===selectedClassId)?.name} on {format(attendanceDate, 'PPP')}.</CardDescription>
+            <CardDescription>Mark attendance for {teacherClasses.find(c=>c.id===selectedClassId)?.name} on {format(attendanceDate, 'PPP')}. Default is 'Present'.</CardDescription>
           </CardHeader>
           <CardContent>
             {isLoading ? <div className="flex justify-center py-4"><Loader message="Loading students..." /></div> : 
               studentsInSelectedClass.length === 0 ? (
                 <p className="text-muted-foreground text-center py-4">No students in this class, or class not selected.</p>
               ) : (
-                <div className="space-y-3">
-                  {studentsInSelectedClass.map(student => (
-                    <div key={student.id} className="flex flex-col sm:flex-row items-center justify-between p-3 border rounded-md hover:bg-muted/50 transition-colors">
-                      <span className="font-medium mb-2 sm:mb-0 flex-grow">{student.displayName}</span>
-                      <div className="flex gap-2">
-                        <Button
-                          variant={attendanceRecords[student.id] === 'present' ? 'default' : 'outline'}
-                          onClick={() => handleStatusChange(student.id, 'present')}
-                          disabled={isSubmitting}
-                          className={cn("w-full sm:w-auto", attendanceRecords[student.id] === 'present' && "bg-primary hover:bg-primary/90")}
-                        >
-                          <Check className="mr-1 h-4 w-4"/> Present
-                        </Button>
-                        <Button
-                          variant={attendanceRecords[student.id] === 'absent' ? 'destructive' : 'outline'}
-                          onClick={() => handleStatusChange(student.id, 'absent')}
-                          disabled={isSubmitting}
-                          className="w-full sm:w-auto"
-                        >
-                         <X className="mr-1 h-4 w-4"/> Absent
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
-                  <Button onClick={handleSubmitAttendance} disabled={isSubmitting || isLoading || studentsInSelectedClass.length === 0} className="w-full mt-4 button-shadow">
+                <div className="space-y-4">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="w-[60%]">Student Name</TableHead>
+                        <TableHead className="text-right w-[40%]">Status</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {studentsInSelectedClass.map(student => (
+                        <TableRow key={student.id}>
+                          <TableCell className="font-medium">{student.displayName}</TableCell>
+                          <TableCell className="text-right">
+                            <div className="flex gap-2 justify-end">
+                              <Button
+                                variant={attendanceRecords[student.id] === 'present' ? 'default' : 'outline'}
+                                size="sm"
+                                onClick={() => handleStatusChange(student.id, 'present')}
+                                disabled={isSubmitting}
+                                className={cn("w-24", attendanceRecords[student.id] === 'present' && "bg-primary hover:bg-primary/90")}
+                              >
+                                <Check className="mr-1 h-4 w-4"/> Present
+                              </Button>
+                              <Button
+                                variant={attendanceRecords[student.id] === 'absent' ? 'destructive' : 'outline'}
+                                size="sm"
+                                onClick={() => handleStatusChange(student.id, 'absent')}
+                                disabled={isSubmitting}
+                                className="w-24"
+                              >
+                               <X className="mr-1 h-4 w-4"/> Absent
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                  <Button onClick={handleSubmitAttendance} disabled={isSubmitting || isLoading || studentsInSelectedClass.length === 0} className="w-full mt-6 button-shadow">
                     {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}
                     <Save className="mr-2 h-4 w-4"/> Submit Attendance
                   </Button>

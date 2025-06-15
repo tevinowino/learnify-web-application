@@ -357,17 +357,9 @@ export default function TeacherResultsPage() {
   );
 }
 
+// Placeholder for getSchoolDetailsService if it were directly used here,
+// normally it's part of AuthProvider or a dedicated service file.
+// const getSchoolDetailsService = async (schoolId: string) => { return null; }
 
-// Helper: Moved getSchoolDetailsService to its own file, so import directly or assume it's passed if needed by other funcs.
-// For this component, we'll get school details via currentUser or a specific call if needed.
-// For simplicity, assuming `getSchoolDetailsService` is available if another part of `useAuth` needs it.
-const getSchoolDetailsService = async (schoolId: string) => {
-  if(!schoolId) return null;
-  // This function is not directly available here, it's part of AuthProvider
-  // For the component, we'd rely on the schoolDetails state variable
-  // which is fetched in useAuth or in the component's useEffect.
-  // This is a placeholder if this service was to be used directly here.
-  const schoolDoc = await getDoc(doc(db, "schools", schoolId));
-  return schoolDoc.exists() ? schoolDoc.data() as School : null;
-}
-
+// Import Timestamp if not globally available (it is from AuthProvider in this context)
+// import { Timestamp } from 'firebase/firestore'; 

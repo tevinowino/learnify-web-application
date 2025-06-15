@@ -17,6 +17,14 @@ import { Badge } from '@/components/ui/badge';
 import Loader from '@/components/shared/Loader';
 import { useRouter } from 'next/navigation';
 import { Label } from '@/components/ui/label';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 
 export default function StudentAttendancePage() {
   const { currentUser, getAttendanceForStudent, loading: authLoading } = useAuth();
@@ -25,7 +33,7 @@ export default function StudentAttendancePage() {
   
   const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>([]);
   const [dateRange, setDateRange] = useState<{ from: Date | undefined; to: Date | undefined }>({
-    from: subDays(new Date(), 30), // Default to last 30 days
+    from: subDays(new Date(), 30), 
     to: new Date(),
   });
   
@@ -38,7 +46,6 @@ export default function StudentAttendancePage() {
         const startDate = Timestamp.fromDate(startOfDay(dateRange.from));
         const endDate = Timestamp.fromDate(endOfDay(dateRange.to));
         const records = await getAttendanceForStudent(currentUser.uid, currentUser.schoolId, startDate, endDate);
-        // Sort by date descending, then by class name
         records.sort((a, b) => b.date.toMillis() - a.date.toMillis() || (a.className || '').localeCompare(b.className || ''));
         setAttendanceRecords(records);
       } catch (error) {
@@ -146,21 +153,30 @@ export default function StudentAttendancePage() {
                 <p>No attendance records found for the selected period.</p>
               </div>
             ) : (
-              <ScrollArea className="h-[50vh] border rounded-md">
-                <div className="space-y-0">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Date</TableHead>
+                    <TableHead>Class</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Marked By</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
                   {attendanceRecords.map(record => (
-                    <div key={record.id} className="flex items-center justify-between p-3 border-b last:border-b-0 hover:bg-muted/50">
-                      <div>
-                        <p className="font-medium text-sm">{format(record.date.toDate(), 'PPP')} - {record.className || 'N/A'}</p>
-                        <p className="text-xs text-muted-foreground">Marked by: {record.markedByName || 'Teacher'}</p>
-                      </div>
-                      <Badge variant={getStatusBadgeVariant(record.status)} className="capitalize text-xs px-2 py-0.5">
-                        {record.status}
-                      </Badge>
-                    </div>
+                    <TableRow key={record.id}>
+                      <TableCell>{format(record.date.toDate(), 'PPP')}</TableCell>
+                      <TableCell>{record.className || 'N/A'}</TableCell>
+                      <TableCell>
+                        <Badge variant={getStatusBadgeVariant(record.status)} className="capitalize text-xs px-2 py-0.5">
+                          {record.status}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>{record.markedByName || 'Teacher'}</TableCell>
+                    </TableRow>
                   ))}
-                </div>
-              </ScrollArea>
+                </TableBody>
+              </Table>
             )
           }
         </CardContent>

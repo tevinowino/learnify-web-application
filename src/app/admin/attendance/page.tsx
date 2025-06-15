@@ -6,7 +6,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Loader2, Users2, CalendarDays, Filter, AlertTriangle } from "lucide-react";
-import type { ClassWithTeacherInfo, AttendanceRecord } from '@/types'; // Removed UserProfileWithId as it's not directly used for display list here
+import type { ClassWithTeacherInfo, AttendanceRecord } from '@/types';
 import { useToast } from '@/hooks/use-toast';
 import {
   Select,
@@ -17,12 +17,20 @@ import {
 } from "@/components/ui/select";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
-import { format, startOfDay, endOfDay } from 'date-fns'; // Removed subDays as default range isn't used here
+import { format, startOfDay, endOfDay } from 'date-fns';
 import { Timestamp } from 'firebase/firestore';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
 import Loader from '@/components/shared/Loader';
-import { Label } from '@/components/ui/label'; // Added Label
+import { Label } from '@/components/ui/label';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 
 export default function AdminAttendancePage() {
   const { currentUser, getClassesBySchool, getAttendanceForSchoolClassRange, loading: authLoading } = useAuth();
@@ -59,7 +67,7 @@ export default function AdminAttendancePage() {
       setIsLoadingData(false);
     } else {
       setAttendanceRecords([]);
-      if (selectedClassId && attendanceDate) { // If filters are set but no schoolId, clear loading
+      if (selectedClassId && attendanceDate) {
         setIsLoadingData(false);
       }
     }
@@ -145,18 +153,28 @@ export default function AdminAttendancePage() {
                     <p>No attendance records found for this class on this date.</p>
                 </div>
               ) : (
-                <ScrollArea className="h-[60vh] border rounded-md">
-                  <div className="space-y-0"> {/* Removed space-y-2 to make it look more like a table */}
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Student Name</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Marked By</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
                     {attendanceRecords.map(record => (
-                      <div key={record.id} className="flex items-center justify-between p-3 border-b last:border-b-0">
-                        <span className="font-medium text-sm">{record.studentName || 'Unknown Student'}</span>
-                        <Badge variant={getStatusBadgeVariant(record.status)} className="capitalize text-xs px-2 py-0.5">
-                          {record.status}
-                        </Badge>
-                      </div>
+                      <TableRow key={record.id}>
+                        <TableCell className="font-medium">{record.studentName || 'Unknown Student'}</TableCell>
+                        <TableCell>
+                          <Badge variant={getStatusBadgeVariant(record.status)} className="capitalize text-xs px-2 py-0.5">
+                            {record.status}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>{record.markedByName || 'N/A'}</TableCell>
+                      </TableRow>
                     ))}
-                  </div>
-                </ScrollArea>
+                  </TableBody>
+                </Table>
               )
             }
           </CardContent>
@@ -165,5 +183,3 @@ export default function AdminAttendancePage() {
     </div>
   );
 }
-
-    

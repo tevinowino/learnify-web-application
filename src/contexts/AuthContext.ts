@@ -4,6 +4,7 @@ import type { ReactNode }from 'react';
 import { createContext } from 'react';
 import type { UserProfile, UserRole, School, LearningMaterial, UserProfileWithId, Class, ClassWithTeacherInfo, LearningMaterialWithTeacherInfo, Assignment, Submission, SubmissionFormat, LearningMaterialType, AssignmentWithClassInfo, SubmissionWithStudentName, AssignmentWithClassAndSubmissionInfo, UserStatus, Activity, Subject, ExamPeriod, ExamPeriodWithClassNames, ExamResult, ExamResultWithStudentInfo, ClassType, Notification, AttendanceRecord, AttendanceStatus, Testimonial, OnboardingSchoolData, OnboardingSubjectData, OnboardingClassData, OnboardingInvitedUserData, AnalyzeStudentPerformanceInput, AnalyzeStudentPerformanceOutput } from '@/types';
 import type { getClassDetailsService as GetClassDetailsServiceType } from '@/services/classService';
+import { Timestamp } from 'firebase/firestore'; // Ensure Timestamp is imported
 
 // This will be the full type provided by the AuthProvider
 export interface AuthContextType {

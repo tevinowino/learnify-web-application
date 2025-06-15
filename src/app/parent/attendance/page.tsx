@@ -16,8 +16,16 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
 import Loader from '@/components/shared/Loader';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation'; // Import useRouter
-import { Label } from '@/components/ui/label'; // Added Label
+import { useRouter } from 'next/navigation'; 
+import { Label } from '@/components/ui/label';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 
 
 export default function ParentChildAttendancePage() {
@@ -65,7 +73,7 @@ export default function ParentChildAttendancePage() {
        if (dateRange.from && dateRange.to && (!isValid(dateRange.from) || !isValid(dateRange.to))) {
         toast({ title: "Invalid Date Range", description: "Please select valid start and end dates.", variant: "destructive" });
       }
-      setIsLoadingData(false); // Ensure loading stops if conditions aren't met
+      setIsLoadingData(false); 
     }
   }, [currentUser, dateRange, getAttendanceForStudent, toast]);
 
@@ -177,21 +185,30 @@ export default function ParentChildAttendancePage() {
                 <p>No attendance records found for the selected period.</p>
               </div>
             ) : (
-              <ScrollArea className="h-[50vh] border rounded-md">
-                <div className="space-y-0">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Date</TableHead>
+                    <TableHead>Class</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Marked By</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
                   {attendanceRecords.map(record => (
-                    <div key={record.id} className="flex items-center justify-between p-3 border-b last:border-b-0 hover:bg-muted/50">
-                      <div>
-                        <p className="font-medium text-sm">{format(record.date.toDate(), 'PPP')} - {record.className || 'N/A'}</p>
-                        <p className="text-xs text-muted-foreground">Marked by: {record.markedByName || 'Teacher'}</p>
-                      </div>
-                      <Badge variant={getStatusBadgeVariant(record.status)} className="capitalize text-xs px-2 py-0.5">
-                        {record.status}
-                      </Badge>
-                    </div>
+                    <TableRow key={record.id}>
+                      <TableCell>{format(record.date.toDate(), 'PPP')}</TableCell>
+                      <TableCell>{record.className || 'N/A'}</TableCell>
+                      <TableCell>
+                        <Badge variant={getStatusBadgeVariant(record.status)} className="capitalize text-xs px-2 py-0.5">
+                          {record.status}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>{record.markedByName || 'Teacher'}</TableCell>
+                    </TableRow>
                   ))}
-                </div>
-              </ScrollArea>
+                </TableBody>
+              </Table>
             )
           }
         </CardContent>
@@ -199,5 +216,4 @@ export default function ParentChildAttendancePage() {
     </div>
   );
 }
-
     
