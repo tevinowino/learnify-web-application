@@ -14,11 +14,12 @@ import { Badge } from '@/components/ui/badge';
 import Link from 'next/link';
 import Loader from '@/components/shared/Loader'; 
 import FinalizeExamPeriodDialog from '../components/FinalizeExamPeriodDialog';
+import EditExamPeriodDialog from './components/EditExamPeriodDialog';
 
 
 export default function ExamPeriodDetailPage() {
   const paramsFromHook = useParams<{ examPeriodId: string }>();
-  const params = paramsFromHook; // Correctly assign directly
+  const params = paramsFromHook; 
   const router = useRouter();
   const examPeriodId = params.examPeriodId;
   const { toast } = useToast();
@@ -42,6 +43,7 @@ export default function ExamPeriodDetailPage() {
   const [isFinalizing, setIsFinalizing] = useState(false);
   const [schoolSubjects, setSchoolSubjects] = useState<Subject[]>([]);
   const [isFinalizeDialogOpen, setIsFinalizeDialogOpen] = useState(false);
+  const [isEditExamPeriodDialogOpen, setIsEditExamPeriodDialogOpen] = useState(false);
 
 
   const fetchData = useCallback(async () => {
@@ -189,22 +191,24 @@ export default function ExamPeriodDetailPage() {
                 Status: <Badge variant={examPeriod.status === 'completed' ? 'default' : 'secondary'} className={examPeriod.status === 'completed' ? "bg-green-500 hover:bg-green-600" : ""}>{examPeriod.status.toUpperCase()}</Badge>
               </CardDescription>
             </div>
-            {canFinalize && (
-              <Button onClick={openFinalizeDialog} disabled={isFinalizing} className="button-shadow bg-accent hover:bg-accent/90 text-accent-foreground mt-2 sm:mt-0">
-                {isFinalizing && <Loader size="small" className="mr-2"/>}
-                <CheckCircle className="mr-2 h-4 w-4"/> Finalize Exam Period
-              </Button>
-            )}
-             {examPeriod.status === 'completed' && (
-                <Badge variant="default" className="bg-green-500 hover:bg-green-600 mt-2 sm:mt-0 text-base px-3 py-1.5 self-start">
-                    <CheckCircle className="mr-2 h-4 w-4"/> Completed
-                </Badge>
-            )}
-             {examPeriod.status === 'upcoming' && (
-                 <Button variant="outline" size="sm" asChild className="mt-2 sm:mt-0 button-shadow">
-                     <Link href={`/admin/exams/${examPeriod.id}/edit`}>Edit Period</Link>
-                 </Button>
-             )}
+            <div className="flex items-center gap-2 mt-2 sm:mt-0">
+              {canFinalize && (
+                <Button onClick={openFinalizeDialog} disabled={isFinalizing} className="button-shadow bg-accent hover:bg-accent/90 text-accent-foreground">
+                  {isFinalizing && <Loader size="small" className="mr-2"/>}
+                  <CheckCircle className="mr-2 h-4 w-4"/> Finalize Exam Period
+                </Button>
+              )}
+              {examPeriod.status === 'completed' && (
+                  <Badge variant="default" className="bg-green-500 hover:bg-green-600 text-base px-3 py-1.5 self-start">
+                      <CheckCircle className="mr-2 h-4 w-4"/> Completed
+                  </Badge>
+              )}
+              {(examPeriod.status === 'upcoming' || examPeriod.status === 'active' || examPeriod.status === 'grading') && (
+                  <Button variant="outline" size="sm" onClick={() => setIsEditExamPeriodDialogOpen(true)} className="button-shadow">
+                      Edit Period
+                  </Button>
+              )}
+            </div>
           </div>
         </CardHeader>
         <CardContent className="space-y-3">
@@ -213,12 +217,20 @@ export default function ExamPeriodDetailPage() {
             <span>Dates: {format(examPeriod.startDate.toDate(), 'PPP')} - {format(examPeriod.endDate.toDate(), 'PPP')}</span>
           </div>
           <div>
-            <h4 className="font-semibold text-md">Assigned Classes:</h4>
-            {examPeriod.assignedClassNames && examPeriod.assignedClassNames.length > 0 ? (
-                <ul className="list-disc list-inside ml-4 text-sm text-muted-foreground">
-                    {examPeriod.assignedClassNames.map((name, idx) => <li key={idx}>{name}</li>)}
-                </ul>
-            ) : <p className="text-sm text-muted-foreground">No classes assigned.</p>}
+            <h4 className="font-semibold text-md">Assigned To:</h4>
+            <p className="text-sm text-muted-foreground capitalize">
+              {examPeriod.assignmentScope?.replace('_', ' ') || 'Specific Classes'}
+              {examPeriod.assignmentScope === 'form_grade' && examPeriod.scopeDetail && `: ${examPeriod.scopeDetail}`}
+            </p>
+            {examPeriod.assignmentScope !== 'entire_school' && (
+              <ul className="list-disc list-inside ml-4 text-sm text-muted-foreground">
+                  {examPeriod.assignedClassNames && examPeriod.assignedClassNames.length > 0 ? (
+                      examPeriod.assignedClassNames.map((name, idx) => <li key={idx}>{name}</li>)
+                  ): (
+                      <li>No specific classes listed.</li>
+                  )}
+              </ul>
+            )}
           </div>
         </CardContent>
       </Card>
@@ -274,6 +286,12 @@ export default function ExamPeriodDetailPage() {
         examPeriodName={examPeriod.name}
         allResultsSubmitted={checkAllResultsSubmitted()}
         isFinalizing={isFinalizing}
+      />
+      <EditExamPeriodDialog
+        examPeriod={examPeriod}
+        isOpen={isEditExamPeriodDialogOpen}
+        onOpenChange={setIsEditExamPeriodDialogOpen}
+        onSuccess={fetchData}
       />
     </div>
   );
