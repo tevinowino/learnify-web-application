@@ -103,13 +103,26 @@ export default function AdminExamsPage() {
                         <Link href={`/admin/exams/${period.id}`} className="hover:underline">
                            <CardTitle>{period.name}</CardTitle>
                         </Link>
-                        <CardDescription>
-                            Status: <Badge variant={period.status === 'completed' ? 'default' : 'secondary'} className={period.status === 'completed' ? "bg-green-500 hover:bg-green-600" : ""}>{period.status.toUpperCase()}</Badge> <br />
-                            Dates: {format(period.startDate.toDate(), 'PPP')} - {format(period.endDate.toDate(), 'PPP')} <br/>
-                            Classes: {period.assignedClassNames && period.assignedClassNames.length > 0 ? period.assignedClassNames.join(', ') : 'None'}
+                        <CardDescription className="mt-1 space-y-1">
+                            <div>Status: <Badge variant={period.status === 'completed' ? 'default' : 'secondary'} className={period.status === 'completed' ? "bg-green-500 hover:bg-green-600" : ""}>{period.status.toUpperCase()}</Badge></div>
+                            <div>Dates: {format(period.startDate.toDate(), 'PPP')} - {format(period.endDate.toDate(), 'PPP')}</div>
+                            <div className="flex items-start">
+                              <span className="mr-1">Classes:</span>
+                              {period.assignedClassNames && period.assignedClassNames.length > 0 ? (
+                                <div className="flex flex-wrap gap-1">
+                                  {period.assignedClassNames.map((name, idx) => 
+                                    name.startsWith("...and") ? (
+                                      <span key={idx} className="text-xs text-muted-foreground">{name}</span>
+                                    ) : (
+                                      <Badge key={idx} variant="outline" className="text-xs">{name}</Badge>
+                                    )
+                                  )}
+                                </div>
+                              ) : <span className="text-xs text-muted-foreground">None</span>}
+                            </div>
                         </CardDescription>
                     </div>
-                    <Button variant="outline" size="sm" asChild className="mt-2 sm:mt-0 button-shadow">
+                    <Button variant="outline" size="sm" asChild className="mt-2 sm:mt-0 button-shadow self-start sm:self-center">
                         <Link href={`/admin/exams/${period.id}`}>
                             <Eye className="mr-1 h-4 w-4"/> View Details
                         </Link>
@@ -124,3 +137,4 @@ export default function AdminExamsPage() {
     </div>
   );
 }
+
