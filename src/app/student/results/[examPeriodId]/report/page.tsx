@@ -1,7 +1,7 @@
 
 "use client";
 
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
@@ -13,12 +13,14 @@ import { useToast } from '@/hooks/use-toast';
 import Loader from '@/components/shared/Loader';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import html2pdf from 'html2pdf.js';
 
 export default function StudentReportCardPage() {
-  const params = useParams<{ examPeriodId: string }>();
+  const params = React.use(useParams<{ examPeriodId: string }>());
   const router = useRouter();
   const examPeriodId = params.examPeriodId;
   const { toast } = useToast();
+  const reportCardRef = useRef<HTMLDivElement>(null);
 
   const {
     currentUser,
@@ -35,6 +37,7 @@ export default function StudentReportCardPage() {
   const [aiAnalysis, setAiAnalysis] = useState<string | null>(null);
   const [isLoadingPage, setIsLoadingPage] = useState(true);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [isDownloading, setIsDownloading] = useState(false);
 
   const fetchData = useCallback(async () => {
     if (!examPeriodId || !currentUser?.uid || !currentUser.schoolId) {
@@ -103,6 +106,31 @@ export default function StudentReportCardPage() {
     fetchData();
   }, [fetchData]);
 
+  const handleDownloadReportCard = () => {
+    if (!reportCardRef.current || !studentProfile || !examPeriod) return;
+    setIsDownloading(true);
+    const element = reportCardRef.current;
+    const filename = `Report_Card_${studentProfile.displayName?.replace(/\s+/g, '_')}_${examPeriod.name.replace(/\s+/g, '_')}.pdf`;
+    
+    const opt = {
+      margin:       [0.5, 0.2, 0.5, 0.2], // top, left, bottom, right
+      filename:     filename,
+      image:        { type: 'jpeg', quality: 0.98 },
+      html2canvas:  { scale: 2, useCORS: true, logging: false },
+      jsPDF:        { unit: 'in', format: 'letter', orientation: 'portrait' }
+    };
+
+    html2pdf().from(element).set(opt).save().then(() => {
+        setIsDownloading(false);
+        toast({title: "Download Started", description: "Your report card PDF is downloading."});
+    }).catch(err => {
+        setIsDownloading(false);
+        toast({title: "Download Error", description: "Could not generate PDF. Please try again.", variant: "destructive"});
+        console.error("PDF Download error:", err);
+    });
+  };
+
+
   if (authLoading || isLoadingPage) {
     return (
       <div className="flex h-full items-center justify-center">
@@ -121,7 +149,7 @@ export default function StudentReportCardPage() {
         <ArrowLeft className="mr-2 h-4 w-4" /> Back to All Results
       </Button>
 
-      <Card className="card-shadow overflow-hidden">
+      <Card className="card-shadow overflow-hidden" ref={reportCardRef}>
         <CardHeader className="bg-primary/10 p-6">
           <div className="flex flex-col sm:flex-row items-center gap-4">
              <Avatar className="h-20 w-20 sm:h-24 sm:w-24 border-2 border-primary">
@@ -185,8 +213,9 @@ export default function StudentReportCardPage() {
           </div>
         </CardContent>
         <CardFooter className="border-t p-6 flex justify-end">
-            <Button className="button-shadow" disabled>
-                <Download className="mr-2 h-4 w-4"/> Download Report (PDF) - Coming Soon
+            <Button onClick={handleDownloadReportCard} disabled={isDownloading || !reportCardRef.current} className="button-shadow">
+                {isDownloading && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}
+                <Download className="mr-2 h-4 w-4"/> Download Report (PDF)
             </Button>
         </CardFooter>
       </Card>
