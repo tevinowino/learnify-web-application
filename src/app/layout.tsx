@@ -1,16 +1,13 @@
 
-"use client"; 
-
 import { Suspense } from 'react';
 import { Inter } from 'next/font/google';
-import type { Metadata } from 'next'; 
+import type { Metadata } from 'next';
 import './globals.css';
 import { Toaster } from '@/components/ui/toaster';
 import { AuthProvider } from '@/contexts/AuthProvider';
-import Navbar from '@/components/shared/Navbar';
 import { siteConfig } from '@/config/site';
 import { ThemeProvider } from '@/components/theme-provider';
-import { usePathname } from 'next/navigation'; 
+import LayoutClientManager from '@/components/shared/LayoutClientManager'; // Import the new client component
 
 const inter = Inter({
   subsets: ['latin'],
@@ -54,7 +51,7 @@ export const metadata: Metadata = {
     siteName: siteConfig.name,
     images: [
       {
-        url: `${APP_URL}/og-image.png`, 
+        url: `${APP_URL}/og-image.png`,
         width: 1200,
         height: 630,
         alt: `${siteConfig.name} - Revolutionizing Education with AI`,
@@ -65,19 +62,19 @@ export const metadata: Metadata = {
     card: 'summary_large_image',
     title: `${siteConfig.name} - AI-Powered Education Platform`,
     description: siteConfig.description,
-    images: [`${APP_URL}/twitter-image.png`], 
+    images: [`${APP_URL}/twitter-image.png`],
   },
   icons: [
     {
       rel: 'icon',
-      url: '/logo-icon.png', 
+      url: '/logo-icon.png',
     },
     {
       rel: 'apple-touch-icon',
-      url: '/logo-icon.png', 
+      url: '/logo-icon.png',
     },
   ],
-  manifest: `${APP_URL}/site.webmanifest`, 
+  manifest: `${APP_URL}/site.webmanifest`,
 };
 
 export default function RootLayout({
@@ -85,18 +82,12 @@ export default function RootLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const pathname = usePathname();
-  const isDashboardRoute = pathname.startsWith('/admin') ||
-                           pathname.startsWith('/teacher') ||
-                           pathname.startsWith('/student') ||
-                           pathname.startsWith('/parent');
-
   const organizationJsonLd = {
     "@context": "https://schema.org",
     "@type": "Organization",
     "name": siteConfig.name,
     "url": APP_URL,
-    "logo": `${APP_URL}/logo-icon.png`, 
+    "logo": `${APP_URL}/logo-icon.png`,
   };
 
   const websiteJsonLd = {
@@ -108,7 +99,7 @@ export default function RootLayout({
       "@type": "SearchAction",
       "target": {
         "@type": "EntryPoint",
-        "urlTemplate": `${APP_URL}/search?q={search_term_string}` 
+        "urlTemplate": `${APP_URL}/search?q={search_term_string}`
       },
       "query-input": "required name=search_term_string"
     }
@@ -135,12 +126,9 @@ export default function RootLayout({
         >
           <Suspense fallback={null}>
             <AuthProvider>
-              <div className="flex flex-col min-h-screen">
-                {!isDashboardRoute && <Navbar />} 
-                <main className={`flex-grow ${!isDashboardRoute ? 'container mx-auto' : ''}`}>
-                  {children}
-                </main>
-              </div>
+              <LayoutClientManager>
+                {children}
+              </LayoutClientManager>
               <Toaster />
             </AuthProvider>
           </Suspense>

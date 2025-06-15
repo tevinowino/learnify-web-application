@@ -17,7 +17,7 @@ const SubjectResultSchema = z.object({
   remarks: z.string().optional().describe("Teacher's remarks for the subject, if any."),
 });
 
-export const ReportCardAnalysisInputSchema = z.object({
+const ReportCardAnalysisInputSchema = z.object({
   studentName: z.string().describe("The student's name."),
   examPeriodName: z.string().describe("The name of the exam period. E.g., 'Mid-Term Exams Fall 2024'."),
   results: z.array(SubjectResultSchema).min(1, "At least one subject result is required.")
@@ -25,7 +25,7 @@ export const ReportCardAnalysisInputSchema = z.object({
 });
 export type ReportCardAnalysisInput = z.infer<typeof ReportCardAnalysisInputSchema>;
 
-export const ReportCardAnalysisOutputSchema = z.object({
+const ReportCardAnalysisOutputSchema = z.object({
   analysis: z.string().describe("A concise, positive, and constructive AI-generated overview of the student's performance based on the provided results. Highlight strengths and suggest general areas for focus. Maximum 2-3 sentences."),
 });
 export type ReportCardAnalysisOutput = z.infer<typeof ReportCardAnalysisOutputSchema>;
