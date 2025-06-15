@@ -6,7 +6,7 @@ import type { UserRole } from '@/types';
 import { useAuth } from '@/hooks/useAuth';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
-import { Home, Users, Settings, LogOut as LogOutIcon, Library, FileText, UserCircle2, BookCopy, UserCog, Edit3, ListChecks, FolderOpen, BarChart2, PanelLeft, BookText as BookTextIcon, Shield, HeartHandshake, Users2, FilePieChart, Activity, Sparkles, Brain, Bell, ShieldCheck, MessageSquare } from 'lucide-react'; 
+import { Home, Users, Settings, LogOut as LogOutIcon, Library, FileText, UserCircle2, BookCopy, UserCog, Edit3, ListChecks, FolderOpen, BarChart2, PanelLeft, BookText as BookTextIcon, Shield, HeartHandshake, Users2, FilePieChart, Activity, Sparkles, Brain, Bell, ShieldCheck, MessageSquare, ClipboardCheck } from 'lucide-react'; 
 import Logo from '@/components/shared/Logo'; 
 import {
   SidebarProvider,
@@ -39,6 +39,8 @@ const navItemsConfig = {
     { href: '/admin/users', label: 'Manage Users', icon: <Users /> },
     { href: '/admin/classes', label: 'Manage Classes', icon: <BookCopy /> },
     { href: '/admin/exams', label: 'Exam Management', icon: <FilePieChart /> },
+    { href: '/admin/results', label: 'Enter Exam Results', icon: <ClipboardCheck /> },
+    { href: '/admin/attendance', label: 'View Attendance', icon: <Users2 />},
     { href: '/admin/activity', label: 'Activity Log', icon: <Activity /> },
     { href: '/admin/testimonials', label: 'Testimonials', icon: <MessageSquare /> },
     { href: '/admin/settings', label: 'School Settings', icon: <Settings /> },
@@ -199,4 +201,5 @@ export default function DashboardLayout({ children, userRole }: DashboardLayoutP
     </SidebarProvider>
   );
 }
+
 
