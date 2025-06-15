@@ -9,9 +9,9 @@ import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from '@/components/ui/dialog';
-import { Loader2, CalendarIcon, CheckSquare, Users, Building, University } from 'lucide-react';
+import { Loader2, CalendarIcon, CheckSquare, Users, Building, University, Save } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import type { ClassWithTeacherInfo, ExamPeriod } from '@/types';
+import type { ClassWithTeacherInfo, ExamPeriod, ExamPeriodStatus } from '@/types';
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { format } from 'date-fns';
@@ -37,6 +37,7 @@ const examPeriodEditSchema = z.object({
   assignmentScope: z.enum(['specific_classes', 'form_grade', 'entire_school']).default('specific_classes'),
   selectedFormGrade: z.string().optional().nullable(),
   assignedClassIds: z.array(z.string()).optional().default([]),
+  status: z.enum(['upcoming', 'active', 'grading', 'completed']), // Added status
 }).refine(data => data.endDate >= data.startDate, {
   message: "End date cannot be before start date.",
   path: ["endDate"],
@@ -98,10 +99,12 @@ export default function EditExamPeriodDialog({ examPeriod, isOpen, onOpenChange,
       assignmentScope: 'specific_classes',
       selectedFormGrade: undefined,
       assignedClassIds: [],
+      status: 'upcoming',
     },
   });
 
   const assignmentScope = form.watch("assignmentScope");
+  const currentFormStatus = form.watch("status");
 
   const fetchSchoolClasses = useCallback(async () => {
     if (currentUser?.schoolId) {
@@ -127,6 +130,7 @@ export default function EditExamPeriodDialog({ examPeriod, isOpen, onOpenChange,
         assignmentScope: examPeriod.assignmentScope || 'specific_classes',
         selectedFormGrade: (examPeriod.assignmentScope === 'form_grade' && examPeriod.scopeDetail) ? examPeriod.scopeDetail : undefined,
         assignedClassIds: (examPeriod.assignmentScope === 'specific_classes' ? examPeriod.assignedClassIds : []) || [],
+        status: examPeriod.status,
       });
     }
   }, [examPeriod, form, isOpen]);
@@ -134,9 +138,8 @@ export default function EditExamPeriodDialog({ examPeriod, isOpen, onOpenChange,
   async function onSubmit(values: ExamPeriodEditFormValues) {
     if (!examPeriod || !currentUser?.schoolId) return;
     
-    const canEditStatus = examPeriod.status === 'upcoming';
-    if (!canEditStatus) {
-        toast({ title: "Cannot Edit", description: "Active, grading, or completed exam periods cannot be modified.", variant: "destructive" });
+    if (examPeriod.status === 'completed') {
+        toast({ title: "Cannot Edit", description: "Completed exam periods cannot be modified.", variant: "destructive" });
         return;
     }
 
@@ -152,7 +155,7 @@ export default function EditExamPeriodDialog({ examPeriod, isOpen, onOpenChange,
     } else if (values.assignmentScope === 'entire_school') {
         finalAssignedClassIds = allSchoolClasses.filter(cls => cls.classType === 'main').map(cls => cls.id);
     }
-     if (finalAssignedClassIds.length === 0) {
+     if (finalAssignedClassIds.length === 0 && values.assignmentScope !== 'entire_school') { // Allow entire school to be empty if no main classes
         toast({ title: "No Classes Assigned", description: "Ensure classes are selected or correctly configured for the chosen scope.", variant: "destructive" });
         setIsSubmitting(false);
         return;
@@ -165,6 +168,7 @@ export default function EditExamPeriodDialog({ examPeriod, isOpen, onOpenChange,
       assignedClassIds: finalAssignedClassIds,
       assignmentScope: values.assignmentScope,
       scopeDetail: values.assignmentScope === 'form_grade' ? values.selectedFormGrade : null,
+      status: values.status,
     };
 
     const success = await updateExamPeriod(examPeriod.id, updatedData);
@@ -175,12 +179,16 @@ export default function EditExamPeriodDialog({ examPeriod, isOpen, onOpenChange,
       onSuccess();
       onOpenChange(false);
       if (currentUser.displayName) {
+        let activityMessage = `${currentUser.displayName} updated exam period "${values.name}".`;
+        if (values.status !== examPeriod.status) {
+            activityMessage = `${currentUser.displayName} updated status of exam period "${values.name}" to ${values.status.toUpperCase()}.`;
+        }
         addActivity({
           schoolId: currentUser.schoolId,
           actorId: currentUser.uid,
           actorName: currentUser.displayName,
           type: 'exam_period_updated',
-          message: `${currentUser.displayName} updated exam period "${values.name}". Scope: ${values.assignmentScope.replace('_', ' ')}.`,
+          message: activityMessage,
           link: `/admin/exams/${examPeriod.id}`
         });
       }
@@ -191,7 +199,33 @@ export default function EditExamPeriodDialog({ examPeriod, isOpen, onOpenChange,
 
   if (!examPeriod) return null;
 
-  const canEdit = examPeriod.status === 'upcoming';
+  const canEditDetails = examPeriod.status === 'upcoming';
+  const canEditStatus = examPeriod.status !== 'completed';
+  const canSaveChanges = form.formState.isDirty && examPeriod.status !== 'completed';
+
+  const getStatusOptions = () => {
+    if (examPeriod.status === 'upcoming') {
+        return [
+            { value: 'upcoming', label: 'Upcoming' },
+            { value: 'active', label: 'Active' },
+            { value: 'grading', label: 'Grading' },
+        ];
+    }
+    if (examPeriod.status === 'active') {
+        return [
+            { value: 'active', label: 'Active' },
+            { value: 'grading', label: 'Grading' },
+        ];
+    }
+    if (examPeriod.status === 'grading') {
+         return [
+            { value: 'grading', label: 'Grading' },
+            { value: 'active', label: 'Active (Re-open)' }, // Allow reverting to active if needed
+        ];
+    }
+    return [{value: examPeriod.status, label: examPeriod.status.charAt(0).toUpperCase() + examPeriod.status.slice(1)}]; // Should not happen if completed
+  }
+
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => {
@@ -201,13 +235,16 @@ export default function EditExamPeriodDialog({ examPeriod, isOpen, onOpenChange,
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>Edit Exam Period: {examPeriod.name}</DialogTitle>
-          <DialogDescription>Modify the details for this exam period. Changes can only be made if the period is 'Upcoming'.</DialogDescription>
+          <DialogDescription>
+            Modify the details for this exam period. Details (name, dates, scope, classes) can only be changed if the period is 'Upcoming'. 
+            Status can be changed if the period is not 'Completed'.
+          </DialogDescription>
         </DialogHeader>
         {isLoadingClasses ? <div className="flex justify-center py-4"><Loader message="Loading classes..." /></div> : (
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 py-4 max-h-[70vh] overflow-y-auto pr-2">
           <div>
             <Label htmlFor="edit-name">Exam Period Name</Label>
-            <Input id="edit-name" {...form.register("name")} readOnly={!canEdit} className={!canEdit ? "bg-muted/50" : ""}/>
+            <Input id="edit-name" {...form.register("name")} readOnly={!canEditDetails} className={!canEditDetails ? "bg-muted/50" : ""}/>
             {form.formState.errors.name && <p className="text-sm text-destructive mt-1">{form.formState.errors.name.message}</p>}
           </div>
           
@@ -222,15 +259,15 @@ export default function EditExamPeriodDialog({ examPeriod, isOpen, onOpenChange,
                           <PopoverTrigger asChild>
                           <Button
                               variant={"outline"}
-                              className={`w-full justify-start text-left font-normal ${!field.value && "text-muted-foreground"} ${!canEdit && "bg-muted/50"}`}
-                              disabled={!canEdit}
+                              className={`w-full justify-start text-left font-normal ${!field.value && "text-muted-foreground"} ${!canEditDetails && "bg-muted/50"}`}
+                              disabled={!canEditDetails}
                           >
                               <CalendarIcon className="mr-2 h-4 w-4" />
                               {field.value ? format(field.value, "PPP") : <span>Pick a start date</span>}
                           </Button>
                           </PopoverTrigger>
                           <PopoverContent className="w-auto p-0">
-                          <Calendar mode="single" selected={field.value} onSelect={field.onChange} initialFocus disabled={!canEdit}/>
+                          <Calendar mode="single" selected={field.value} onSelect={field.onChange} initialFocus disabled={!canEditDetails}/>
                           </PopoverContent>
                       </Popover>
                   )}
@@ -247,15 +284,15 @@ export default function EditExamPeriodDialog({ examPeriod, isOpen, onOpenChange,
                           <PopoverTrigger asChild>
                           <Button
                               variant={"outline"}
-                              className={`w-full justify-start text-left font-normal ${!field.value && "text-muted-foreground"} ${!canEdit && "bg-muted/50"}`}
-                              disabled={!canEdit}
+                              className={`w-full justify-start text-left font-normal ${!field.value && "text-muted-foreground"} ${!canEditDetails && "bg-muted/50"}`}
+                              disabled={!canEditDetails}
                           >
                               <CalendarIcon className="mr-2 h-4 w-4" />
                               {field.value ? format(field.value, "PPP") : <span>Pick an end date</span>}
                           </Button>
                           </PopoverTrigger>
                           <PopoverContent className="w-auto p-0">
-                          <Calendar mode="single" selected={field.value} onSelect={field.onChange} initialFocus disabled={(date) => !canEdit || (form.getValues("startDate") ? date < form.getValues("startDate") : false)}/>
+                          <Calendar mode="single" selected={field.value} onSelect={field.onChange} initialFocus disabled={(date) => !canEditDetails || (form.getValues("startDate") ? date < form.getValues("startDate") : false)}/>
                           </PopoverContent>
                       </Popover>
                   )}
@@ -263,6 +300,28 @@ export default function EditExamPeriodDialog({ examPeriod, isOpen, onOpenChange,
               {form.formState.errors.endDate && <p className="text-sm text-destructive mt-1">{form.formState.errors.endDate.message}</p>}
             </div>
           </div>
+
+          <div>
+            <Label>Current Status</Label>
+            <Controller
+                control={form.control}
+                name="status"
+                render={({ field }) => (
+                    <Select onValueChange={field.onChange} value={field.value} disabled={!canEditStatus}>
+                        <SelectTrigger className={!canEditStatus ? "bg-muted/50" : ""}>
+                            <SelectValue placeholder="Select status" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            {getStatusOptions().map(opt => (
+                                <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                )}
+            />
+            {form.formState.errors.status && <p className="text-sm text-destructive mt-1">{form.formState.errors.status.message}</p>}
+           </div>
+
 
            <div>
                 <Label>Assignment Scope</Label>
@@ -278,18 +337,18 @@ export default function EditExamPeriodDialog({ examPeriod, isOpen, onOpenChange,
                             }}
                             value={field.value}
                             className="mt-2 grid grid-cols-1 sm:grid-cols-3 gap-2"
-                            disabled={!canEdit}
+                            disabled={!canEditDetails}
                         >
-                            <Label htmlFor="edit-scope-specific" className={`flex items-center space-x-2 p-3 border rounded-md hover:bg-muted/50 ${!canEdit ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'} has-[:checked]:bg-primary/10 has-[:checked]:border-primary`}>
-                                <RadioGroupItem value="specific_classes" id="edit-scope-specific" disabled={!canEdit}/>
+                            <Label htmlFor="edit-scope-specific" className={`flex items-center space-x-2 p-3 border rounded-md hover:bg-muted/50 ${!canEditDetails ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'} has-[:checked]:bg-primary/10 has-[:checked]:border-primary`}>
+                                <RadioGroupItem value="specific_classes" id="edit-scope-specific" disabled={!canEditDetails}/>
                                 <Users className="h-4 w-4 mr-1"/> Specific Classes
                             </Label>
-                            <Label htmlFor="edit-scope-form" className={`flex items-center space-x-2 p-3 border rounded-md hover:bg-muted/50 ${!canEdit ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'} has-[:checked]:bg-primary/10 has-[:checked]:border-primary`}>
-                                <RadioGroupItem value="form_grade" id="edit-scope-form" disabled={!canEdit}/>
+                            <Label htmlFor="edit-scope-form" className={`flex items-center space-x-2 p-3 border rounded-md hover:bg-muted/50 ${!canEditDetails ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'} has-[:checked]:bg-primary/10 has-[:checked]:border-primary`}>
+                                <RadioGroupItem value="form_grade" id="edit-scope-form" disabled={!canEditDetails}/>
                                  <Building className="h-4 w-4 mr-1"/> Form/Grade
                             </Label>
-                            <Label htmlFor="edit-scope-school" className={`flex items-center space-x-2 p-3 border rounded-md hover:bg-muted/50 ${!canEdit ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'} has-[:checked]:bg-primary/10 has-[:checked]:border-primary`}>
-                                <RadioGroupItem value="entire_school" id="edit-scope-school" disabled={!canEdit}/>
+                            <Label htmlFor="edit-scope-school" className={`flex items-center space-x-2 p-3 border rounded-md hover:bg-muted/50 ${!canEditDetails ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'} has-[:checked]:bg-primary/10 has-[:checked]:border-primary`}>
+                                <RadioGroupItem value="entire_school" id="edit-scope-school" disabled={!canEditDetails}/>
                                 <University className="h-4 w-4 mr-1"/> Entire School
                             </Label>
                         </RadioGroup>
@@ -324,9 +383,9 @@ export default function EditExamPeriodDialog({ examPeriod, isOpen, onOpenChange,
                                         )
                                         );
                                 }}
-                                disabled={!canEdit}
+                                disabled={!canEditDetails}
                                 />
-                                <Label htmlFor={`edit-class-${cls.id}`} className={`font-normal ${!canEdit ? 'text-muted-foreground cursor-not-allowed' : 'cursor-pointer'}`}>
+                                <Label htmlFor={`edit-class-${cls.id}`} className={`font-normal ${!canEditDetails ? 'text-muted-foreground cursor-not-allowed' : 'cursor-pointer'}`}>
                                 {cls.name}
                                 </Label>
                             </div>
@@ -348,8 +407,8 @@ export default function EditExamPeriodDialog({ examPeriod, isOpen, onOpenChange,
                         name="selectedFormGrade"
                         control={form.control}
                         render={({ field }) => (
-                            <Select onValueChange={field.onChange} value={field.value || undefined} disabled={!canEdit || formGradeLevels.length === 0}>
-                                <SelectTrigger id="editSelectedFormGrade" className={!canEdit ? "bg-muted/50" : ""}>
+                            <Select onValueChange={field.onChange} value={field.value || undefined} disabled={!canEditDetails || formGradeLevels.length === 0}>
+                                <SelectTrigger id="editSelectedFormGrade" className={!canEditDetails ? "bg-muted/50" : ""}>
                                     <SelectValue placeholder="Choose a form/grade..." />
                                 </SelectTrigger>
                                 <SelectContent>
@@ -368,11 +427,11 @@ export default function EditExamPeriodDialog({ examPeriod, isOpen, onOpenChange,
                  <p className="text-sm text-muted-foreground p-2 bg-muted/50 rounded-md">This exam period will be assigned to all main classes in the school.</p>
             )}
 
-          {!canEdit && <p className="text-sm text-destructive mt-2">This exam period is active, grading, or completed and cannot be fully edited. You can only finalize it if applicable.</p>}
+          {examPeriod.status === 'completed' && <p className="text-sm text-destructive mt-2">This exam period is completed and cannot be edited further.</p>}
         
         <DialogFooter className="mt-4">
           <DialogClose asChild><Button variant="outline">Cancel</Button></DialogClose>
-          <Button type="submit" disabled={isSubmitting || isLoadingClasses || !form.formState.isDirty || !canEdit} className="bg-primary hover:bg-primary/90">
+          <Button type="submit" disabled={isSubmitting || isLoadingClasses || !canSaveChanges} className="bg-primary hover:bg-primary/90">
             {isSubmitting ? <Loader size="small" className="mr-2" /> : <Save className="mr-2 h-4 w-4" />}
             Save Changes
           </Button>
@@ -383,3 +442,4 @@ export default function EditExamPeriodDialog({ examPeriod, isOpen, onOpenChange,
     </Dialog>
   );
 }
+
