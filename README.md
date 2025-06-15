@@ -15,6 +15,8 @@ Learnify is a comprehensive, AI-enhanced educational platform designed to stream
     *   [Akili AI Chatbot (For Students)](#akili-ai-chatbot-for-students)
     *   [Mwalimu AI Assistant (For Teachers)](#mwalimu-ai-assistant-for-teachers)
     *   [Personalized Learning Path Generation (For Students)](#personalized-learning-path-generation-for-students)
+    *   [Student Performance Analysis (For Admins/Teachers)](#student-performance-analysis-for-adminsteachers)
+    *   [Report Card AI Analysis (For Students/Parents)](#report-card-ai-analysis-for-studentsparents)
 3.  [Technology Stack](#technology-stack)
 4.  [User Flow (Detailed)](#user-flow-detailed)
     *   [Admin Flow](#admin-flow)
@@ -49,8 +51,13 @@ Learnify offers a rich set of features tailored to enhance the educational exper
 ### Admin Role
 
 *   **Onboarding & School Setup:**
-    *   **Create New School:** Admins can establish a new school profile, automatically generating a unique school invite code for sharing.
-    *   **Join Existing School:** Option to join an existing school using an invite code, if not already associated with one.
+    *   **Admin Onboarding Flow:** Multi-step process including:
+        1.  Creating the school profile (name, type, location).
+        2.  Adding initial subjects offered.
+        3.  Creating initial classes (main and subject-based).
+        4.  Optionally inviting initial teachers and students.
+        5.  Configuring initial school settings (e.g., exam mode).
+    *   **Join Existing School (Alternative):** Option to join an existing school using an invite code if not already associated with one through the main onboarding.
 *   **School Management:**
     *   **View & Edit School Name:** The admin who created the school can modify its name.
     *   **Regenerate Invite Code:** Generate a new unique invite code for the school to share with prospective users.
@@ -58,25 +65,26 @@ Learnify offers a rich set of features tailored to enhance the educational exper
     *   **Subject Management:** Define, create, edit, and delete subjects offered by the school (e.g., Mathematics, History).
 *   **User Management:**
     *   **Add New Users:** Directly add new teachers and students to the school, assigning their roles and initial credentials.
-    *   **View User Lists:** Access a comprehensive, filterable (by name, email, role), and searchable list of all users within their school.
+    *   **View User Lists:** Access a comprehensive, filterable (by name, email, role, status), and searchable list of all users within their school, organized into tabs (Active, Pending, Other).
     *   **Manage Pending Verifications:** Review and manage requests from teachers and students who signed up using the school ID and require admin approval.
-    *   **Approve/Reject Users:** Approve or reject pending user verification requests.
-    *   **Edit User Details:** Modify display names and assign/change roles for non-admin users within their school.
+    *   **Approve/Reject Users:** Approve or reject pending user verification requests. Approved users become active; rejected users' status changes.
+    *   **Edit User Details:** Modify display names and assign/change roles for non-admin users within their school. Cannot change own admin role or other admins.
 *   **Class Management:**
     *   **Create Classes:** Establish new classes, specifying them as 'main' (e.g., Form 2A - a homeroom) or 'subject-based' (e.g., History - Form 2).
     *   **Assign Teachers:** Link a Class Teacher to main classes and Subject Teachers to subject-based classes.
     *   **Compulsory Subjects:** Designate subjects (e.g., Mathematics, English) as compulsory for main classes.
-    *   **View Class Lists:** See a list of all classes, their types, assigned teachers, and student enrollment counts.
+    *   **View Class Lists:** See a list of all classes, their types, assigned teachers, student enrollment counts, and invite codes.
     *   **Manage Enrollment:** Manually enroll or remove students from any class.
-    *   **Edit Class Details:** Modify class names, assigned teachers, class types, and associated subjects.
+    *   **Edit Class Details:** Modify class names, assigned teachers, class types, and associated subjects (compulsory for main, single for subject-based).
     *   **Regenerate Class Invite Codes:** Create new invite codes specific to individual classes for students to join.
     *   **Delete Classes:** Remove classes, which also archives associated assignments and unenrolls students.
 *   **Exam & Results Management:**
-    *   **Create Exam Periods:** Define exam periods (e.g., Mid-Term Exams, End-Term Exams) with specific start and end dates.
-    *   **Assign to Classes:** Link created exam periods to relevant classes.
-    *   **Monitor Result Submission:** Track the progress of result entry by teachers for ongoing exam periods.
-    *   **Finalize Exam Periods:** Lock exam results from further editing and make them visible to students and parents.
-    *   **Edit Upcoming Periods:** Modify details of exam periods that have not yet started.
+    *   **Create Exam Periods:** Define exam periods (e.g., Mid-Term Exams, End-Term Exams) with specific start and end dates, name, and scope (specific classes, form/grade, or entire school).
+    *   **Assign to Classes:** Link created exam periods to relevant classes based on the chosen scope.
+    *   **Monitor Result Submission:** Track the progress of result entry by teachers for ongoing exam periods per class and subject.
+    *   **Finalize Exam Periods:** Lock exam results from further editing and make them visible to students and parents. This action publishes the results.
+    *   **Edit Upcoming Periods:** Modify details of exam periods (name, dates, scope, assigned classes, status) that have not yet been completed.
+    *   **View Results Sheets:** Access consolidated, downloadable PDF results sheets per class for completed exam periods.
 *   **Attendance Tracking:**
     *   **View School-Wide Records:** Access attendance records for any class within the school, filterable by date.
 *   **Admin Dashboard:**
@@ -84,6 +92,7 @@ Learnify offers a rich set of features tailored to enhance the educational exper
     *   **Activity Feed:** Displays recent platform-wide and school-specific activities.
 *   **Profile Management:**
     *   Admins can update their personal display name, email address, and password.
+*   **Testimonial Management:** (Specific admins) Approve or unapprove user-submitted testimonials for public display.
 
 ### Teacher Role
 
@@ -94,25 +103,26 @@ Learnify offers a rich set of features tailored to enhance the educational exper
     *   **Mwalimu AI Assistant Access:** Direct access to the AI tool for lesson planning, material summarization, and generating teaching ideas.
     *   **Activity Feed:** Shows recent activities relevant to their classes, students, and actions.
 *   **Class Management:**
-    *   **View Assigned Classes:** Access detailed information for each assigned class, including student rosters.
+    *   **View Assigned Classes:** Access detailed information for each assigned class, including student rosters, materials, and assignments.
 *   **Learning Materials Management:**
     *   **Upload Materials:** Upload various learning resources: text notes, external web links, video links, PDF links, and direct PDF file uploads (via Cloudinary).
     *   **Assign Materials:** Link materials to specific classes and subjects, or designate them as general school-wide resources.
-    *   **Manage Own Materials:** View, edit, and delete their own uploaded learning materials.
+    *   **Manage Own Materials:** View, edit (title, content, type, class/subject assignment), and delete their own uploaded learning materials.
 *   **Assignment Management:**
-    *   **Create Assignments:** Develop text-based assignments with titles, detailed descriptions, deadlines, and specify allowed student submission formats (text entry, file link, or file upload).
+    *   **Create Assignments:** Develop text-based assignments with titles, detailed descriptions, deadlines, and specify allowed student submission formats (text entry, file link, or file upload). No direct file attachment for assignment creation itself.
     *   **Link to Subjects:** Associate assignments with specific subjects for better organization.
-    *   **View Assignments:** See a list of all created assignments, filterable by class.
-    *   **Review Submissions:** View student submissions for each assignment, including names, submission times, and submitted content.
+    *   **View Assignments:** See a list of all created assignments, filterable by class, showing title, class, subject, deadline, and submission count.
+    *   **Review Submissions:** View student submissions for each assignment, including names, submission times, and submitted content (text, link, or downloadable file).
     *   **Download Submissions:** Download student-submitted files if applicable.
-    *   **Grade Assignments:** Provide marks/grades and textual feedback for student submissions.
+    *   **Grade Assignments:** Provide marks/grades and textual feedback for student submissions via a dialog.
     *   **Edit/Delete Assignments:** Modify or remove their created assignments (deleting also removes related student submissions).
 *   **Attendance Tracking:**
-    *   **Mark Daily Attendance:** Record and submit daily attendance (Present, Absent) for students in their assigned classes.
+    *   **Mark Daily Attendance:** Record and submit daily attendance (Present, Absent) for students in their assigned main classes.
 *   **Exam & Results Management:**
-    *   **Enter Results:** Input student marks and remarks for the subjects they teach within assigned classes, specifically during an active "Exam Mode" period set by the admin.
+    *   **Enter Results:** Input student marks and remarks for the subjects they teach within assigned classes, specifically during an "active" or "grading" exam period where school-wide "Exam Mode" is active.
 *   **Profile Management:**
     *   Teachers can update their personal display name, email address, and password.
+*   **Student Profiles:** View detailed profiles of students in their classes.
 
 ### Student Role
 
@@ -125,18 +135,19 @@ Learnify offers a rich set of features tailored to enhance the educational exper
     *   **Akili AI Chatbot Access:** Utilize the AI tutor for study help and asking questions on various topics.
     *   **Activity Feed:** See recent activities relevant to their classes and school-wide announcements.
 *   **Class Management:**
-    *   **View Enrolled Classes:** Access a list of their enrolled classes and view class-specific details (materials, assignments).
+    *   **View Enrolled Classes:** Access a list of their enrolled classes (main and subject-based) and view class-specific details (materials, assignments).
     *   **Join Additional Classes:** Enroll in subject-based classes using class-specific invite codes.
 *   **Learning Materials Access:**
     *   **Browse & Search:** Access learning materials relevant to their enrolled classes and general school resources. Filter materials by title, content, teacher, class, or subject.
     *   **Download Materials:** Download uploaded PDF materials.
 *   **Assignment Submission:**
-    *   **View Assignments:** See details of assigned tasks, including instructions and deadlines.
+    *   **View Assignments:** See details of assigned tasks, including instructions, deadlines, and submission status.
     *   **Submit Work:** Submit assignments in the formats allowed by the teacher (text entry, file link, or file upload via Cloudinary).
     *   **Track Status:** View their submission status (submitted, late, graded, missing).
     *   **View Feedback:** Access grades and teacher feedback once an assignment is graded.
 *   **Exam Results:**
     *   **View Published Results:** See their exam results, including marks and teacher remarks for each subject, organized by exam period, once finalized by an admin.
+    *   **View Report Card:** Access a downloadable PDF report card for completed exam periods, including an AI-generated performance overview.
 *   **Attendance:**
     *   **View Own Records:** Access their personal attendance records, filterable by date range.
 *   **Personalized Learning Path:**
@@ -144,6 +155,7 @@ Learnify offers a rich set of features tailored to enhance the educational exper
 *   **Profile Management:**
     *   **Update Display Name:** Students can change their display name.
     *   **View Student ID:** Access their unique Student ID (useful for parents linking accounts).
+*   **Testimonial Submission:** Optionally submit testimonials about their experience with Learnify.
 
 ### Parent Role
 
@@ -157,11 +169,12 @@ Learnify offers a rich set of features tailored to enhance the educational exper
     *   **Activity Feed:** Displays activities specific to their child's actions and relevant school/class updates.
 *   **Child's Academic Monitoring:**
     *   **View Assignments:** Detailed list of their child's assignments, including submission status and grades.
-    *   **View Exam Results:** Access their child's detailed exam results and teacher remarks for finalized exam periods.
+    *   **View Exam Results:** Access their child's detailed exam results and teacher remarks for finalized exam periods. Includes access to the child's downloadable PDF report card.
     *   **View Attendance Records:** See their child's attendance records, filterable by date range.
 *   **Profile Management:**
     *   Parents can update their personal display name, email address, and password.
     *   Option to re-link or link to a different child's account if needed.
+*   **Testimonial Submission:** Optionally submit testimonials about their experience with Learnify.
 
 ## AI Integration Deep Dive
 
@@ -208,6 +221,20 @@ Learnify leverages Generative AI (via Google's Gemini models through Genkit) to 
         *   Clear formatting (e.g., headings, bullet points) for easy readability.
 *   **Access:** Students can generate these paths from their "Progress" or "Learning Path" section in their dashboard.
 
+### Student Performance Analysis (For Admins/Teachers)
+*   **Purpose:** Provides an AI-driven overview of a student's performance based on exam and assignment data.
+*   **Functionality:** Admins and teachers can trigger an analysis for a specific student from their profile page. The AI generates:
+    *   Identified academic strengths.
+    *   Constructive areas for improvement.
+    *   Actionable recommendations for the student, parents, or teachers.
+    *   A concise overall summary.
+*   **Access:** Available on student profile pages for authorized users.
+
+### Report Card AI Analysis (For Students/Parents)
+*   **Purpose:** Generates a brief, encouraging AI overview for individual student report cards.
+*   **Functionality:** When a student or parent views a finalized report card, a concise AI-generated summary (2-3 sentences) is displayed, highlighting a key strength and a potential area for focus.
+*   **Access:** Integrated into the student's downloadable PDF report card.
+
 ## Technology Stack
 
 *   **Frontend:** Next.js (App Router), React, TypeScript
@@ -218,6 +245,7 @@ Learnify leverages Generative AI (via Google's Gemini models through Genkit) to 
 *   **AI Integration:** Genkit, Google Gemini Models
 *   **File Uploads:** Cloudinary
 *   **Email Notifications:** EmailJS
+*   **PDF Generation:** html2pdf.js
 *   **Development Tools:** pnpm (package manager), ESLint, Prettier (assumed for code quality).
 
 ## User Flow (Detailed)
@@ -228,9 +256,14 @@ Learnify leverages Generative AI (via Google's Gemini models through Genkit) to 
     *   Registers an account or logs in.
     *   If new and not associated with a school, proceeds to **Admin Onboarding**.
 2.  **Admin Onboarding (if applicable):**
-    *   Chooses to **Create a New School** (provides school name; system generates invite code) OR
-    *   Chooses to **Join an Existing School** (enters school's invite code).
-    *   Upon successful school association, redirected to Admin Dashboard.
+    *   Follows a multi-step flow:
+        1.  **Create School Profile:** Enters school name, type, country, phone.
+        2.  **Add Subjects:** Defines initial subjects offered by the school.
+        3.  **Create Classes:** Sets up initial main and subject-based classes.
+        4.  **Invite Users (Optional):** Sends out initial invitations to teachers and students.
+        5.  **Configure Settings:** Sets initial school-wide configurations (e.g., Exam Mode).
+    *   Alternatively, can choose to **Join an Existing School** (enters school's invite code).
+    *   Upon successful school association/creation, redirected to Admin Dashboard.
 3.  **Admin Dashboard:**
     *   Views key school statistics (user counts, class counts).
     *   Sees a feed of recent platform activities.
@@ -281,18 +314,23 @@ Learnify leverages Generative AI (via Google's Gemini models through Genkit) to 
     *   **Create Exam Period:** Clicks "Create Exam Period."
         *   Enters name (e.g., "Mid-Term Form 1").
         *   Sets start and end dates.
-        *   Assigns the exam period to one or more classes.
+        *   Selects assignment scope (specific classes, form/grade, entire school).
+        *   Assigns the exam period to one or more classes based on scope.
     *   **View Exam Period Details:** Clicks on an exam period.
-        *   Sees overview, dates, assigned classes.
+        *   Sees overview, dates, assigned classes, status.
         *   Monitors result submission progress per class/subject.
-        *   If the period is "upcoming," can edit its details.
+        *   If the period is "upcoming," can edit its details (name, dates, scope, classes, status). Status can be changed if not 'completed'.
         *   If the period is "active" or "grading" and past its end date, can **Finalize** it (locks results, makes visible to students/parents).
+    *   **View Results Sheets:** For 'completed' periods, can view/download consolidated PDF results sheets.
 9.  **Attendance:**
     *   Accesses via `Admin Dashboard -> View Attendance Records`.
-    *   Selects a class and a date to view attendance records for that specific day.
+    *   Selects a class and a date range to view attendance records in a table format.
 10. **Profile Management:**
     *   Accesses via sidebar.
     *   Updates personal display name, email, and password.
+11. **Testimonial Management:**
+    *   (For super admins) Accesses via `Admin Dashboard -> Testimonials`.
+    *   Reviews, approves, or unapproves user-submitted testimonials.
 
 ### Teacher Flow
 
@@ -318,27 +356,27 @@ Learnify leverages Generative AI (via Google's Gemini models through Genkit) to 
 5.  **Assignment Management:**
     *   Navigates to `Manage Assignments` or creates from within a specific class view.
     *   **Create Assignment:**
-        *   Provides title, detailed description/instructions.
+        *   Provides title, detailed description/instructions (text-based).
         *   Sets a deadline (date and time).
         *   Assigns to one of their classes.
         *   Optionally links to a specific subject.
         *   Specifies allowed submission formats for students (text entry, file link, file upload).
     *   **View/Grade Submissions:**
-        *   Selects an assignment to view its details and student submissions.
+        *   Selects an assignment to view its details and student submissions in a table.
         *   Sees list of students, submission times, and content.
         *   Downloads student-submitted files (if any).
-        *   Enters marks/grades and textual feedback for each submission. Saves the grade.
+        *   Enters marks/grades and textual feedback for each submission via a dialog. Saves the grade.
     *   Edits details or deletes their created assignments (with confirmation).
 6.  **Attendance Tracking:**
     *   Navigates to `Attendance` section.
-    *   Selects one of their assigned classes and a date.
-    *   For each student in the list, marks them as "Present" or "Absent" using buttons.
+    *   Selects one of their assigned main classes and a date.
+    *   For each student in the list (table format), marks them as "Present" or "Absent".
     *   Submits the attendance for the selected class and date.
 7.  **Exam Results Entry:**
     *   Navigates to `Enter Exam Results`.
-    *   Selects an active exam period, one of their assigned classes for that period, and a subject they teach to that class.
-    *   For each student in the class list, enters marks and optional remarks for the selected subject.
-    *   Saves the results. (This is only possible if "Exam Mode" is active school-wide).
+    *   Selects an active/grading exam period, one of their assigned classes for that period, and a subject they teach to that class.
+    *   For each student in the class list (table format), enters marks and optional remarks for the selected subject.
+    *   Saves the results. (This is only possible if school-wide "Exam Mode" is active and the exam period is 'active' or 'grading').
 8.  **Profile Management:**
     *   Updates personal display name, email, and password.
 
@@ -359,7 +397,7 @@ Learnify leverages Generative AI (via Google's Gemini models through Genkit) to 
 4.  **My Classes:**
     *   Navigates to `My Classes`.
     *   Views a list of all classes they are enrolled in (main and subject-based).
-    *   Selects a class to view its specific materials and assignments.
+    *   Selects a class to view its specific materials and assignments (table format for assignments).
     *   **Join New Class:** Can use a class-specific invite code (typically for subject-based electives) to join additional classes.
 5.  **Learning Resources:**
     *   Navigates to `Learning Resources`.
@@ -369,17 +407,18 @@ Learnify leverages Generative AI (via Google's Gemini models through Genkit) to 
     *   Navigates to `My Assignments`.
     *   Views a list of all their assignments, filterable by class and status (missing, submitted, graded, late).
     *   Selects an assignment to view its details, instructions, and deadline.
-    *   **Submit Work:** If not yet submitted or if resubmission is allowed (not explicitly a feature yet):
+    *   **Submit Work:** If not yet submitted or if resubmission is allowed:
         *   Chooses submission format if multiple are allowed (text, link, file upload).
         *   Enters text directly, provides a URL, or uploads a file (via Cloudinary).
         *   Submits the assignment.
     *   Views their submission status, grades, and teacher feedback once available.
 7.  **Exam Results:**
     *   Navigates to `My Exam Results`.
-    *   Views their published exam results (marks and teacher remarks for each subject) organized by exam period, once an admin finalizes the period.
+    *   Views their published exam results (marks and teacher remarks for each subject) organized by exam period in a table format within accordions.
+    *   Can view/download a PDF Report Card for completed exam periods, which includes an AI-generated performance summary.
 8.  **Attendance:**
     *   Navigates to `My Attendance`.
-    *   Selects a date range to view their own attendance records.
+    *   Selects a date range to view their own attendance records in a table format.
 9.  **Personalized Learning Path (Progress):**
     *   Navigates to `My Progress` (or similar section).
     *   Selects an enrolled subject.
@@ -388,7 +427,9 @@ Learnify leverages Generative AI (via Google's Gemini models through Genkit) to 
     *   Submits the form to generate an AI-powered personalized learning path with suggested topics and resources.
 10. **Profile Management:**
     *   Updates personal display name.
-    *   Views their unique Student ID (for sharing with parents).
+    *   Views their unique Student ID (for sharing with parents) and can copy it.
+11. **Testimonial Submission:**
+    *   May be prompted to submit a testimonial about their Learnify experience.
 
 ### Parent Flow
 
@@ -409,13 +450,16 @@ Learnify leverages Generative AI (via Google's Gemini models through Genkit) to 
     *   Sees a list of their child's assignments, including status (submitted, graded, missing, late), and grades if available.
 5.  **Child's Exam Results:**
     *   Navigates to view their child's exam results.
-    *   Sees detailed exam results (marks, remarks per subject) for finalized exam periods.
+    *   Sees detailed exam results (marks, remarks per subject) for finalized exam periods, in a table format within accordions.
+    *   Can view/download the child's PDF Report Card for completed exam periods, including AI analysis.
 6.  **Child's Attendance:**
     *   Navigates to view their child's attendance.
-    *   Selects a date range to view attendance records.
+    *   Selects a date range to view attendance records in a table format.
 7.  **Profile Management:**
     *   Updates personal display name, email, and password.
     *   Manages the linked child account (e.g., re-link if necessary).
+8.  **Testimonial Submission:**
+    *   May be prompted to submit a testimonial about their Learnify experience.
 
 ## Data Seeding for Testing
 
@@ -457,6 +501,7 @@ To facilitate comprehensive testing, Learnify includes a data seeder script. Thi
         NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=your-project-id.appspot.com
         NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=...
         NEXT_PUBLIC_FIREBASE_APP_ID=1:...
+        FIREBASE_SERVICE_ACCOUNT_JSON_STRING="{\\"type\\": \\"service_account\\", ...}" # For seeder script (stringified JSON)
         ```
     *   Example Cloudinary variables:
         ```
@@ -472,7 +517,7 @@ To facilitate comprehensive testing, Learnify includes a data seeder script. Thi
         # Add other template IDs as needed
         ```
 5.  **Set Up Firebase Admin SDK (for Seeder - Optional but Recommended for Testing):**
-    *   Follow instructions in `scripts/README.md` to download your service account key and set `GOOGLE_APPLICATION_CREDENTIALS` or `FIREBASE_SERVICE_ACCOUNT_JSON_STRING`.
+    *   Follow instructions in `scripts/README.md` to download your service account key and set `GOOGLE_APPLICATION_CREDENTIALS` or preferably `FIREBASE_SERVICE_ACCOUNT_JSON_STRING`.
 6.  **Run the Development Server:**
     *   For the Next.js app:
         ```bash
@@ -492,11 +537,10 @@ To facilitate comprehensive testing, Learnify includes a data seeder script. Thi
 
 ## Color Schemes
 
-Learnify utilizes a modern and clean user interface with distinct color schemes for different themes (light and dark). Specific color palettes are defined within the application's styling configurations (`src/app/globals.css`) using CSS variables for easy theming and customization.
+Learnify utilizes a modern and clean user interface with distinct color schemes for different themes (light and dark). Specific color palettes are defined within the application's styling configurations (`src/app/globals.css`) using CSS variables for easy theming and customization. Primary color is purple, with teal as an accent.
 
 ## Contact Information
 
 For any inquiries, please contact us at:
 **Email:** learnifyke@gmail.com
 **Phone:** +254794830280
-```
