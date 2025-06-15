@@ -28,6 +28,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Timestamp } from 'firebase/firestore'; // Added Timestamp import
 
 
 const examPeriodFormSchema = z.object({
@@ -368,3 +369,4 @@ export default function CreateExamPeriodPage() {
     </div>
   );
 }
+
