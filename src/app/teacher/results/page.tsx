@@ -5,8 +5,8 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Loader2, ClipboardCheck, FileEdit, Save } from 'lucide-react';
-import type { ClassWithTeacherInfo, UserProfileWithId, Subject, ExamPeriod, ExamResultWithStudentInfo } from '@/types';
+import { Loader2, ClipboardCheck, FileEdit, Save, AlertTriangle } from 'lucide-react';
+import type { ClassWithTeacherInfo, UserProfileWithId, Subject, ExamPeriod, ExamResultWithStudentInfo, School } from '@/types';
 import { useToast } from '@/hooks/use-toast';
 import {
   Select,
@@ -18,6 +18,17 @@ import {
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
+import Loader from '@/components/shared/Loader';
+import { format } from 'date-fns';
+import Link from 'next/link';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 
 export default function TeacherResultsPage() {
   const { 
@@ -28,13 +39,15 @@ export default function TeacherResultsPage() {
     getExamPeriodsBySchool, 
     addOrUpdateExamResult,
     getExamResultsForTeacher,
+    getSchoolDetails, 
     addActivity,
-    addNotification, // Added
-    getLinkedParentForStudent, // Added
+    addNotification,
+    getLinkedParentForStudent,
     loading: authLoading 
   } = useAuth();
   const { toast } = useToast();
   
+  const [schoolDetails, setSchoolDetails] = useState<School | null>(null);
   const [teacherClasses, setTeacherClasses] = useState<ClassWithTeacherInfo[]>([]);
   const [schoolSubjects, setSchoolSubjects] = useState<Subject[]>([]);
   const [examPeriods, setExamPeriods] = useState<ExamPeriod[]>([]);
@@ -53,21 +66,23 @@ export default function TeacherResultsPage() {
     if (currentUser?.uid && currentUser.schoolId) {
       setIsLoadingData(true);
       try {
-        const [classes, subjects, periods] = await Promise.all([
+        const [school, classes, subjects, periods] = await Promise.all([
+          getSchoolDetails(currentUser.schoolId),
           getClassesByTeacher(currentUser.uid),
           getSubjectsBySchool(currentUser.schoolId),
           getExamPeriodsBySchool(currentUser.schoolId) 
         ]);
+        setSchoolDetails(school);
         setTeacherClasses(classes);
         setSchoolSubjects(subjects);
-        setExamPeriods(periods.filter(p => p.status === 'active' || p.status === 'grading')); 
+        setExamPeriods(periods.filter(p => p.status === 'active' || p.status === 'grading'));
       } catch (error) {
         toast({title: "Error", description: "Could not load initial data.", variant: "destructive"});
       } finally {
         setIsLoadingData(false);
       }
     }
-  }, [currentUser, getClassesByTeacher, getSubjectsBySchool, getExamPeriodsBySchool, toast]);
+  }, [currentUser, getSchoolDetails, getClassesByTeacher, getSubjectsBySchool, getExamPeriodsBySchool, toast]);
 
   useEffect(() => {
     if (!authLoading) fetchInitialData();
@@ -81,7 +96,7 @@ export default function TeacherResultsPage() {
           getStudentsInClass(selectedClassId),
           getExamResultsForTeacher(selectedExamPeriodId, selectedClassId, selectedSubjectId, currentUser.schoolId)
         ]);
-        setStudentsInSelectedClass(students);
+        setStudentsInSelectedClass(students.sort((a,b) => (a.displayName || "").localeCompare(b.displayName || "")));
         
         const initialResults: Record<string, { marks: string; remarks: string }> = {};
         students.forEach(s => {
@@ -113,7 +128,7 @@ export default function TeacherResultsPage() {
     setResults(prev => ({
       ...prev,
       [studentId]: {
-        ...(prev[studentId] || { marks: '', remarks: '' }), // Ensure object exists
+        ...(prev[studentId] || { marks: '', remarks: '' }),
         [field]: value,
       }
     }));
@@ -130,9 +145,8 @@ export default function TeacherResultsPage() {
         toast({ title: "Cannot Submit", description: "Results can only be entered for 'active' or 'grading' exam periods.", variant: "destructive" });
         return;
     }
-    const school = await getSchoolDetailsService(currentUser.schoolId); // Assuming you have getSchoolDetailsService
-    if (!school?.isExamModeActive) {
-        toast({ title: "Exam Mode Off", description: "School-wide Exam Mode is not active. Results cannot be entered.", variant: "destructive" });
+    if (!schoolDetails?.isExamModeActive) {
+        toast({ title: "Exam Mode Off", description: "School-wide Exam Mode is not active. Results cannot be entered. Ask an admin to activate it.", variant: "destructive" });
         return;
     }
 
@@ -161,7 +175,6 @@ export default function TeacherResultsPage() {
             allSuccessful = false;
             toast({ title: "Error Saving Result", description: `Failed to save result for student ID ${studentId}.`, variant: "destructive"});
         } else {
-            // Notify student and parent
             const student = studentsInSelectedClass.find(s => s.id === studentId);
             if (student && student.displayName) {
                 await addNotification({
@@ -206,8 +219,7 @@ export default function TeacherResultsPage() {
     fetchStudentsAndExistingResults(); 
   };
 
-  const isLoading = authLoading || isLoadingData;
-  
+  const isLoadingSelectors = authLoading || isLoadingData;
   const filteredClassesForExamPeriod = teacherClasses.filter(cls => 
     examPeriods.find(ep => ep.id === selectedExamPeriodId)?.assignedClassIds.includes(cls.id)
   );
@@ -216,6 +228,20 @@ export default function TeacherResultsPage() {
     <div className="space-y-6">
       <h1 className="text-3xl font-bold">Enter Exam Results</h1>
       
+      {!schoolDetails?.isExamModeActive && !isLoadingSelectors && (
+        <Card className="border-destructive bg-destructive/10">
+            <CardHeader>
+                <CardTitle className="text-destructive flex items-center"><AlertTriangle className="mr-2"/> Exam Mode Disabled</CardTitle>
+            </CardHeader>
+            <CardContent>
+                <p className="text-destructive-foreground">
+                    School-wide Exam Mode is currently OFF. Results cannot be entered or edited.
+                    Please ask an administrator to activate Exam Mode in School Settings.
+                </p>
+            </CardContent>
+        </Card>
+      )}
+
       <Card className="card-shadow">
         <CardHeader>
           <CardTitle className="flex items-center"><FileEdit className="mr-2 h-5 w-5 text-primary"/>Select Exam, Class, and Subject</CardTitle>
@@ -224,7 +250,7 @@ export default function TeacherResultsPage() {
         <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div>
             <Label htmlFor="exam-period-select">Exam Period</Label>
-            <Select onValueChange={setSelectedExamPeriodId} value={selectedExamPeriodId} disabled={isLoading || examPeriods.length === 0}>
+            <Select onValueChange={setSelectedExamPeriodId} value={selectedExamPeriodId} disabled={isLoadingSelectors || examPeriods.length === 0}>
               <SelectTrigger id="exam-period-select"><SelectValue placeholder="Select exam..." /></SelectTrigger>
               <SelectContent>
                 {examPeriods.map(ep => (
@@ -232,11 +258,11 @@ export default function TeacherResultsPage() {
                 ))}
               </SelectContent>
             </Select>
-            {examPeriods.length === 0 && <p className="text-xs text-muted-foreground mt-1">No active exam periods available for result entry.</p>}
+            {examPeriods.length === 0 && <p className="text-xs text-muted-foreground mt-1">No active/grading exam periods assigned to your classes.</p>}
           </div>
           <div>
             <Label htmlFor="class-select-exam">Class</Label>
-            <Select onValueChange={setSelectedClassId} value={selectedClassId} disabled={isLoading || !selectedExamPeriodId || filteredClassesForExamPeriod.length === 0}>
+            <Select onValueChange={setSelectedClassId} value={selectedClassId} disabled={isLoadingSelectors || !selectedExamPeriodId || filteredClassesForExamPeriod.length === 0}>
               <SelectTrigger id="class-select-exam"><SelectValue placeholder="Select class..." /></SelectTrigger>
               <SelectContent>
                 {filteredClassesForExamPeriod.map(cls => (
@@ -244,12 +270,12 @@ export default function TeacherResultsPage() {
                 ))}
               </SelectContent>
             </Select>
-            {!selectedExamPeriodId && <p className="text-xs text-muted-foreground mt-1">Select an exam period first.</p>}
-            {selectedExamPeriodId && filteredClassesForExamPeriod.length === 0 && <p className="text-xs text-muted-foreground mt-1">No classes assigned to this exam period for you, or period not active.</p>}
+             {!selectedExamPeriodId && <p className="text-xs text-muted-foreground mt-1">Select an exam period first.</p>}
+             {selectedExamPeriodId && filteredClassesForExamPeriod.length === 0 && <p className="text-xs text-muted-foreground mt-1">No classes assigned to this exam period for you.</p>}
           </div>
           <div>
             <Label htmlFor="subject-select-exam">Subject</Label>
-             <Select onValueChange={setSelectedSubjectId} value={selectedSubjectId} disabled={isLoading || !selectedClassId || schoolSubjects.length === 0}>
+             <Select onValueChange={setSelectedSubjectId} value={selectedSubjectId} disabled={isLoadingSelectors || !selectedClassId || schoolSubjects.length === 0}>
               <SelectTrigger id="subject-select-exam"><SelectValue placeholder="Select subject..." /></SelectTrigger>
               <SelectContent>
                 {schoolSubjects.map(sub => (
@@ -257,8 +283,8 @@ export default function TeacherResultsPage() {
                 ))}
               </SelectContent>
             </Select>
-            {!selectedClassId && <p className="text-xs text-muted-foreground mt-1">Select a class first.</p>}
-            {schoolSubjects.length === 0 && <p className="text-xs text-muted-foreground mt-1">No subjects configured.</p>}
+             {!selectedClassId && <p className="text-xs text-muted-foreground mt-1">Select a class first.</p>}
+             {schoolSubjects.length === 0 && <p className="text-xs text-muted-foreground mt-1">No subjects configured.</p>}
           </div>
         </CardContent>
       </Card>
@@ -272,40 +298,52 @@ export default function TeacherResultsPage() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            {isLoading ? <Loader2 className="mx-auto h-8 w-8 animate-spin text-primary"/> : 
+            {isLoadingData ? <div className="flex justify-center py-4"><Loader message="Loading students & results..." /></div> : 
               studentsInSelectedClass.length === 0 ? (
-                <p className="text-muted-foreground">No students in this class, or selection incomplete.</p>
+                <p className="text-muted-foreground text-center">No students in this class, or selection incomplete.</p>
               ) : (
                 <div className="space-y-4">
-                  {studentsInSelectedClass.map(student => (
-                    <div key={student.id} className="p-4 border rounded-md space-y-3">
-                      <h4 className="font-semibold">{student.displayName} <span className="text-xs text-muted-foreground">({student.email})</span></h4>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div>
-                          <Label htmlFor={`marks-${student.id}`}>Marks/Grade</Label>
-                          <Input 
-                            id={`marks-${student.id}`}
-                            value={results[student.id]?.marks || ''}
-                            onChange={(e) => handleResultChange(student.id, 'marks', e.target.value)}
-                            placeholder="e.g., A, 85%"
-                            disabled={isSubmitting}
-                          />
-                        </div>
-                        <div>
-                           <Label htmlFor={`remarks-${student.id}`}>Remarks (Optional)</Label>
-                          <Textarea
-                            id={`remarks-${student.id}`}
-                            value={results[student.id]?.remarks || ''}
-                            onChange={(e) => handleResultChange(student.id, 'remarks', e.target.value)}
-                            placeholder="e.g., Excellent work!"
-                            rows={2}
-                            disabled={isSubmitting}
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                  <Button onClick={handleSubmitResults} disabled={isSubmitting || isLoading || studentsInSelectedClass.length === 0} className="w-full mt-6 button-shadow">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="w-[30%]">Student</TableHead>
+                        <TableHead className="w-[25%]">Marks/Grade (%)</TableHead>
+                        <TableHead className="w-[45%]">Remarks (Optional)</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {studentsInSelectedClass.map(student => (
+                        <TableRow key={student.id}>
+                          <TableCell>
+                            <div className="font-medium">{student.displayName}</div>
+                            <div className="text-xs text-muted-foreground">{student.email}</div>
+                          </TableCell>
+                          <TableCell>
+                            <Input 
+                              id={`marks-${student.id}`}
+                              value={results[student.id]?.marks || ''}
+                              onChange={(e) => handleResultChange(student.id, 'marks', e.target.value)}
+                              placeholder="e.g., 85"
+                              disabled={isSubmitting || !schoolDetails?.isExamModeActive}
+                              className="w-full max-w-xs"
+                            />
+                          </TableCell>
+                          <TableCell>
+                            <Textarea
+                              id={`remarks-${student.id}`}
+                              value={results[student.id]?.remarks || ''}
+                              onChange={(e) => handleResultChange(student.id, 'remarks', e.target.value)}
+                              placeholder="e.g., Excellent work!"
+                              rows={1}
+                              disabled={isSubmitting || !schoolDetails?.isExamModeActive}
+                              className="min-h-[40px]"
+                            />
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                  <Button onClick={handleSubmitResults} disabled={isSubmitting || isLoadingData || studentsInSelectedClass.length === 0 || !schoolDetails?.isExamModeActive} className="w-full mt-6 button-shadow">
                     {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}
                     <Save className="mr-2 h-4 w-4"/> Save All Results
                   </Button>
@@ -319,11 +357,16 @@ export default function TeacherResultsPage() {
   );
 }
 
+
 // Helper: Moved getSchoolDetailsService to its own file, so import directly or assume it's passed if needed by other funcs.
 // For this component, we'll get school details via currentUser or a specific call if needed.
 // For simplicity, assuming `getSchoolDetailsService` is available if another part of `useAuth` needs it.
 const getSchoolDetailsService = async (schoolId: string) => {
   if(!schoolId) return null;
+  // This function is not directly available here, it's part of AuthProvider
+  // For the component, we'd rely on the schoolDetails state variable
+  // which is fetched in useAuth or in the component's useEffect.
+  // This is a placeholder if this service was to be used directly here.
   const schoolDoc = await getDoc(doc(db, "schools", schoolId));
   return schoolDoc.exists() ? schoolDoc.data() as School : null;
 }

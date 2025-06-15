@@ -21,6 +21,14 @@ import { Label } from '@/components/ui/label';
 import Loader from '@/components/shared/Loader';
 import { format } from 'date-fns';
 import Link from 'next/link';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 
 export default function AdminEnterResultsPage() {
   const { 
@@ -30,7 +38,7 @@ export default function AdminEnterResultsPage() {
     getSubjectsBySchool,
     getExamPeriodsBySchool, 
     addOrUpdateExamResult,
-    getExamResultsByPeriodAndClass, // To fetch existing results for a student/subject/period
+    getExamResultsByPeriodAndClass, 
     getSchoolDetails,
     addActivity,
     addNotification,
@@ -161,7 +169,7 @@ export default function AdminEnterResultsPage() {
             schoolId: currentUser.schoolId,
             marks: studentResult.marks,
             remarks: studentResult.remarks,
-            teacherId: currentUser.uid, // Admin's UID acts as the 'teacher' who entered it
+            teacherId: currentUser.uid, 
         });
         if (!success) {
             allSuccessful = false;
@@ -295,34 +303,46 @@ export default function AdminEnterResultsPage() {
                 <p className="text-muted-foreground text-center">No students in this class, or selection incomplete.</p>
               ) : (
                 <div className="space-y-4">
-                  {studentsInSelectedClass.map(student => (
-                    <div key={student.id} className="p-4 border rounded-md space-y-3 hover:bg-muted/30">
-                      <h4 className="font-semibold">{student.displayName} <span className="text-xs text-muted-foreground">({student.email})</span></h4>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div>
-                          <Label htmlFor={`marks-${student.id}`}>Marks/Grade</Label>
-                          <Input 
-                            id={`marks-${student.id}`}
-                            value={results[student.id]?.marks || ''}
-                            onChange={(e) => handleResultChange(student.id, 'marks', e.target.value)}
-                            placeholder="e.g., A, 85%"
-                            disabled={isSubmitting || !schoolDetails?.isExamModeActive}
-                          />
-                        </div>
-                        <div>
-                           <Label htmlFor={`remarks-${student.id}`}>Remarks (Optional)</Label>
-                          <Textarea
-                            id={`remarks-${student.id}`}
-                            value={results[student.id]?.remarks || ''}
-                            onChange={(e) => handleResultChange(student.id, 'remarks', e.target.value)}
-                            placeholder="e.g., Excellent work!"
-                            rows={2}
-                            disabled={isSubmitting || !schoolDetails?.isExamModeActive}
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  ))}
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="w-[30%]">Student</TableHead>
+                        <TableHead className="w-[25%]">Marks/Grade (%)</TableHead>
+                        <TableHead className="w-[45%]">Remarks (Optional)</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {studentsInSelectedClass.map(student => (
+                        <TableRow key={student.id}>
+                          <TableCell>
+                            <div className="font-medium">{student.displayName}</div>
+                            <div className="text-xs text-muted-foreground">{student.email}</div>
+                          </TableCell>
+                          <TableCell>
+                            <Input 
+                              id={`marks-${student.id}`}
+                              value={results[student.id]?.marks || ''}
+                              onChange={(e) => handleResultChange(student.id, 'marks', e.target.value)}
+                              placeholder="e.g., 85"
+                              disabled={isSubmitting || !schoolDetails?.isExamModeActive}
+                              className="w-full max-w-xs"
+                            />
+                          </TableCell>
+                          <TableCell>
+                            <Textarea
+                              id={`remarks-${student.id}`}
+                              value={results[student.id]?.remarks || ''}
+                              onChange={(e) => handleResultChange(student.id, 'remarks', e.target.value)}
+                              placeholder="e.g., Excellent work!"
+                              rows={1}
+                              disabled={isSubmitting || !schoolDetails?.isExamModeActive}
+                              className="min-h-[40px]"
+                            />
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
                   <Button onClick={handleSubmitResults} disabled={isSubmitting || isLoadingData || studentsInSelectedClass.length === 0 || !schoolDetails?.isExamModeActive} className="w-full mt-6 button-shadow">
                     {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}
                     <Save className="mr-2 h-4 w-4"/> Save All Results
@@ -337,3 +357,4 @@ export default function AdminEnterResultsPage() {
   );
 }
 
+    
