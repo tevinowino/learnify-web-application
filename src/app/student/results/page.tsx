@@ -4,25 +4,32 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Trophy, CalendarDays, BookOpen } from "lucide-react";
-import type { ExamResultWithStudentInfo } from '@/types'; 
+import { Trophy, CalendarDays, BookOpen, FileText as ReportIcon } from "lucide-react"; // Added ReportIcon
+import type { ExamResultWithStudentInfo, ExamPeriod } from '@/types'; 
 import { format } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import Loader from '@/components/shared/Loader'; 
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Button } from '@/components/ui/button'; // Added Button
+import Link from 'next/link'; // Added Link
 
 export default function StudentResultsPage() {
-  const { currentUser, getExamResultsForStudent, getSubjectById, getExamPeriodById, getClassDetails, loading: authLoading } = useAuth();
+  const { currentUser, getExamResultsForStudent, getSubjectById, getExamPeriodById, getClassDetails, getExamPeriodsBySchool, loading: authLoading } = useAuth(); // Add getExamPeriodsBySchool
   const { toast } = useToast();
   const [resultsByPeriod, setResultsByPeriod] = useState<Record<string, ExamResultWithStudentInfo[]>>({});
+  const [examPeriods, setExamPeriods] = useState<ExamPeriod[]>([]); // Store fetched exam periods
   const [isLoading, setIsLoading] = useState(true);
 
   const fetchResults = useCallback(async () => {
     if (currentUser?.uid && currentUser.schoolId) {
       setIsLoading(true);
       try {
-        const fetchedResults = await getExamResultsForStudent(currentUser.uid, currentUser.schoolId);
+       const [fetchedResults, fetchedExamPeriods] = await Promise.all([
+         getExamResultsForStudent(currentUser.uid, currentUser.schoolId),
+         getExamPeriodsBySchool(currentUser.schoolId)
+       ]);
+       setExamPeriods(fetchedExamPeriods);
 
         const grouped: Record<string, ExamResultWithStudentInfo[]> = {};
         for (const result of fetchedResults) {
@@ -34,6 +41,7 @@ export default function StudentResultsPage() {
               subjectName = subject?.name || result.subjectId;
           }
           if (getExamPeriodById && result.examPeriodId) {
+              // Pass a dummy getClassDetails to getExamPeriodById as it's not strictly needed for just the period name here
               const examPeriod = await getExamPeriodById(result.examPeriodId, async () => null); 
               examPeriodName = examPeriod?.name || result.examPeriodId;
           }
@@ -58,7 +66,7 @@ export default function StudentResultsPage() {
     } else if (!authLoading) {
       setIsLoading(false);
     }
-  }, [currentUser, getExamResultsForStudent, getSubjectById, getExamPeriodById, getClassDetails, authLoading, toast]);
+  }, [currentUser, getExamResultsForStudent, getSubjectById, getExamPeriodById, getClassDetails, getExamPeriodsBySchool, authLoading, toast]);
 
   useEffect(() => {
     fetchResults();
@@ -99,8 +107,17 @@ export default function StudentResultsPage() {
               {Object.entries(resultsByPeriod).map(([periodName, periodResults]) => (
                 <AccordionItem value={periodName} key={periodName} className="border rounded-md shadow-sm hover:shadow-md transition-shadow">
                   <AccordionTrigger className="px-4 py-3 text-lg hover:no-underline hover:bg-muted/50 rounded-t-md">
-                     <div className="flex items-center">
-                        <CalendarDays className="mr-2 h-5 w-5 text-primary/80" /> {periodName}
+                     <div className="flex items-center justify-between w-full">
+                        <span className="flex items-center">
+                            <CalendarDays className="mr-2 h-5 w-5 text-primary/80" /> {periodName}
+                        </span>
+                       {periodResults.length > 0 && examPeriods.find(p=>p.name === periodName)?.status === 'completed' && (
+                           <Button variant="link" size="sm" asChild onClick={(e) => e.stopPropagation()} className="text-xs h-auto py-0 px-1 mr-2">
+                               <Link href={`/student/results/${periodResults[0].examPeriodId}/report`}>
+                                <ReportIcon className="mr-1 h-3.5 w-3.5"/> View Report Card
+                               </Link>
+                           </Button>
+                       )}
                      </div>
                   </AccordionTrigger>
                   <AccordionContent className="px-0 pb-2 pt-0">

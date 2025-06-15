@@ -39,6 +39,8 @@ import type {
   GenerateLearningPathOutputSchema,
   SummarizeLearningMaterialInputSchema,
   SummarizeLearningMaterialOutputSchema,
+  ReportCardAnalysisInputSchema, // Added
+  ReportCardAnalysisOutputSchema, // Added
 } from './schemas';
 
 
@@ -147,3 +149,5 @@ export type GenerateLearningPathInput = z.infer<typeof GenerateLearningPathInput
 export type GenerateLearningPathOutput = z.infer<typeof GenerateLearningPathOutputSchema>;
 export type SummarizeLearningMaterialInput = z.infer<typeof SummarizeLearningMaterialInputSchema>;
 export type SummarizeLearningMaterialOutput = z.infer<typeof SummarizeLearningMaterialOutputSchema>;
+export type ReportCardAnalysisInput = z.infer<typeof ReportCardAnalysisInputSchema>;
+export type ReportCardAnalysisOutput = z.infer<typeof ReportCardAnalysisOutputSchema>;

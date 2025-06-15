@@ -15,7 +15,7 @@ import {
 } from 'firebase/auth';
 import { doc, getDoc, setDoc, Timestamp, updateDoc, writeBatch, arrayUnion, arrayRemove } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase';
-import type { UserProfile, UserRole, School, LearningMaterial, UserProfileWithId, Class, ClassWithTeacherInfo, LearningMaterialWithTeacherInfo, Assignment, Submission, SubmissionFormat, LearningMaterialType, AssignmentWithClassInfo, SubmissionWithStudentName, AssignmentWithClassAndSubmissionInfo, UserStatus, Activity, Subject, ExamPeriod, ExamPeriodWithClassNames, ExamResult, ExamResultWithStudentInfo, ClassType, Notification, AttendanceRecord, AttendanceStatus, Testimonial, OnboardingSchoolData, OnboardingSubjectData, OnboardingClassData, OnboardingInvitedUserData, AnalyzeStudentPerformanceInput, AnalyzeStudentPerformanceOutput } from '@/types';
+import type { UserProfile, UserRole, School, LearningMaterial, UserProfileWithId, Class, ClassWithTeacherInfo, LearningMaterialWithTeacherInfo, Assignment, Submission, SubmissionFormat, LearningMaterialType, AssignmentWithClassInfo, SubmissionWithStudentName, AssignmentWithClassAndSubmissionInfo, UserStatus, Activity, Subject, ExamPeriod, ExamPeriodWithClassNames, ExamResult, ExamResultWithStudentInfo, ClassType, Notification, AttendanceRecord, AttendanceStatus, Testimonial, OnboardingSchoolData, OnboardingSubjectData, OnboardingClassData, OnboardingInvitedUserData, AnalyzeStudentPerformanceInput, AnalyzeStudentPerformanceOutput, ReportCardAnalysisInput, ReportCardAnalysisOutput } from '@/types';
 import { useRouter, useSearchParams } from 'next/navigation'; 
 
 import * as SchoolService from '@/services/schoolService';
@@ -36,6 +36,7 @@ import { sendEmail } from '@/actions/emailActions';
 import { format } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
 import { analyzeStudentPerformance as analyzeStudentPerformanceFlow } from '@/ai/flows/analyze-student-performance';
+import { generateReportCardAnalysis as generateReportCardAnalysisFlow } from '@/ai/flows/generate-report-card-analysis';
 
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
@@ -1631,7 +1632,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     const getClassDetailsToUse = getClassDetailsParam || ((classId: string) => ClassService.getClassDetailsService(classId, UserService.getUserProfileService));
     return ExamService.getExamPeriodByIdService(examPeriodId, getClassDetailsToUse);
   }, []);
-  const getExamResultsForStudent = useCallback(async (studentId: string, schoolId: string) => ExamService.getExamResultsByStudentService(studentId, schoolId, SubjectService.getSubjectByIdService, (examPeriodId: string) => getExamPeriodById(examPeriodId)), [getExamPeriodById]);
+  const getExamResultsForStudent = useCallback(async (studentId: string, schoolId: string) => ExamService.getExamResultsByStudentService(studentId, schoolId, SubjectService.getSubjectByIdService, (examPeriodId: string) => getExamPeriodById(examPeriodId, ClassService.getClassDetailsService)), [getExamPeriodById]);
   const getExamResultsForTeacher = useCallback(async (examPeriodId: string, classId: string, subjectId: string, schoolId: string) => ExamService.getExamResultsForTeacherService(examPeriodId, classId, subjectId, schoolId, UserService.getUserProfileService), []);
   const getExamResultsByPeriodAndClass = useCallback(async (examPeriodId: string, classId: string, schoolId: string, subjectId: string) => ExamService.getExamResultsByPeriodAndClassService(examPeriodId, classId, schoolId, subjectId, SubjectService.getSubjectByIdService),[]);
   const createExamPeriod = useCallback(async (examPeriodData: Omit<ExamPeriod, 'id' | 'createdAt' | 'updatedAt' | 'status'>) => ExamService.createExamPeriodService(examPeriodData), []);
@@ -1709,9 +1710,27 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const analyzeStudentPerformance = useCallback(async (
     input: AnalyzeStudentPerformanceInput
-  ): Promise<AnalyzeStudentPerformanceOutput> => {
-    return analyzeStudentPerformanceFlow(input);
-  }, []);
+  ): Promise<AnalyzeStudentPerformanceOutput | null> => {
+    try {
+      return await analyzeStudentPerformanceFlow(input);
+    } catch (error) {
+      console.error("Error analyzing student performance in AuthProvider:", error);
+      toast({title: "AI Analysis Failed", description: "Could not generate student performance analysis.", variant: "destructive"});
+      return null;
+    }
+  }, [toast]);
+
+  const generateReportCardAnalysis = useCallback(async (
+    input: ReportCardAnalysisInput
+  ): Promise<ReportCardAnalysisOutput | null> => {
+    try {
+      return await generateReportCardAnalysisFlow(input);
+    } catch (error) {
+      console.error("Error generating report card analysis in AuthProvider:", error);
+      toast({title: "AI Analysis Failed", description: "Could not generate the performance overview.", variant: "destructive"});
+      return null;
+    }
+  }, [toast]);
 
 
   const value: AuthContextType = useMemo(() => ({
@@ -1754,6 +1773,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     getAllTestimonialsForAdmin,
     updateTestimonialApproval,
     analyzeStudentPerformance,
+    generateReportCardAnalysis,
   }), [
     currentUser, authProcessLoading, signUp, logIn, logOut,
     onboardingCreateSchool, joinSchoolWithInviteCode, checkAdminOnboardingStatus, updateSchoolDetails, regenerateInviteCode, updateAdminOnboardingStep, onboardingAddSubjects, onboardingCreateClasses, onboardingInviteUsers, onboardingCompleteSchoolSetup, createSchool,
@@ -1774,7 +1794,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     addActivity, addNotification, linkChildAccount,
     saveAttendanceRecords, getAttendanceForClassDate, getAttendanceForStudent, getAttendanceForSchoolClassRange, getAttendanceForSchoolRange,
     addTestimonial, getApprovedTestimonials, getAllTestimonialsForAdmin, updateTestimonialApproval,
-    analyzeStudentPerformance, getExamPeriodById
+    analyzeStudentPerformance, generateReportCardAnalysis, getExamPeriodById
   ]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

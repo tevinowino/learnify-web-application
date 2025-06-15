@@ -134,7 +134,7 @@ export const AssignmentSchema = z.object({
 });
 
 
-export const SubmissionStatusSchema = z.enum(['submitted', 'graded', 'late']);
+export const SubmissionStatusSchema = z.enum(['submitted', 'graded', 'late', 'missing']); // Added 'missing'
 export const SubmissionSchema = z.object({
   id: z.string(),
   assignmentId: z.string(),
@@ -313,4 +313,21 @@ export const SummarizeLearningMaterialInputSchema = z.object({
 });
 export const SummarizeLearningMaterialOutputSchema = z.object({
   summary: z.string().describe('A concise summary of the learning material.'),
+});
+
+// Schemas for Report Card Analysis AI Flow
+export const SubjectResultSchema = z.object({
+  subjectName: z.string().describe("The name of the subject."),
+  marks: z.string().describe("The marks or grade obtained by the student in the subject. E.g., '85%', 'A+'."),
+  remarks: z.string().optional().describe("Teacher's remarks for the subject, if any."),
+});
+
+export const ReportCardAnalysisInputSchema = z.object({
+  studentName: z.string().describe("The student's name."),
+  examPeriodName: z.string().describe("The name of the exam period. E.g., 'Mid-Term Exams Fall 2024'."),
+  results: z.array(SubjectResultSchema).min(1, "At least one subject result is required.")
+    .describe("An array of the student's results for this exam period."),
+});
+export const ReportCardAnalysisOutputSchema = z.object({
+  analysis: z.string().describe("A concise, positive, and constructive AI-generated overview of the student's performance based on the provided results. Highlight strengths and suggest general areas for focus. Maximum 2-3 sentences."),
 });

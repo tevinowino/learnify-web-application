@@ -6,7 +6,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
-import { ArrowLeft, FilePieChart, CalendarDays, CheckCircle, Settings2 } from 'lucide-react';
+import { ArrowLeft, FilePieChart, CalendarDays, CheckCircle, Settings2, FileText } from 'lucide-react';
 import type { ExamPeriodWithClassNames, ExamResultWithStudentInfo, UserProfileWithId, Subject } from '@/types';
 import { format } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
@@ -18,8 +18,7 @@ import EditExamPeriodDialog from './components/EditExamPeriodDialog';
 
 
 export default function ExamPeriodDetailPage() {
-  const paramsFromHook = useParams<{ examPeriodId: string }>();
-  const params = paramsFromHook; 
+  const params = useParams<{ examPeriodId: string }>(); 
   const router = useRouter();
   const examPeriodId = params.examPeriodId;
   const { toast } = useToast();
@@ -191,7 +190,7 @@ export default function ExamPeriodDetailPage() {
                 Status: <Badge variant={examPeriod.status === 'completed' ? 'default' : 'secondary'} className={examPeriod.status === 'completed' ? "bg-green-500 hover:bg-green-600" : ""}>{examPeriod.status.toUpperCase()}</Badge>
               </CardDescription>
             </div>
-            <div className="flex items-center gap-2 mt-2 sm:mt-0">
+            <div className="flex flex-wrap items-center gap-2 mt-2 sm:mt-0">
               {canFinalize && (
                 <Button onClick={openFinalizeDialog} disabled={isFinalizing} className="button-shadow bg-accent hover:bg-accent/90 text-accent-foreground">
                   {isFinalizing && <Loader size="small" className="mr-2"/>}
@@ -199,9 +198,16 @@ export default function ExamPeriodDetailPage() {
                 </Button>
               )}
               {examPeriod.status === 'completed' && (
+                  <>
                   <Badge variant="default" className="bg-green-500 hover:bg-green-600 text-base px-3 py-1.5 self-start">
                       <CheckCircle className="mr-2 h-4 w-4"/> Completed
                   </Badge>
+                  <Button variant="secondary" asChild className="button-shadow">
+                   <Link href={`/admin/exams/${examPeriod.id}/results-sheet`}>
+                     <FileText className="mr-2 h-4 w-4" /> View Results Sheets
+                   </Link>
+                 </Button>
+                 </>
               )}
               {(examPeriod.status === 'upcoming' || examPeriod.status === 'active' || examPeriod.status === 'grading') && (
                   <Button variant="outline" size="sm" onClick={() => setIsEditExamPeriodDialogOpen(true)} className="button-shadow">

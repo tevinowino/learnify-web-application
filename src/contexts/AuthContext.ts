@@ -2,7 +2,7 @@
 "use client";
 import type { ReactNode }from 'react';
 import { createContext } from 'react';
-import type { UserProfile, UserRole, School, LearningMaterial, UserProfileWithId, Class, ClassWithTeacherInfo, LearningMaterialWithTeacherInfo, Assignment, Submission, SubmissionFormat, LearningMaterialType, AssignmentWithClassInfo, SubmissionWithStudentName, AssignmentWithClassAndSubmissionInfo, UserStatus, Activity, Subject, ExamPeriod, ExamPeriodWithClassNames, ExamResult, ExamResultWithStudentInfo, ClassType, Notification, AttendanceRecord, AttendanceStatus, Testimonial, OnboardingSchoolData, OnboardingSubjectData, OnboardingClassData, OnboardingInvitedUserData, AnalyzeStudentPerformanceInput, AnalyzeStudentPerformanceOutput } from '@/types';
+import type { UserProfile, UserRole, School, LearningMaterial, UserProfileWithId, Class, ClassWithTeacherInfo, LearningMaterialWithTeacherInfo, Assignment, Submission, SubmissionFormat, LearningMaterialType, AssignmentWithClassInfo, SubmissionWithStudentName, AssignmentWithClassAndSubmissionInfo, UserStatus, Activity, Subject, ExamPeriod, ExamPeriodWithClassNames, ExamResult, ExamResultWithStudentInfo, ClassType, Notification, AttendanceRecord, AttendanceStatus, Testimonial, OnboardingSchoolData, OnboardingSubjectData, OnboardingClassData, OnboardingInvitedUserData, AnalyzeStudentPerformanceInput, AnalyzeStudentPerformanceOutput, ReportCardAnalysisInput, ReportCardAnalysisOutput } from '@/types';
 import type { getClassDetailsService as GetClassDetailsServiceType } from '@/services/classService';
 import { Timestamp } from 'firebase/firestore'; // Ensure Timestamp is imported
 
@@ -151,7 +151,9 @@ export interface AuthContextType {
   updateTestimonialApproval: (testimonialId: string, isApproved: boolean) => Promise<boolean>;
 
   // AI Flows
-  analyzeStudentPerformance: (input: AnalyzeStudentPerformanceInput) => Promise<AnalyzeStudentPerformanceOutput>;
+  analyzeStudentPerformance: (input: AnalyzeStudentPerformanceInput) => Promise<AnalyzeStudentPerformanceOutput | null>;
+  generateReportCardAnalysis: (input: ReportCardAnalysisInput) => Promise<ReportCardAnalysisOutput | null>;
 }
 
 export const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
