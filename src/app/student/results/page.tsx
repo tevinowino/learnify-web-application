@@ -9,7 +9,8 @@ import type { ExamResultWithStudentInfo } from '@/types';
 import { format } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
-import Loader from '@/components/shared/Loader'; // Import new Loader
+import Loader from '@/components/shared/Loader'; 
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 export default function StudentResultsPage() {
   const { currentUser, getExamResultsForStudent, getSubjectById, getExamPeriodById, getClassDetails, loading: authLoading } = useAuth();
@@ -27,12 +28,12 @@ export default function StudentResultsPage() {
         for (const result of fetchedResults) {
           let subjectName = result.subjectId; 
           let examPeriodName = result.examPeriodId;
+
           if (getSubjectById && result.subjectId) {
               const subject = await getSubjectById(result.subjectId);
               subjectName = subject?.name || result.subjectId;
           }
           if (getExamPeriodById && result.examPeriodId) {
-              // Pass a dummy getClassDetails if it's not strictly needed for exam period name resolution here
               const examPeriod = await getExamPeriodById(result.examPeriodId, async () => null); 
               examPeriodName = examPeriod?.name || result.examPeriodId;
           }
@@ -40,7 +41,12 @@ export default function StudentResultsPage() {
           if (!grouped[examPeriodName]) {
             grouped[examPeriodName] = [];
           }
+          // Add subjectName and examPeriodName to the result object before pushing
           grouped[examPeriodName].push({ ...result, subjectName, examPeriodName });
+        }
+        // Sort results within each period by subject name
+        for (const period in grouped) {
+            grouped[period].sort((a, b) => (a.subjectName || '').localeCompare(b.subjectName || ''));
         }
         setResultsByPeriod(grouped);
 
@@ -89,33 +95,43 @@ export default function StudentResultsPage() {
               <p className="text-muted-foreground">Your exam results will appear here once published.</p>
             </div>
           ) : (
-            <Accordion type="multiple" className="w-full space-y-2">
+            <Accordion type="multiple" className="w-full space-y-3">
               {Object.entries(resultsByPeriod).map(([periodName, periodResults]) => (
-                <AccordionItem value={periodName} key={periodName} className="border rounded-md">
-                  <AccordionTrigger className="px-4 py-3 text-lg hover:no-underline">
-                    <div className="flex items-center">
-                      <CalendarDays className="mr-2 h-5 w-5 text-primary/80" /> {periodName}
-                    </div>
+                <AccordionItem value={periodName} key={periodName} className="border rounded-md shadow-sm hover:shadow-md transition-shadow">
+                  <AccordionTrigger className="px-4 py-3 text-lg hover:no-underline hover:bg-muted/50 rounded-t-md">
+                     <div className="flex items-center">
+                        <CalendarDays className="mr-2 h-5 w-5 text-primary/80" /> {periodName}
+                     </div>
                   </AccordionTrigger>
-                  <AccordionContent className="px-4 pb-4 pt-0">
-                    <div className="space-y-3">
-                      {periodResults.length === 0 && <p className="text-sm text-muted-foreground">No results found for this period.</p>}
-                      {periodResults.map(result => (
-                        <Card key={result.id} className="bg-background/50">
-                          <CardHeader className="pb-2 pt-3">
-                            <CardTitle className="text-md flex items-center">
-                              <BookOpen className="mr-2 h-4 w-4 text-secondary-foreground"/>
-                              {result.subjectName || 'Unknown Subject'}
-                            </CardTitle>
-                          </CardHeader>
-                          <CardContent className="text-sm">
-                            <p><span className="font-semibold">Marks/Grade:</span> {result.marks}</p>
-                            {result.remarks && <p className="mt-1"><span className="font-semibold">Remarks:</span> <span className="text-muted-foreground italic">{result.remarks}</span></p>}
-                             <p className="text-xs text-muted-foreground mt-1">Graded on: {format(result.updatedAt.toDate(), 'PPp')}</p>
-                          </CardContent>
-                        </Card>
-                      ))}
-                    </div>
+                  <AccordionContent className="px-0 pb-2 pt-0">
+                    {periodResults.length === 0 ? (
+                        <p className="text-sm text-muted-foreground p-4">No results found for this period.</p>
+                    ) : (
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead className="w-[40%]">Subject</TableHead>
+                          <TableHead className="w-[20%] text-center">Marks (%)</TableHead>
+                          <TableHead>Remarks</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {periodResults.map(result => (
+                          <TableRow key={result.id}>
+                            <TableCell className="font-medium flex items-center">
+                                <BookOpen className="mr-2 h-4 w-4 text-secondary-foreground/70"/>
+                                {result.subjectName || 'Unknown Subject'}
+                            </TableCell>
+                            <TableCell className="text-center font-semibold">{result.marks}</TableCell>
+                            <TableCell className="text-sm text-muted-foreground italic">
+                                {result.remarks || 'N/A'}
+                                <p className="text-xs text-muted-foreground/70 mt-1">Graded: {format(result.updatedAt.toDate(), 'PP')}</p>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                    )}
                   </AccordionContent>
                 </AccordionItem>
               ))}
@@ -126,3 +142,4 @@ export default function StudentResultsPage() {
     </div>
   );
 }
+
