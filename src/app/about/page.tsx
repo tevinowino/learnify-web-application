@@ -1,129 +1,160 @@
+"use client";
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Users, Zap, Target, Heart, Code, UserCircle } from 'lucide-react';
 import Image from 'next/image';
 import type { Metadata } from 'next';
 import { siteConfig } from '@/config/site';
+import { motion } from 'framer-motion';
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://learnify-app.example.com';
 
-export const metadata: Metadata = {
-  title: `About ${siteConfig.name} | Our Mission and Vision for AI in Education`,
-  description: `Learn about ${siteConfig.name}'s mission to revolutionize education through AI. Discover our vision for personalized learning, our values, and the team behind our innovative platform.`,
-  keywords: [
-    "About Learnify",
-    "AI education mission",
-    "EdTech vision",
-    "Learnify team",
-    "personalized learning goals",
-    "future of education AI"
-  ],
-  alternates: {
-    canonical: '/about',
-  },
-  openGraph: {
-    title: `About ${siteConfig.name} | AI-Driven Educational Innovation`,
-    description: "Explore Learnify's commitment to transforming education with AI, our core values, and our vision for a personalized learning future.",
-    url: `${APP_URL}/about`,
-    images: [
-      {
-        url: `${APP_URL}/og-about.png`, 
-        width: 1200,
-        height: 630,
-        alt: `About ${siteConfig.name} - Our Mission and Vision`,
-      },
-    ],
-  },
-  twitter: {
-    title: `The Story Behind ${siteConfig.name} | AI in Education`,
-    description: `Discover the mission, vision, and values that drive ${siteConfig.name}, the AI-powered platform reshaping education.`,
-    images: [`${APP_URL}/twitter-about.png`], 
-  },
+// export const metadata: Metadata = {
+//   title: `About ${siteConfig.name} | AI-Driven Personalized Learning Platform`,
+//   description: `Explore how ${siteConfig.name} is transforming classrooms with AI-powered, personalized learning. Meet the team, discover our mission, and see how we're shaping the future of EdTech.`,
+//   keywords: [
+//     "Learnify",
+//     "AI education platform",
+//     "adaptive learning",
+//     "personalized classroom",
+//     "AI-driven education",
+//     "EdTech Kenya",
+//     "future of learning",
+//     "AI tools for schools",
+//     "about Learnify"
+//   ],
+//   alternates: {
+//     canonical: `${APP_URL}/about`,
+//   },
+//   openGraph: {
+//     title: `About ${siteConfig.name} | Learnify's Mission, Vision & Team`,
+//     description: "Learnify is on a mission to reshape education through personalized AI. Discover our values, vision, and the team building smarter classrooms.",
+//     url: `${APP_URL}/about`,
+//     images: [
+//       {
+//         url: `${APP_URL}/og-about.png`,
+//         width: 1200,
+//         height: 630,
+//         alt: `About Learnify - AI Learning Platform`,
+//       },
+//     ],
+//   },
+//   twitter: {
+//     title: `Discover Learnify | Our Story & AI Vision for Education`,
+//     description: `Learnify combines artificial intelligence with pedagogy to empower students and educators. Dive into our mission and values.`,
+//     images: [`${APP_URL}/twitter-about.png`],
+//   },
+// };
+
+const fadeIn = {
+  hidden: { opacity: 0, y: 20 },
+  visible: { opacity: 1, y: 0 }
+};
+
+const staggerChildren = {
+  visible: {
+    transition: {
+      staggerChildren: 0.2
+    }
+  }
 };
 
 export default function AboutPage() {
   return (
-    <div className="container mx-auto py-12 px-4 md:px-6">
-      <Card className="max-w-4xl mx-auto card-shadow">
-        <CardHeader className="text-center">
-          <CardTitle className="text-4xl font-bold tracking-tight">About Learnify</CardTitle>
-          <p className="text-xl text-muted-foreground mt-2">
-            Empowering Education Through Personalized AI
+    <div className="container mx-auto pt-32 pb-20 px-4 md:px-6 min-h-screen">
+      <motion.div
+        initial="hidden"
+        animate="visible"
+        variants={staggerChildren}
+        className="max-w-5xl mx-auto space-y-16"
+      >
+        <motion.div variants={fadeIn} className="text-center space-y-4">
+          <h1 className="text-5xl md:text-6xl font-bold tracking-tight bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
+            About Learnify
+          </h1>
+          <p className="text-xl md:text-2xl text-muted-foreground max-w-2xl mx-auto">
+            Shaping the Future of Education with AI-Powered Personalized Learning
           </p>
-        </CardHeader>
-        <CardContent className="prose prose-lg max-w-none mx-auto text-muted-foreground space-y-8">
-          <section className="text-center">
-            <p className="text-lg">
-              Learnify is dedicated to revolutionizing the learning experience. We believe in the power of
-              personalized education to unlock every student's full potential and to provide educators with
-              the tools they need to succeed in a dynamic educational landscape.
-            </p>
-          </section>
+        </motion.div>
 
-          <section>
-            <h2 className="text-2xl font-semibold text-foreground mb-4 text-center">Our Mission <Users className="inline-block h-7 w-7 text-primary mb-1" /></h2>
-            <p className="text-center">
-              To make personalized learning accessible, engaging, and effective for everyone, fostering a lifelong love for knowledge and continuous growth. We aim to bridge gaps in traditional education by leveraging cutting-edge AI technology.
-            </p>
-          </section>
+        <motion.section variants={fadeIn} className="text-center max-w-3xl mx-auto">
+          <p className="text-lg md:text-xl text-muted-foreground leading-relaxed">
+            At Learnify, we’re creating adaptive learning environments powered by artificial intelligence. Our goal is to empower every learner through personalized education and give educators modern tools to engage students meaningfully.
+          </p>
+        </motion.section>
 
-          <section>
-            <h2 className="text-2xl font-semibold text-foreground mb-4 text-center">Our Vision <Zap className="inline-block h-7 w-7 text-accent mb-1" /></h2>
-            <p className="text-center">
-              A world where education adapts to the individual, empowering learners to achieve their dreams, educators to inspire with greater impact, and institutions to thrive. We envision a future where learning is not a one-size-fits-all model but a tailored journey for each student.
+        <motion.div variants={staggerChildren} className="grid md:grid-cols-2 gap-8">
+          <motion.div variants={fadeIn} className="p-8 rounded-2xl bg-gradient-to-br from-primary/5 to-accent/5 backdrop-blur-sm border">
+            <Users className="h-10 w-10 text-primary mb-4" />
+            <h2 className="text-2xl font-semibold mb-4">Our Mission</h2>
+            <p className="text-muted-foreground">
+              To make intelligent, personalized education available to everyone — inspiring lifelong curiosity, academic growth, and a deep love for learning.
             </p>
-          </section>
+          </motion.div>
 
-          <section>
-            <h2 className="text-2xl font-semibold text-foreground mb-4 text-center">Meet Our Founding Software Engineer <Code className="inline-block h-7 w-7 text-primary mb-1" /></h2>
-            <div className="flex flex-col md:flex-row items-center gap-8">
-              <div className="md:w-1/3 flex justify-center">
-                <Image
-                  src="https://placehold.co/300x300.png"
-                  alt="Tevin Owino - Founding Software Engineer at Learnify"
-                  width={200}
-                  height={200}
-                  className="rounded-full shadow-lg"
-                  data-ai-hint="person engineer"
-                />
-              </div>
-              <div className="md:w-2/3 text-center md:text-left">
-                <h3 className="text-xl font-semibold text-foreground mb-2">Tevin Owino</h3>
-                <p className="text-muted-foreground">
-                  Tevin is a passionate and innovative software engineer with a vision for transforming education through technology. With a strong background in AI and full-stack development, Tevin leads the technical development of Learnify, ensuring a robust, scalable, and user-friendly platform. His dedication to creating impactful learning solutions is the driving force behind our cutting-edge features.
-                </p>
-              </div>
+          <motion.div variants={fadeIn} className="p-8 rounded-2xl bg-gradient-to-br from-accent/5 to-primary/5 backdrop-blur-sm border">
+            <Zap className="h-10 w-10 text-accent mb-4" />
+            <h2 className="text-2xl font-semibold mb-4">Our Vision</h2>
+            <p className="text-muted-foreground">
+              A world where learning adapts to individuals, empowering each student to thrive and each educator to spark transformation.
+            </p>
+          </motion.div>
+        </motion.div>
+
+        <motion.section variants={fadeIn} className="rounded-2xl bg-gradient-to-br from-background to-muted/50 p-8 border">
+          <h2 className="text-2xl font-semibold mb-8 text-center">Meet the Visionary Behind Learnify</h2>
+          <div className="flex flex-col md:flex-row items-center gap-8">
+            <motion.div
+              whileHover={{ scale: 1.05 }}
+              className="relative w-48 h-48 md:w-64 md:h-64"
+            >
+              <Image
+                src="/profile-photo.jpg"
+                alt="Tevin Owino - Fullstack Software Engineer and Founder of Learnify"
+                fill
+                className="rounded-2xl object-cover shadow-xl"
+              />
+            </motion.div>
+            <div className="flex-1 space-y-4">
+              <h3 className="text-2xl font-semibold">Tevin Owino</h3>
+              <p className="text-muted-foreground leading-relaxed">
+                Tevin is the founding engineer behind Learnify. With deep expertise in fullstack development and a passion for educational transformation, he's building a platform where AI and learning go hand in hand. His mission: turn classrooms into smart, adaptive ecosystems for growth.
+              </p>
             </div>
-          </section>
+          </div>
+        </motion.section>
 
-          <section>
-            <h2 className="text-2xl font-semibold text-foreground mb-4 text-center">Our Values <Target className="inline-block h-7 w-7 text-primary mb-1" /></h2>
-            <ul className="list-none p-0 grid grid-cols-1 md:grid-cols-2 gap-6 text-center">
-              <li className="p-4 rounded-lg bg-muted/50">
-                <strong className="text-primary">Innovation:</strong> We continuously explore and implement novel AI solutions to enhance learning.
-              </li>
-              <li className="p-4 rounded-lg bg-muted/50">
-                <strong className="text-primary">Personalization:</strong> We believe every student's learning journey is unique and provide tools for tailored experiences.
-              </li>
-              <li className="p-4 rounded-lg bg-muted/50">
-                <strong className="text-primary">Collaboration:</strong> We foster a community where students, teachers, and admins can work together seamlessly.
-              </li>
-              <li className="p-4 rounded-lg bg-muted/50">
-                <strong className="text-primary">Accessibility:</strong> We strive to make our platform intuitive and available to all learners and educators.
-              </li>
-              <li className="p-4 rounded-lg bg-muted/50 md:col-span-2">
-                <strong className="text-primary">Passion for Learning:</strong> Our core drive is to ignite and sustain a passion for acquiring knowledge. <Heart className="inline-block h-5 w-5 text-destructive ml-1" />
-              </li>
-            </ul>
-          </section>
-          
-          <section className="text-center">
-            <p className="text-lg">
-              Join us on this exciting journey to reshape education and create a brighter future for learners everywhere.
-            </p>
-          </section>
-        </CardContent>
-      </Card>
+        <motion.section variants={fadeIn}>
+          <h2 className="text-2xl font-semibold mb-8 text-center">Our Core Values</h2>
+          <motion.div variants={staggerChildren} className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {[
+              { title: "Innovation", icon: <Code />, description: "We build boldly with new technologies that challenge traditional education norms." },
+              { title: "Personalization", icon: <UserCircle />, description: "Every learner is unique. Our tools adapt to individual needs and pace." },
+              { title: "Collaboration", icon: <Users />, description: "We unite students, teachers, and institutions to work better together." },
+              { title: "Accessibility", icon: <Target />, description: "Our platform is built to be intuitive, inclusive, and globally accessible." },
+              { title: "Creativity", icon: <Zap />, description: "We encourage experimentation and outside-the-box thinking in everything we do." },
+              { title: "Passion", icon: <Heart className="text-destructive" />, description: "We’re driven by a deep love for learning and a belief in its power to change lives." },
+            ].map((value, index) => (
+              <motion.div
+                key={index}
+                variants={fadeIn}
+                whileHover={{ scale: 1.03 }}
+                className="p-6 rounded-xl bg-muted/50 border hover:border-primary/50 transition-colors"
+              >
+                <div className="mb-4">{value.icon}</div>
+                <h3 className="font-semibold mb-2">{value.title}</h3>
+                <p className="text-sm text-muted-foreground">{value.description}</p>
+              </motion.div>
+            ))}
+          </motion.div>
+        </motion.section>
+
+        <motion.section variants={fadeIn} className="text-center">
+          <p className="text-xl text-muted-foreground">
+            Ready to be part of the education revolution? Join us and help shape the future of AI-powered learning.
+          </p>
+        </motion.section>
+      </motion.div>
     </div>
   );
 }
